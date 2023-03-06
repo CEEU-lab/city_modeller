@@ -1,0 +1,4 @@
+black>=22.8.0
+flake8>=6.0.0
+pytest>=4.6.3
+pip-tools>=6.6.0
