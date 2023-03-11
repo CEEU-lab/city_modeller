@@ -73,6 +73,7 @@ program = st.sidebar.selectbox('Select program',['Dataframe Demo','Other Demo'])
 code = st.sidebar.checkbox('Display code')
 if program == 'Dataframe Demo':
     col1, col2, col3 = st.columns(3)
+    # Curva de población según minutos de caminata
     with col1:
         minutos = range(1,21)
         prop = [pob_a_distancia(minuto) for minuto in minutos]
@@ -83,21 +84,7 @@ if program == 'Dataframe Demo':
         ax.set_xlabel('Minutos de caminata a un parque público')
         ax.set_ylabel('Porcentaje de población de la CABA');
         st.pyplot(f)
-#f.savefig('porcentajeXminutos.png')
-#         arr = np.random.normal(1, 1, size=100)
-#         fig, ax = plt.subplots()
-#         ax.hist(arr, bins=20)
-
-#         st.pyplot(fig)
-    #     rango = st.slider('Please enter range', 0, 90, 5)
-    #     rango=int(rango)
-    #     rango_pvr_set = datetime.timedelta(days=rango)
-    #     df = df_t_1[((df_t_1['Año Mes Dia Cierre']<now_filt)&(df_t_1['Año Mes Dia Cierre']>now_filt-rango_pvr_set))]
-    #     st.title('DataFrame Demo')
-    #     stocks = st.multiselect('Select SKU',df.columns[1:],[df.columns[1]])
-    #     st.subheader('Venta')
-    #     # Mutating the dataframe to keep selected columns only
-    #     st.write(df[['Año Mes Dia Cierre'] + stocks].set_index('Año Mes Dia Cierre'))
+    # Curva de poblacion segun area del espacio
     with col2:
         areas = range(100,10000,100)
         prop = [pob_a_distancia_area(area) for area in areas]
@@ -142,9 +129,3 @@ if program == 'Dataframe Demo':
 )
         fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
         st.plotly_chart(fig)
-
-# Curva de población según minutos de caminata
-# (...)
-
-# Curva de poblacion segun area del espacio
-# (...)
