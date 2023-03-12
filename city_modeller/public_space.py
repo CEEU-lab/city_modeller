@@ -16,6 +16,9 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon
 #impotamos la operacion geografica que permite ver los puntos mas cercanos
 from shapely.ops import nearest_points
+from keplergl import KeplerGl
+from streamlit_keplergl import keplergl_static
+
 
 radios=filter_census_data(get_census_data(),8)
 radios_p=get_census_data_centroid(radios)
@@ -62,7 +65,9 @@ def pob_a_distancia_area(area, minutos = 5,radios=radios_modificable):
 
  
 
-
+with open('data/config.json') as user_file:
+    config = json.loads(user_file.read())
+    
 
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -72,60 +77,75 @@ import numpy as np
 program = st.sidebar.selectbox('Select program',['Dataframe Demo','Other Demo'])
 code = st.sidebar.checkbox('Display code')
 if program == 'Dataframe Demo':
-    col1, col2, col3 = st.columns(3)
-    # Curva de población según minutos de caminata
-    with col1:
-        minutos = range(1,21)
-        prop = [pob_a_distancia(minuto) for minuto in minutos]
-        f, ax = plt.subplots(1,figsize=(24,18))
+    with st.container():
+        col1, col2 = st.columns(2)
+        # Curva de población según minutos de caminata
+        with col1:
+            minutos = range(1,21)
+            prop = [pob_a_distancia(minuto) for minuto in minutos]
+            f, ax = plt.subplots(1,figsize=(24,18))
 
-        ax.plot(minutos,prop,'darkgreen')
-        ax.set_title('Porcentaje de población en CABA según minutos de caminata a un parque público')
-        ax.set_xlabel('Minutos de caminata a un parque público')
-        ax.set_ylabel('Porcentaje de población de la CABA');
-        st.pyplot(f)
-    # Curva de poblacion segun area del espacio
-    with col2:
-        areas = range(100,10000,100)
-        prop = [pob_a_distancia_area(area) for area in areas]
+            ax.plot(minutos,prop,'darkgreen')
+            ax.set_title('Porcentaje de población en CABA según minutos de caminata a un parque público')
+            ax.set_xlabel('Minutos de caminata a un parque público')
+            ax.set_ylabel('Porcentaje de población de la CABA');
+            st.pyplot(f)
+        # Curva de poblacion segun area del espacio
+        with col2:
+            areas = range(100,10000,100)
+            prop = [pob_a_distancia_area(area) for area in areas]
 
-        f, ax = plt.subplots(1,figsize=(24,18))
+            f, ax = plt.subplots(1,figsize=(24,18))
 
-        ax.plot(areas,prop,'darkgreen')
-        ax.set_title('Porcentaje de población en CABA a 5 minutos de caminata a un parque público según área del parque')
-        ax.set_xlabel('Area del parque en metros')
-        ax.set_ylabel('Porcentaje de población de la CABA a 5 minutos de un parque');
-        st.pyplot(f)
-        #f.savefig('porcentajeXarea.png')
-        # Creating a Plotly timeseries line chart
-        # fig = plt.figure(figsize=(18,6))
-        # ax1 = fig.add_subplot(1,2,1)
-        # fig, ax = plt.subplots()
-        # fig = radios.plot(column = 'distancia',cmap='PuRd',ax=ax, alpha = 0.7, legend=True)
-        # st.pyplot(fig)
+            ax.plot(areas,prop,'darkgreen')
+            ax.set_title('Porcentaje de población en CABA a 5 minutos de caminata a un parque público según área del parque')
+            ax.set_xlabel('Area del parque en metros')
+            ax.set_ylabel('Porcentaje de población de la CABA a 5 minutos de un parque');
+            st.pyplot(f)
+            #f.savefig('porcentajeXarea.png')
+            # Creating a Plotly timeseries line chart
+            # fig = plt.figure(figsize=(18,6))
+            # ax1 = fig.add_subplot(1,2,1)
+            # fig, ax = plt.subplots()
+            # fig = radios.plot(column = 'distancia',cmap='Greens',ax=ax, alpha = 0.7, legend=True)
+            # st.pyplot(fig)
         
+    with st.container():
+        # col1, col2 = st.columns(2)    
+        # with col1:
+            radios = gpd.read_file('data/radios.zip')
+            st.write("Radios censales")
+            radios['distancia'] = radios_p.geometry.map(distancia_mas_cercano)*100000
+            #radios=gpd.GeoDataFrame(radios, crs="EPSG:4326", geometry='geometry')
+            map_1 = KeplerGl(height=500, data={"data": radios}, config=config)
+            keplergl_static(map_1)
+            map_1.add_data(data=radios, name="radios")
+            
+        # with col2: 
+        #     st.write("This is a kepler.gl map in streamlit")
+            
+
         
-    with col3:
-        radios_g = radios.to_json()
-        fig = go.Figure(
-    go.Choroplethmapbox(
-        geojson=radios_g,
-        #locations=radios.,
-        featureidkey="radios.CO_FRAC_RA",
-        z=radios.distancia*100,
-        colorscale="sunsetdark",
-        # zmin=0,
-        # zmax=500000,
-        marker_opacity=0.5,
-        marker_line_width=0,
-    )
-)
-        fig.update_layout(
-        mapbox_style="carto-positron",
-        mapbox_zoom=12,
-        mapbox_center={"lat": -34.672, "lon": -58.489},
-        width=400,
-        height=300,
-)
-        fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-        st.plotly_chart(fig)
+#         radios_g = radios.distancia.to_json()
+#         fig = go.Figure(
+#     go.Choroplethmapbox(
+#         geojson=radios_g,
+#         #locations=radios.,
+#         featureidkey="radios.CO_FRAC_RA",
+#         z=radios.distancia*100,
+#         colorscale="sunsetdark",
+#         # zmin=0,
+#         # zmax=500000,
+#         marker_opacity=0.5,
+#         marker_line_width=0,
+#     )
+# )
+#         fig.update_layout(
+#         mapbox_style="carto-positron",
+#         mapbox_zoom=12,
+#         mapbox_center={"lat": -34.672, "lon": -58.489},
+#         width=400,
+#         height=300,
+# )
+#         fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+#         st.plotly_chart(fig)

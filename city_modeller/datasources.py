@@ -1,6 +1,5 @@
 import streamlit as st
 import geopandas as gpd
-# from pandana.loaders import osm
 from typing import List
 from shapely.geometry import Point, Polygon
 
@@ -52,11 +51,6 @@ def get_public_space():
     #public_space["geometry"] = public_space["geometry"].centroid
     return public_space
 
-# def filter_nomdepto(df,numero_comuna):
-#     comuna=str('Comuna ')+str(numero_comuna)
-#     df_f=df[df.nomdepto==comuna]
-#     return df_f
-    
 
 def get_public_space_centroid(df):
     """
