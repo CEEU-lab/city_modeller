@@ -9,4 +9,5 @@ geopandas
 mapclassify
 rtree
 folium
-# pandana
+keplergl
+streamlit_keplergl
