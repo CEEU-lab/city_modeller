@@ -81,8 +81,6 @@ def bound_multipol_by_bbox(
     np4 = (p4.coords.xy[0][0], p4.coords.xy[1][0])
 
     bb_polygon = Polygon([np1, np2, np3, np4])
-
     gdf2 = gpd.GeoDataFrame(gpd.GeoSeries(bb_polygon), columns=["geometry"])
-
     intersections = gpd.overlay(gdf2, gdf, how="intersection")
     return intersections
