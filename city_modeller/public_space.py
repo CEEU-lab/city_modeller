@@ -1,5 +1,14 @@
-import pandas as pd
-from datasources import (
+import json
+
+import geopandas as gpd
+import streamlit as st
+from keplergl import KeplerGl
+from matplotlib import pyplot as plt
+from shapely.geometry import MultiPoint
+from shapely.ops import nearest_points
+from streamlit_keplergl import keplergl_static
+
+from city_modeller.datasources import (
     get_bbox,
     get_census_data,
     filter_census_data,
@@ -8,26 +17,6 @@ from datasources import (
     bound_multipol_by_bbox,
     get_public_space_centroid,
 )
-import plotly.express as px
-import plotly.graph_objects as go
-from urllib.request import urlopen
-import json
-from copy import deepcopy
-from plotly.subplots import make_subplots
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-
-# importamos el objeto geografico multipoint
-from shapely.geometry import MultiPoint
-from matplotlib import pyplot as plt
-import geopandas as gpd
-from shapely.geometry import Point, Polygon
-
-# impotamos la operacion geografica que permite ver los puntos mas cercanos
-from shapely.ops import nearest_points
-from keplergl import KeplerGl
-from streamlit_keplergl import keplergl_static
 
 
 radios = filter_census_data(get_census_data(), 8)
