@@ -4,10 +4,10 @@ from typing import List
 import geopandas as gpd
 import pandas as pd
 import requests
-import streamlit as st
+
+from city_modeller.utils import init_package
 
 
-@st.cache(allow_output_mutation=True)
 def get_census_data() -> gpd.GeoDataFrame:
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
     path = "data/radios.zip"
@@ -39,12 +39,11 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
         DataFrame con informacion geometrica de radios censales para la comuna dada.
     """
     radios_filt = (
-        radios[radios["COMUNA"] == "Comuna " + str(numero_comuna)].copy().to_crs(4326)
+        radios[radios["COMUNA"] == "Comuna " + str(numero_comuna)].copy()
     )
     return radios_filt
 
 
-@st.cache(allow_output_mutation=True)
 def get_public_space(path: str = "./data/public_space.geojson") -> gpd.GeoDataFrame:
     """Obtiene un GeoDataFrame de Espacio Verde Público de un path dado, o lo descarga.
 
@@ -59,6 +58,7 @@ def get_public_space(path: str = "./data/public_space.geojson") -> gpd.GeoDataFr
     gpd.GeoDataFrame
         GeoDataFrame de espacio verde público.
     """
+    init_package()
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
         print(f"{path} no contiene un geojson, descargando de {url_home}")
@@ -71,12 +71,11 @@ def get_public_space(path: str = "./data/public_space.geojson") -> gpd.GeoDataFr
         with open(path, "w") as f:
             f.write(resp.text)
     gdf = gpd.read_file(path)
-    public_space = gdf.copy()
     crs = {"init": "epsg:4326"}
     # a partir del csv y data frame, convertimos en GeoDataFrame con un crs
-    public_space = gpd.GeoDataFrame(public_space, geometry="geometry", crs=crs)
-    public_space = public_space.reindex(columns=["nombre", "area", "geometry"])
-    return public_space
+    gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs=crs)
+    gdf = gdf.reindex(columns=["nombre", "area", "geometry"])
+    return gdf
 
 
 def get_bbox(comunas_idx: List[int]) -> gpd.GeoDataFrame:

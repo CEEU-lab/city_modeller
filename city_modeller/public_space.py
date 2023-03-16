@@ -1,158 +1,118 @@
 import json
+from functools import partial
 
 import geopandas as gpd
 import streamlit as st
 from keplergl import KeplerGl
 from matplotlib import pyplot as plt
 from shapely.geometry import MultiPoint
-from shapely.ops import nearest_points
 from streamlit_keplergl import keplergl_static
 
 from city_modeller.datasources import (
+    filter_census_data,
     get_bbox,
     get_census_data,
-    filter_census_data,
-    get_census_data_centroid,
     get_public_space,
+)
+from city_modeller.utils import (
     bound_multipol_by_bbox,
-    get_public_space_centroid,
+    distancia_mas_cercano,
+    geometry_centroid,
+    pob_a_distancia,
 )
 
 
-radios = filter_census_data(get_census_data(), 8)
-radios_p = get_census_data_centroid(radios)
-
-parques = bound_multipol_by_bbox(get_public_space(), get_bbox([8]))
-parques_p = get_public_space_centroid(parques)
-
-# generamos un objeto MultiPoint que contenga todos los puntos-centroides de parques
-
-parques_multi = MultiPoint([i for i in parques_p.geometry])
-
-
-def distancia_mas_cercano(geom, parques=parques_multi):
-    par = nearest_points(geom, parques)
-    return par[0].distance(par[1])
-
-
-# creamos la columna distancia en ambos datasets
-radios["distancia"] = radios_p.geometry.map(distancia_mas_cercano) * 100000
-radios_p["distancia"] = radios_p.geometry.map(distancia_mas_cercano) * 100000
-
-
-def pob_a_distancia(minutos, radios=radios_p):
-    # velocidad de caminata 5km/h
-    metros = minutos * 5 / 60 * 1000
-    radios["metros"] = radios.distancia <= metros
-    tabla = radios.loc[:, ["metros", "TOTAL_VIV"]].groupby("metros").sum()
-    return round(tabla["TOTAL_VIV"][True] / tabla["TOTAL_VIV"].sum() * 100)
-
-
-radios_modificable = radios_p.copy()
-
-
-def pob_a_distancia_area(area, minutos=5, radios=radios_modificable):
-
-    parques_multi = MultiPoint(
-        [i for i in parques_p.loc[parques_p.loc[:, "area"] > area, "geometry"]]
+def plot_curva_pob_min_cam(distancias: gpd.GeoSeries, save: bool = False) -> None:
+    """Genera curva de población vs minutos de caminata."""
+    minutos = range(1, 21)
+    prop = [pob_a_distancia(distancias, minuto) for minuto in minutos]
+    fig, ax = plt.subplots(1, figsize=(8, 6))
+    ax.plot(minutos, prop, "darkgreen")
+    ax.set_title(
+        "Porcentaje de población en CABA según minutos de caminata a un parque público"
     )
-
-    def distancia_mas_cercano(geom, parques=parques_multi):
-        par = nearest_points(geom, parques)
-        return par[0].distance(par[1])
-
-    radios["distancia"] = radios.geometry.map(distancia_mas_cercano)
-    # velocidad de caminata 5km/h
-    metros = minutos * (5 / (60 * 1000))
-    radios["metros"] = radios.distancia <= metros
-    tabla = radios.loc[:, ["metros", "TOTAL_VIV"]].groupby("metros").sum()
-    return round(tabla["TOTAL_VIV"][True] / tabla["TOTAL_VIV"].sum() * 100)
+    ax.set_xlabel("Minutos de caminata a un parque público")
+    ax.set_ylabel("Porcentaje de población de la CABA")
+    if save:
+        fig.savefig("porcentajeXminutos.png")
 
 
-with open("data/config.json") as user_file:
-    config = json.loads(user_file.read())
+def create_dashboard():
+    program = st.sidebar.selectbox("Select program", ["Dataframe Demo", "Other Demo"])
+    if program == "Dataframe Demo":
+        with st.container():
+            col1, col2 = st.columns(2)
+            # Curva de población según minutos de caminata
+            with col1:
+                minutos = range(1, 21)
+                prop = [
+                    pob_a_distancia(radios_p.distancia, minuto) for minuto in minutos
+                ]
+                f, ax = plt.subplots(1, figsize=(24, 18))
+
+                ax.plot(minutos, prop, "darkgreen")
+                ax.set_title(
+                    "Porcentaje de población en CABA según minutos de caminata a un "
+                    "parque público"
+                )
+                ax.set_xlabel("Minutos de caminata a un parque público")
+                ax.set_ylabel("Porcentaje de población de la CABA")
+                st.pyplot(f)
+            # Curva de poblacion segun area del espacio
+            with col2:
+                areas = range(100, 10000, 100)
+                prop = []
+                for area in areas:
+                    parques_mp_area = MultiPoint(
+                        [
+                            i
+                            for i in parques_p.loc[
+                                parques_p.loc[:, "area"] > area, "geometry"
+                            ]
+                        ]
+                    )
+                    distancia_area = partial(
+                        distancia_mas_cercano, target_points=parques_mp_area
+                    )
+                    distancias = radios_p.geometry.map(distancia_area) * 100000
+
+                    prop.append(pob_a_distancia(distancias, 5))
+
+                f, ax = plt.subplots(1, figsize=(24, 18))
+
+                ax.plot(areas, prop, "darkgreen")
+                ax.set_title(
+                    "Porcentaje de población en CABA a 5 minutos de caminata a un "
+                    "parque público según área del parque."
+                )
+                ax.set_xlabel("Area del parque en metros")
+                ax.set_ylabel(
+                    "Porcentaje de población de la CABA a 5 minutos de un parque"
+                )
+                st.pyplot(f)
+
+        with st.container():
+            st.write("Radios censales")
+            map_1 = KeplerGl(height=500, data={"data": radios}, config=config)
+            keplergl_static(map_1)
+            map_1.add_data(data=radios, name="radios")
 
 
-import streamlit as st
-import matplotlib.pyplot as plt
-import numpy as np
+if __name__ == "__main__":
+    radios = filter_census_data(get_census_data(), 8)
+    radios_p = radios.copy().to_crs(4326)
+    radios_p["geometry"] = geometry_centroid(radios_p)
 
+    parques_p = bound_multipol_by_bbox(get_public_space(), get_bbox([8]))
+    parques_p["geometry"] = geometry_centroid(parques_p)
 
-program = st.sidebar.selectbox("Select program", ["Dataframe Demo", "Other Demo"])
-code = st.sidebar.checkbox("Display code")
-if program == "Dataframe Demo":
-    with st.container():
-        col1, col2 = st.columns(2)
-        # Curva de población según minutos de caminata
-        with col1:
-            minutos = range(1, 21)
-            prop = [pob_a_distancia(minuto) for minuto in minutos]
-            f, ax = plt.subplots(1, figsize=(24, 18))
+    # generamos un objeto MultiPoint que contenga todos los puntos-centroides de parques
+    parques_multi = MultiPoint([i for i in parques_p.geometry])
+    distancia_parques = partial(distancia_mas_cercano, target_points=parques_multi)
 
-            ax.plot(minutos, prop, "darkgreen")
-            ax.set_title(
-                "Porcentaje de población en CABA según minutos de caminata a un parque público"
-            )
-            ax.set_xlabel("Minutos de caminata a un parque público")
-            ax.set_ylabel("Porcentaje de población de la CABA")
-            st.pyplot(f)
-        # Curva de poblacion segun area del espacio
-        with col2:
-            areas = range(100, 10000, 100)
-            prop = [pob_a_distancia_area(area) for area in areas]
-
-            f, ax = plt.subplots(1, figsize=(24, 18))
-
-            ax.plot(areas, prop, "darkgreen")
-            ax.set_title(
-                "Porcentaje de población en CABA a 5 minutos de caminata a un parque público según área del parque"
-            )
-            ax.set_xlabel("Area del parque en metros")
-            ax.set_ylabel("Porcentaje de población de la CABA a 5 minutos de un parque")
-            st.pyplot(f)
-            # f.savefig('porcentajeXarea.png')
-            # Creating a Plotly timeseries line chart
-            # fig = plt.figure(figsize=(18,6))
-            # ax1 = fig.add_subplot(1,2,1)
-            # fig, ax = plt.subplots()
-            # fig = radios.plot(column = 'distancia',cmap='Greens',ax=ax, alpha = 0.7, legend=True)
-            # st.pyplot(fig)
-
-    with st.container():
-        # col1, col2 = st.columns(2)
-        # with col1:
-        radios = gpd.read_file("data/radios.zip")
-        st.write("Radios censales")
-        radios["distancia"] = radios_p.geometry.map(distancia_mas_cercano) * 100000
-        # radios=gpd.GeoDataFrame(radios, crs="EPSG:4326", geometry='geometry')
-        map_1 = KeplerGl(height=500, data={"data": radios}, config=config)
-        keplergl_static(map_1)
-        map_1.add_data(data=radios, name="radios")
-
-    # with col2:
-    #     st.write("This is a kepler.gl map in streamlit")
-
-
-#         radios_g = radios.distancia.to_json()
-#         fig = go.Figure(
-#     go.Choroplethmapbox(
-#         geojson=radios_g,
-#         #locations=radios.,
-#         featureidkey="radios.CO_FRAC_RA",
-#         z=radios.distancia*100,
-#         colorscale="sunsetdark",
-#         # zmin=0,
-#         # zmax=500000,
-#         marker_opacity=0.5,
-#         marker_line_width=0,
-#     )
-# )
-#         fig.update_layout(
-#         mapbox_style="carto-positron",
-#         mapbox_zoom=12,
-#         mapbox_center={"lat": -34.672, "lon": -58.489},
-#         width=400,
-#         height=300,
-# )
-#         fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-#         st.plotly_chart(fig)
+    # creamos la columna distancia en ambos datasets
+    radios["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
+    radios_p["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
+    with open("config/config.json") as user_file:
+        config = json.loads(user_file.read())
+    create_dashboard()

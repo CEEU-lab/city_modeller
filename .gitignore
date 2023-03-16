@@ -131,3 +131,4 @@ dmypy.json
 # data directory and other stuff.
 data/
 .DS_Store
+figures
