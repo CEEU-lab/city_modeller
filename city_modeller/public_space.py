@@ -113,6 +113,6 @@ if __name__ == "__main__":
     # creamos la columna distancia en ambos datasets
     radios["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
     radios_p["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
-    with open("config/config.json") as user_file:
+    with open("config/public_spaces.json") as user_file:
         config = json.loads(user_file.read())
     create_dashboard()
