@@ -19,6 +19,7 @@ from city_modeller.utils import (
     distancia_mas_cercano,
     geometry_centroid,
     pob_a_distancia,
+    PROJECT_DIR,
 )
 
 
@@ -100,19 +101,19 @@ def create_dashboard():
 
 if __name__ == "__main__":
     radios = filter_census_data(get_census_data(), 8)
-    radios_p = radios.copy().to_crs(4326)
+    radios_p = radios.copy().to_crs(4326)  # FIXME: el crs rompe el Kepler
     radios_p["geometry"] = geometry_centroid(radios_p)
 
     parques_p = bound_multipol_by_bbox(get_public_space(), get_bbox([8]))
     parques_p["geometry"] = geometry_centroid(parques_p)
 
     # generamos un objeto MultiPoint que contenga todos los puntos-centroides de parques
-    parques_multi = MultiPoint([i for i in parques_p.geometry])
+    parques_multi = MultiPoint(parques_p.geometry.tolist())
     distancia_parques = partial(distancia_mas_cercano, target_points=parques_multi)
 
     # creamos la columna distancia en ambos datasets
     radios["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
     radios_p["distancia"] = radios_p.geometry.map(distancia_parques) * 100000
-    with open("config/public_spaces.json") as user_file:
+    with open(f"{PROJECT_DIR}/config/public_spaces.json") as user_file:
         config = json.loads(user_file.read())
     create_dashboard()

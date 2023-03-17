@@ -5,13 +5,14 @@ import geopandas as gpd
 import pandas as pd
 import requests
 
-from city_modeller.utils import init_package
+from city_modeller.utils import init_package, PROJECT_DIR
 
 
 def get_census_data() -> gpd.GeoDataFrame:
+    """Obtiene data de radios censales."""
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
-    path = "data/radios.zip"
-    radios = gpd.read_file(path)
+    data_dir = os.path.join(PROJECT_DIR, "data")
+    radios = gpd.read_file(f"{data_dir}/radios.zip")
     # leemos la informacion censal de poblacion por radio
     radios = (
         radios.reindex(columns=["ind01", "nomdepto", "geometry"])
@@ -38,13 +39,13 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
     pd.DataFrame
         DataFrame con informacion geometrica de radios censales para la comuna dada.
     """
-    radios_filt = (
-        radios[radios["COMUNA"] == "Comuna " + str(numero_comuna)].copy()
-    )
+    radios_filt = radios[radios["COMUNA"] == "Comuna " + str(numero_comuna)].copy()
     return radios_filt
 
 
-def get_public_space(path: str = "./data/public_space.geojson") -> gpd.GeoDataFrame:
+def get_public_space(
+    path: str = f"{PROJECT_DIR}/data/public_space.geojson",
+) -> gpd.GeoDataFrame:
     """Obtiene un GeoDataFrame de Espacio Verde Público de un path dado, o lo descarga.
 
     Parameters
@@ -58,10 +59,10 @@ def get_public_space(path: str = "./data/public_space.geojson") -> gpd.GeoDataFr
     gpd.GeoDataFrame
         GeoDataFrame de espacio verde público.
     """
-    init_package()
+    init_package(PROJECT_DIR)
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} no contiene un geojson, descargando de {url_home}")
+        print(f"{path} no contiene un geojson, descargando de {url_home}...")
         url = (
             f"{url_home}datosabiertos/datasets/"
             "secretaria-de-desarrollo-urbano/espacios-verdes/"
