@@ -89,7 +89,6 @@ def create_dashboard():
             col1, col2 = st.columns(2)
             # Curva de población según minutos de caminata
             with col1:
-                st.write()
                 fig, _ = plot_curva_pob_min_cam(radios_p.distancia)
                 st.pyplot(fig)
             # Curva de poblacion segun area del espacio
