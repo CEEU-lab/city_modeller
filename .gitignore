@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # data directory and other stuff.
-#data/
-#.DS_Store
+city_modeller/data/
+.DS_Store
+figures

@@ -35,7 +35,7 @@ with open(
     version = vf.read().strip()
 
 setup(
-    name="CityMachinerie",
+    name="city_modeller",
     version=version,
     description="city_modeller_app",
     long_description=long_description,
