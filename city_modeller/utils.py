@@ -1,8 +1,8 @@
 import os
 from numbers import Number
-from typing import List
 
 import geopandas as gpd
+from numpy import ndarray
 import pandas as pd
 from shapely.ops import nearest_points
 from shapely.geometry import Point, Polygon, MultiPoint
@@ -57,7 +57,7 @@ def pob_a_distancia(
 
 
 def bound_multipol_by_bbox(
-    gdf: gpd.GeoDataFrame, bbox: List[float]
+    gdf: gpd.GeoDataFrame, bbox: ndarray[float]
 ) -> gpd.GeoDataFrame:
     """Devuelve la interseccion entre un bounding box (bbox) y la columna
     geometry de un GeoDataFrame.
@@ -66,8 +66,8 @@ def bound_multipol_by_bbox(
     ----------
     gdf : gpd.GeoDataFrame
         GeoDataFrame con informacion geometrica.
-    bbox : List[float]
-        Lista indicando los bounds de una bbox.
+    bbox : ndarray[float]
+        Array indicando los vértices de una bbox.
 
     Returns
     -------

@@ -3,8 +3,9 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
-from shapely.geometry import MultiPoint, Point
+from shapely.geometry import MultiPoint, Point, Polygon
 from shapely.ops import nearest_points
 
 from city_modeller.utils import (
@@ -12,12 +13,13 @@ from city_modeller.utils import (
     geometry_centroid,
     distancia_mas_cercano,
     pob_a_distancia,
+    bound_multipol_by_bbox,
 )
 from tests import PROJECT_DIR
 
 
 RADIOS_TEST = gpd.read_file(f"{PROJECT_DIR}/data/radios_test.geojson")
-RADIOS_TEST = gpd.read_file(f"{PROJECT_DIR}/data/radios_test.geojson")
+PARQUES_TEST = gpd.read_file(f"{PROJECT_DIR}/data/public_space_test.geojson")
 
 
 class TestUtils(TestCase):
@@ -44,5 +46,17 @@ class TestUtils(TestCase):
         self.assertEqual(75, pob_a_distancia(distancias, 40))
 
     def test_bound_multipol_by_bbox(self):
-        # TODO
-        pass
+        bbox = np.array([-58.50252591, -34.70529314, -58.42404114, -34.65082308])
+        bb_polygon = Polygon(
+            [
+                (bbox[0], bbox[3]),
+                (bbox[2], bbox[3]),
+                (bbox[2], bbox[1]),
+                (bbox[0], bbox[1]),
+            ]
+        )
+        gdf2 = gpd.GeoDataFrame(gpd.GeoSeries(bb_polygon), columns=["geometry"])
+        pd.testing.assert_frame_equal(
+            gpd.overlay(gdf2, PARQUES_TEST, how="intersection"),
+            bound_multipol_by_bbox(PARQUES_TEST, bbox),
+        )
