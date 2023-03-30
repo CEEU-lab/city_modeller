@@ -1,6 +1,6 @@
 import streamlit as st
 import geopandas as gpd
-from pandana.loaders import osm
+import pandas as pd
 from typing import List
 
 
@@ -46,9 +46,46 @@ def get_bbox(comunas_idx: List[int]):
 # ya definiendo al menos dos niveles de zoom con los que vamos a trabajar a lo largo
 # de la aplicación.
 @st.cache(allow_output_mutation=True)
-def get_pdna_network(allow_output_mutation=True):
+def get_pdna_network():
     bbox = get_bbox(comunas_idx=[8])
     network = osm.pdna_network_from_bbox(
         bbox["miny"][0], bbox["maxy"][0], bbox["maxx"][0], bbox["minx"][0]
     )
     return network
+
+@st.cache_data
+def get_BOlimpic_reference_streets_pts():
+    path = "data/GreenViewRes.zip"
+    bolimpic_gvi_gdf = gpd.read_file(path)
+    return bolimpic_gvi_gdf
+
+@st.cache_data
+def get_alternative_reference_streets_pts():
+    path = "data/Alternative polygon street points.zip" # cargar area testigo
+    zoomed_gdf = gpd.read_file(path)
+    return zoomed_gdf
+
+@st.cache_data
+def get_GVI_treepedia_BsAs():
+    path = 'data/greenview_buenosaires.geojson'
+    gdf = gpd.read_file(path, driver='GeoJSON')
+    return gdf
+
+@st.cache_data
+def get_air_quality_stations_BsAs():
+    path = 'data/air_quality_stations.geojson'
+    gdf = gpd.read_file(path, driver='GeoJSON')
+    #df = pd.read_csv(path, index_col=0)
+    return gdf
+
+@st.cache_data
+def get_air_quality_data_BsAs():
+    path = 'data/air_quality_data.csv'
+    df = pd.read_csv(path, index_col=0)
+    return df
+
+@st.cache_data
+def get_BsAs_streets():
+    path = 'data/CabaStreet_wgs84.zip'
+    gdf = gpd.read_file(path)
+    return gdf
