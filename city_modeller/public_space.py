@@ -25,13 +25,17 @@ from city_modeller.utils import (
 
 
 plt.style.use("seaborn")
+MOVILITY_TYPES = {"Walk": 5, "Car": 40, "Bike": 10, "Public Transport": 15}
 
 
 def plot_curva_pob_min_cam(
-    distancias: gpd.GeoSeries, minutos: Iterable = range(1, 21), save: bool = False
+    distancias: gpd.GeoSeries,
+    minutos: Iterable = range(1, 21),
+    speed: int = 5,
+    save: bool = False,
 ) -> tuple:
     """Genera curva de población vs minutos de caminata."""
-    prop = [pob_a_distancia(distancias, minuto) for minuto in minutos]
+    prop = [pob_a_distancia(distancias, minuto, speed) for minuto in minutos]
     fig, ax = plt.subplots(1, figsize=(24, 18))
     ax.plot(minutos, prop, "darkgreen")
     ax.set_title(
@@ -51,6 +55,7 @@ def plot_curva_caminata_area(
     gdf_target: gpd.GeoDataFrame,
     areas: Iterable = range(100, 10000, 100),
     minutos: int = 5,
+    speed: int = 5,
     save: bool = False,
 ) -> tuple:
     prop = []
@@ -61,7 +66,7 @@ def plot_curva_caminata_area(
         distancia_area = partial(distancia_mas_cercano, target_points=parques_mp_area)
         distancias = gdf_source.map(distancia_area) * 100000
 
-        prop.append(pob_a_distancia(distancias, minutos))
+        prop.append(pob_a_distancia(distancias, minutos, speed))
 
     fig, ax = plt.subplots(1, figsize=(24, 18))
     ax.plot(areas, prop, "darkgreen")
@@ -83,25 +88,53 @@ def plot_kepler(data: gpd.GeoDataFrame, config: dict):
 
 
 def create_dashboard():
-    program = st.sidebar.selectbox("Select program", ["Dataframe Demo", "Other Demo"])
-    if program == "Dataframe Demo":
+    program = st.sidebar.selectbox(
+        "Public Green Spaces",
+        ["Availability", "Accessibility", "Programming", "Safety"],
+    )
+    if program == "Accessibility":
+        with st.container():
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.markdown(
+                    "<h3 style='text-align: left'>Typology</h3>",
+                    unsafe_allow_html=True,
+                )
+                park_types = parques_p.clasificac.unique()
+                mask_dict = {}
+                for park_type in park_types:
+                    mask_dict[park_type] = st.checkbox(
+                        park_type.replace("/", " / "), True
+                    )
+                # bool_mask = parques_p.clasificac.map(mask_dict)
+                st.markdown("----")
+                st.markdown(
+                    "<h3 style='text-align: left'>Mode</h3>",
+                    unsafe_allow_html=True,
+                )
+                movility_type = st.radio(
+                    "Mode", MOVILITY_TYPES.keys(), label_visibility="collapsed"
+                )
+                speed = MOVILITY_TYPES[movility_type]
+            with col2:
+                st.markdown(
+                    "<h1 style='text-align: center'>Radios Censales</h1>",
+                    unsafe_allow_html=True,
+                )
+                plot_kepler(radios, config)
+
         with st.container():
             col1, col2 = st.columns(2)
             # Curva de población según minutos de caminata
             with col1:
-                fig, _ = plot_curva_pob_min_cam(radios_p.distancia)
+                fig, _ = plot_curva_pob_min_cam(radios_p.distancia, speed=speed)
                 st.pyplot(fig)
             # Curva de poblacion segun area del espacio
             with col2:
-                fig, _ = plot_curva_caminata_area(radios_p.geometry, parques_p)
+                fig, _ = plot_curva_caminata_area(
+                    radios_p.geometry, parques_p, speed=speed
+                )
                 st.pyplot(fig)
-
-        with st.container():
-            st.markdown(
-                "<h1 style='text-align: center'>Radios Censales</h1>",
-                unsafe_allow_html=True,
-            )
-            plot_kepler(radios, config)
 
 
 if __name__ == "__main__":

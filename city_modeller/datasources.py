@@ -72,10 +72,9 @@ def get_public_space(
         with open(path, "w") as f:
             f.write(resp.text)
     gdf = gpd.read_file(path)
-    crs = {"init": "epsg:4326"}
     # a partir del csv y data frame, convertimos en GeoDataFrame con un crs
-    gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs=crs)
-    gdf = gdf.reindex(columns=["nombre", "area", "geometry"])
+    gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs="epsg:4326")
+    gdf = gdf.reindex(columns=["nombre", "clasificac", "area", "geometry"])
     return gdf
 
 
