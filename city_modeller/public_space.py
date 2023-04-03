@@ -41,6 +41,7 @@ class PublicSpacesDashboard:
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
         self.public_spaces = public_spaces
+        self.park_types = public_spaces.clasificac.unique()
         self.mask_dict = {}
         if config is None and config_path is None:
             raise AttributeError(
@@ -120,21 +121,19 @@ class PublicSpacesDashboard:
     @property
     def public_space_points(self) -> gpd.GeoDataFrame:
         # TODO: Add mode for entrances here?
-        public_space_points = self.public_spaces.copy().to_crs(4326)
+        public_space_points = self.public_spaces.copy()
         public_space_points["geometry"] = geometry_centroid(public_space_points)
         return public_space_points.query("visible")
 
     @property
-    def distances(self):
+    def distances(self) -> gpd.GeoSeries:
         public_spaces_multipoint = MultiPoint(
-            self.public_spaces_multipoint.geometry.tolist()
+            self.public_space_points.geometry.tolist()
         )
         parks_distances = partial(
             distancia_mas_cercano, target_points=public_spaces_multipoint
         )
-        return (self.census_radio_points.geometry.map(parks_distances) * 100000).round(
-            3
-        )
+        return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
 
     def plot_kepler(self, data: gpd.GeoDataFrame) -> None:
         map_1 = KeplerGl(height=500, data={"data": data}, config=self.config)
@@ -152,8 +151,7 @@ class PublicSpacesDashboard:
                     "<h3 style='text-align: left'>Typology</h3>",
                     unsafe_allow_html=True,
                 )
-                park_types = self.public_spaces.clasificac.unique()
-                for park_type in park_types:
+                for park_type in self.park_types:
                     self.mask_dict[park_type] = st.checkbox(
                         park_type.replace("/", " / "), True
                     )
@@ -171,23 +169,34 @@ class PublicSpacesDashboard:
                 speed = MOVILITY_TYPES[movility_type]
             with col2:
                 st.markdown(
-                    "<h1 style='text-align: center'>Radios Censales</h1>",
+                    "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(radios)
+                self.radios["distance"] = self.distances
+                self.plot_kepler(self.radios)  # FIXME: Use public spaces.
 
         with st.container():
             col1, col2 = st.columns(2)
             # Curva de población según minutos de caminata
             with col1:
-                fig, _ = self.plot_curva_pob_min_cam(radios_p.distancia, speed=speed)
+                fig, _ = self.plot_curva_pob_min_cam(self.distances, speed=speed)
                 st.pyplot(fig)
             # Curva de poblacion segun area del espacio
             with col2:
                 fig, _ = self.plot_curva_caminata_area(
-                    self.census_radio_multipoint.geometry, parques_p, speed=speed
+                    self.census_radio_points.geometry,
+                    self.public_space_points,
+                    speed=speed,
                 )
                 st.pyplot(fig)
+
+        with st.container():
+            st.markdown(
+                "<h1 style='text-align: center'>Radios Censales</h1>",
+                unsafe_allow_html=True,
+            )
+            self.radios["distance"] = self.distances
+            self.plot_kepler(self.radios)
 
     def programming(self) -> None:  # TODO
         with st.container():
@@ -219,21 +228,6 @@ class PublicSpacesDashboard:
 
 
 if __name__ == "__main__":
-    radios = filter_census_data(get_census_data(), 8)
-    radios_p = radios.copy().to_crs(4326)  # FIXME: el crs rompe el Kepler
-    radios_p["geometry"] = geometry_centroid(radios_p)
-
-    parques_p = bound_multipol_by_bbox(get_public_space(), get_bbox([8]))
-    parques_p["geometry"] = geometry_centroid(parques_p)
-
-    # Generamos un objeto MultiPoint que contenga todos los puntos-centroides de parks
-    parques_multi = MultiPoint(parques_p.geometry.tolist())
-    distancia_parques = partial(distancia_mas_cercano, target_points=parques_multi)
-
-    # Creamos la columna distancia en ambos datasets.
-    radios["distance"] = (radios_p.geometry.map(distancia_parques) * 100000).round(3)
-    radios_p["distance"] = (radios_p.geometry.map(distancia_parques) * 100000).round(3)
-
     dashboard = PublicSpacesDashboard(
         radios=filter_census_data(get_census_data(), 8),
         public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
