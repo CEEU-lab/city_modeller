@@ -69,6 +69,7 @@ def get_alternative_reference_streets_pts():
 def get_GVI_treepedia_BsAs():
     path = 'data/greenview_buenosaires.geojson'
     gdf = gpd.read_file(path, driver='GeoJSON')
+    gdf.rename(columns={'panoID':'panoId'}, inplace=True)
     return gdf
 
 @st.cache_data

@@ -56,28 +56,8 @@ elif menu_list == "Environmental quality":
         button1, button2, button3, button4 = st.columns(4)
     
         with button1:
-            zone_analysis = tog.st_toggle_switch(label="Explore zones", 
-                                                 key="B1", 
-                                                 default_value=False, 
-                                                 label_after = False, 
-                                                 inactive_color = '#D3D3D3', 
-                                                 active_color="#11567f", 
-                                                 track_color="#29B5E8"
-                                                    )
-            
-        with button2:
-            impact = tog.st_toggle_switch(label="Explore impact", 
-                                          key="B2", 
-                                          default_value=False, 
-                                          label_after = False, 
-                                          inactive_color = '#D3D3D3', 
-                                          active_color="#11567f", 
-                                          track_color="#29B5E8"
-                                            )
-            
-        with button3:
             simulate_greenery = tog.st_toggle_switch(label="Simulate greenery", 
-                                                     key="B3", 
+                                                     key="Simulation_section", 
                                                      default_value=False, 
                                                      label_after = False, 
                                                      inactive_color = '#D3D3D3', 
@@ -85,22 +65,44 @@ elif menu_list == "Environmental quality":
                                                      track_color="#29B5E8"
                                                         )
             
-        with button4:
+        with button2:
             main_results = tog.st_toggle_switch(label="Explore results", 
-                                                 key="B4", 
+                                                 key="Results_section", 
                                                  default_value=False, 
                                                  label_after = False, 
                                                  inactive_color = '#D3D3D3', 
                                                  active_color="#11567f", 
                                                  track_color="#29B5E8"
                                                     )
+            
+        with button3:
+            zone_analysis = tog.st_toggle_switch(label="Explore zones", 
+                                                 key="Zone_section", 
+                                                 default_value=False, 
+                                                 label_after = False, 
+                                                 inactive_color = '#D3D3D3', 
+                                                 active_color="#11567f", 
+                                                 track_color="#29B5E8"
+                                                    )
+            
+        with button4:
+            impact = tog.st_toggle_switch(label="Explore impact", 
+                                          key="Impact_section", 
+                                          default_value=False, 
+                                          label_after = False, 
+                                          inactive_color = '#D3D3D3', 
+                                          active_color="#11567f", 
+                                          track_color="#29B5E8"
+                                            )
+            
         # SIMULATION SECTION
         if simulate_greenery:
-            col16, col17 = st.columns(2)
-            col18, col19, col20, col21, _ = st.columns((0.35, 0.15, 0.10, 0.10, 0.30))
-            col22, col23, col24 = st.columns((0.25,0.25,0.25))
 
-            with col16:
+            col1, col2 = st.columns(2)
+            col3, col4, col5, col6, _ = st.columns((0.35, 0.15, 0.10, 0.10, 0.30))
+            col7, col8, col9, _ = st.columns((0.25,0.25,0.25, 0.25))
+
+            with col1:
                 st.subheader("Street greenery modelling")
                 caba_streets = get_BsAs_streets()
                 map_3 = KeplerGl(height=475, width=300)
@@ -108,10 +110,10 @@ elif menu_list == "Environmental quality":
                 landing_map = map_3
                 keplergl_static(landing_map, center_map=True)
             
-            with col17:
-                col17_1, col17_2, col17_3 = st.columns((0.45,0.15, 0.25))
+            with col2:
+                col2_1, col2_2, col2_3 = st.columns((0.45,0.15, 0.25))
 
-                with col17_1:
+                with col2_1:
                     legend1 = "paste your alt geometry here"
                     input_geometry = st.text_input('Simulation area', 
                                                     legend1, 
@@ -119,7 +121,7 @@ elif menu_list == "Environmental quality":
                                                     key="street_selection")
                 
                     
-                with col17_2:                    
+                with col2_2:                    
                     legend2 = "put a minimum distance"
                     input_distance = st.number_input(legend2, min_value=10, max_value=100, value=20, step=10, format='%i')
 
@@ -148,10 +150,10 @@ elif menu_list == "Environmental quality":
                             pts.append(point)
 
                     d = {'idx':ids, 'geometry':pts}
-                    streets_selection_gkbs = gpd.GeoDataFrame(d, crs=proj) # type: ignore
+                    streets_selection_gkbs = gpd.GeoDataFrame(d, crs=proj) 
 
                     streets_selection = streets_selection_gkbs.to_crs(4326)
-                    street_points = str(len(streets_selection))
+                    street_points = str(len(streets_selection)) 
 
                     html_map = make_folium_circlemarker(gdf=streets_selection, 
                                                         tiles='cartodbdark_matter', 
@@ -163,12 +165,12 @@ elif menu_list == "Environmental quality":
                     street_points ='0'
                     st.markdown("Insert your streets selection geometry and fill a distance value")
 
-                with col17_3:
+                with col2_3:
                     annotated_text(
                         "🔵 Panoramic references: ",
                         annotation(street_points, "panoId", color="black", border="1px dashed red"))
 
-            with col18:
+            with col3:
                 input_key = st.empty()
                 legend = "paste your apiKey here"
                 api_key = input_key.text_input('API Key',  
@@ -179,7 +181,7 @@ elif menu_list == "Environmental quality":
                     input_key.empty()
                     st.info('GSV credentials has been registered')
             
-            with col19:
+            with col4:
                 click = st.button("Get Panoramic Views 🏃‍♂️!")
                 if click:
                     #center_running() #TODO: check if we want to customize more alternative positions foro the running legend
@@ -225,7 +227,7 @@ elif menu_list == "Environmental quality":
                         GVIpct, GVimg, cap = GreenViewComputing_3Horizon(headingArr, panoID, pitch, api_key,numGSVImg)
                         gviRes[panoID] = GVIpct
                         idx = 0  
-                        for col in [col22, col23, col24]:
+                        for col in [col7, col8, col9]:
                             with col:
                                 with st.expander('{} at {}°'.format(panoID, int(headingArr[idx]))):
                                     st.image(GVimg[idx], caption='GVI: {}%'.format(round(cap[idx],2)))
@@ -233,7 +235,7 @@ elif menu_list == "Environmental quality":
 
                     streets_selection['greenView'] = streets_selection['panoId'].map(gviRes)
 
-                    with col20:
+                    with col5:
                         ds_name = 'gvi_results'
                         st.download_button(
                                 label="Download shapefile",
@@ -241,14 +243,14 @@ elif menu_list == "Environmental quality":
                                 file_name=f"{ds_name}.shz",
                             )
                             
-                    with col21:
+                    with col6:
                         ds_name = 'gvi_results'
                         streets_selection_ = streets_selection.copy()
                         streets_selection_['geometry'] = streets_selection_['geometry'].astype(str)
                         
                         df = pd.DataFrame(streets_selection_)
 
-                        @st.cache_data
+                        @st.cache_data # TODO: move to utils
                         def convert_df(df):
                             return df.to_csv(index=False).encode('utf-8')
                         
@@ -259,13 +261,11 @@ elif menu_list == "Environmental quality":
                                 data=csv,
                                 file_name=f"{ds_name}.csv",
                             )
-
+        # MAIN RESULTS SECTION
         if main_results:
-            col1, _, col2 = st.columns((0.65, 0.05, 0.3))
-            cola, colb, colc, cold = st.columns(4)
-            col3, col4, col5, col6 = st.columns(4)  
-            col7, col8, col9, col10 = st.columns((0.2,0.1,0.2,0.1))                            
-            with col1: # MAIN RESULTS
+            col10, _, col11 = st.columns((0.65, 0.05, 0.3))                            
+
+            with col10: # MAIN RESULTS
                 GVI_BsAs = get_GVI_treepedia_BsAs()
                 
                 # Folium instead of Keplergl
@@ -302,7 +302,7 @@ elif menu_list == "Environmental quality":
                 # Folium instead of keplergl
                 #folium_static(fig, width=600, height=400)
 
-            with col2:  
+            with col11:  
                 x1 = GVI_BsAs['greenView']/100
                 group_labels1 = ['distplot'] 
 
@@ -324,15 +324,20 @@ elif menu_list == "Environmental quality":
                                         x_ref=x_ref_vals)
                 st.plotly_chart(fig)
             
-            if impact: # IMPACT RESULTS
+            if impact: # Impact Results Section
+                # TODO: Deactivate zone analysis section
+                if st.session_state.get("Zone_section", True):
+                    st.session_state.disabled = True
+                
                 air_qual_st = get_air_quality_data_BsAs()
                 gvi_avg_st = GVI_BsAs_within.groupby('NOMBRE')['greenView'].mean().to_dict()
                 air_qual_st['greenView'] = pd.Series(gvi_avg_st)
                 
-                col11, col12, col13 = st.columns((0.3, 0.35, 0.35))
+                #col11, col12, col13 = st.columns((0.3, 0.35, 0.35))
+                col24, col25, col26 = st.columns((0.3, 0.35, 0.35))
 
                 
-                with col11:
+                with col24:
                     st.markdown(":deciduous_tree: :green[Air quality] stations  :deciduous_tree:")
 
                     stoggle(
@@ -388,26 +393,30 @@ elif menu_list == "Environmental quality":
                     styled_df =air_qual_st.style.set_properties(**{'text-align': 'left'}).set_table_styles(styles)
                     st.table(styled_df)
 
-                with col12:
+                with col25:
                     axisvals = ['CO','NO2','PM10','GreenView'] 
                     fig = plot_correleation_mx(df=air_qual_st, 
                                             xticks=axisvals, yticks=axisvals,
                                             h_val=400, w_val=600)
                     st.plotly_chart(fig)
                 
-                with col13:
+                with col26:
                     yaxis = st.selectbox('xaxis',('CO','NO2','PM10'))
                     fig = plot_scatter(df=air_qual_st, xname='greenView', yname=yaxis, 
                                     colorby=air_qual_st.index,
                                     h_val=300, w_val=600)
                     st.plotly_chart(fig)
                     
+            # ZONE RESULTS SECTION
+            if zone_analysis: 
+                col12, col13, col14, col15 = st.columns(4)
+                col16, col17, col18, col19 = st.columns(4)  
+                col20, col21, col22, col23 = st.columns((0.2,0.1,0.2,0.1))
 
-            if zone_analysis: # ZONE RESULTS
-                with cola:
+                with col12:
                     st.markdown('**Define your streets zone analysis**')
 
-                with colb:
+                with col13:
                     upload_base = tog.st_toggle_switch(label="Upload file", 
                                                  key="Base_Zone_Upload", 
                                                  default_value=False, 
@@ -416,43 +425,90 @@ elif menu_list == "Environmental quality":
                                                  active_color="#008000", 
                                                  track_color="#79e979"
                                                     )
-                    with col4:
-                        legend4 = 'paste your base PanoId here'
-                        input_panoId4 = st.text_input('Base PanoId', legend4, 
-                                                      label_visibility="visible", 
-                                                      key="base_pano")
+                with col17:
+                    legend4 = 'paste your base PanoId here'
+                    input_panoId4 = st.text_input('Base PanoId', legend4, 
+                                                    label_visibility="visible", 
+                                                    key="base_pano")
 
-                    if upload_base:
-                        with col3:
-                            base_zone = st.file_uploader("Choose a file", type='csv')
-                    
-                        if base_zone is not None:
-                            base_input = pd.read_csv(base_zone)
-                            bolimpic_streets = from_wkt(df=base_input, wkt_column='geometry', proj=4326)
-                            bolimpic_streets = bolimpic_streets.loc[~bolimpic_streets['greenView'].isna()]
+                if upload_base:
+                    with col16:
+                        uploaded_base = st.file_uploader("Choose a file", key='uploaded_base', type='csv')
+                
+                    if uploaded_base is not None:
+                        base_input = pd.read_csv(uploaded_base)
+                        base_zone = from_wkt(df=base_input, wkt_column='geometry', proj=4326)
+
+                        if base_zone['greenView'].isnull().sum() > 0:
+                            st.write("NaN excluded")
+                            base_zone = base_zone.loc[~base_zone['greenView'].isna()].copy()
+                        
+                        with col20:    
+                            html_map = make_folium_circlemarker(gdf=base_zone, tiles='cartodbdark_matter', 
+                                                            zoom=12, fit_bounds=True, attr_name='greenView', 
+                                                            add_legend=True)
+                            folium_static(html_map, width=500, height=300)
+                        
+                        with col21:  
+                            x2 = base_zone['greenView']/100
+                            hist_data2 = [x2]
+                            group_labels2 = ['distplot'] # name of the dataset
+
+                            if input_panoId4 != legend4:
+                                try:
+                                    pano_gvi = base_zone.loc[base_zone['panoId']==input_panoId4,'greenView'].values[0]/100 
+                                except:
+                                    pass
+                                    pano_gvi = None
+
+                            else:
+                                pano_gvi = None
                             
-                            with col7:    
-                                html_map = make_folium_circlemarker(gdf=bolimpic_streets, tiles='cartodbdark_matter', 
+                            fig = plot_distribution(hist_data=[x2], 
+                                                    group_labels=group_labels2,
+                                                    h_val=300,
+                                                    w_val=200,
+                                                    chart_title="Base Green Canopy",
+                                                    x_ref=pano_gvi)
+                            st.plotly_chart(fig)
+
+                        
+                else:
+                    with col16:    
+                        legend3 = 'paste your base geometry here'
+                        input_geometry3 = st.text_input('Base zone ', legend3, 
+                                                            label_visibility="visible",
+                                                            key='base_zone')
+                
+                        if input_geometry3 != legend3:
+                            json_polygon = json.loads(input_geometry3)
+                            polygon_geom = Polygon(json_polygon['coordinates'][0])
+                            polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) 
+                            base_zone = GVI_BsAs.clip(polygon)
+            
+                            with col20:
+                                html_map = make_folium_circlemarker(gdf=base_zone, tiles='cartodbdark_matter', 
                                                                 zoom=12, fit_bounds=True, attr_name='greenView', 
                                                                 add_legend=True)
                                 folium_static(html_map, width=500, height=300)
+                                #st_folium(html_map, width=400, height=400)
                             
-                            with col8:  
-                                x2 = bolimpic_streets['greenView']/100
+                            
+                            with col21:  
+                                x2 = base_zone['greenView']/100
                                 hist_data2 = [x2]
                                 group_labels2 = ['distplot'] # name of the dataset
 
                                 if input_panoId4 != legend4:
                                     try:
-                                        pano_gvi = bolimpic_streets.loc[bolimpic_streets['panoID']==input_panoId4, 
-                                                                        'greenView'].values[0]/100
+                                        pano_gvi = base_zone.loc[base_zone['panoId']==input_panoId4, 'greenView'].values[0]/100
                                     except:
                                         pass
                                         pano_gvi = None
 
                                 else:
                                     pano_gvi = None
-                                st.write(pano_gvi)
+                                
                                 fig = plot_distribution(hist_data=[x2], 
                                                         group_labels=group_labels2,
                                                         h_val=300,
@@ -460,60 +516,11 @@ elif menu_list == "Environmental quality":
                                                         chart_title="Base Green Canopy",
                                                         x_ref=pano_gvi)
                                 st.plotly_chart(fig)
-
-                            
-                    else:
-                        with col3:    
-                            legend3 = 'paste your base geometry here'
-                            input_geometry3 = st.text_input('Base zone ', legend3, 
-                                                                label_visibility="visible",
-                                                                key='base_zone')
-                    
-                            if input_geometry3 != legend3:
-                                json_polygon = json.loads(input_geometry3)
-                                polygon_geom = Polygon(json_polygon['coordinates'][0])
-                                polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom])
-                                bolimpic_streets = GVI_BsAs.clip(polygon)
-                
-                                with col7:
-                                    html_map = make_folium_circlemarker(gdf=bolimpic_streets, tiles='cartodbdark_matter', 
-                                                                    zoom=12, fit_bounds=True, attr_name='greenView', 
-                                                                    add_legend=True)
-                                    folium_static(html_map, width=500, height=300)
-                                    #st_folium(html_map, width=400, height=400)
-                                
-                                
-                                with col8:  
-                                    x2 = bolimpic_streets['greenView']/100
-                                    hist_data2 = [x2]
-                                    group_labels2 = ['distplot'] # name of the dataset
-
-                                    if input_panoId4 != legend4:
-                                        try:
-                                            pano_gvi = bolimpic_streets.loc[bolimpic_streets['panoID']==input_panoId4, 
-                                                                            'greenView'].values[0]/100
-                                        except:
-                                            pass
-                                            pano_gvi = None
-
-                                    else:
-                                        pano_gvi = None
-                                    st.write(pano_gvi)
-                                    fig = plot_distribution(hist_data=[x2], 
-                                                            group_labels=group_labels2,
-                                                            h_val=300,
-                                                            w_val=200,
-                                                            chart_title="Base Green Canopy",
-                                                            x_ref=pano_gvi)
-                                    st.plotly_chart(fig)
-                            else:
+                        else:
+                            with col20:
                                 st.write("Insert geometry or upload file!!")
 
-                
-                
-                
-                
-                with cold:
+                with col15:
                     upload_alt = tog.st_toggle_switch(label="Upload file", 
                                                  key="Alternative_Zone_Upload", 
                                                  default_value=False, 
@@ -523,69 +530,96 @@ elif menu_list == "Environmental quality":
                                                  track_color="#79e979"
                                                     )
                     
-                with col5:
-                    legend5 = 'paste your alt geometry here'
-                    input_geometry5 = st.text_input('Alternative zone ', 
-                                                    legend5, 
-                                                    label_visibility="visible",
-                                                    key="alt_zone")
-                with col6:
+                with col19:
                     legend6 = 'paste your alt PanoId here'
                     input_panoId6 = st.text_input('Alternative PanoId ', 
                                                 legend6, 
                                                 label_visibility="visible", 
                                                 key="alt_pano")
-
-                with col9:
-                    if input_geometry5 != legend5:
-                        json_polygon = json.loads(input_geometry5)
-                        polygon_geom = Polygon(json_polygon['coordinates'][0])
-                        polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) # type: ignore
-                        alternative_streets = GVI_BsAs.clip(polygon)
-                    else:
-                        alternative_streets = bolimpic_streets.copy() #REEMPLAZAR POR OTRO layer de base!!!!!
+                
+                if upload_alt:
+                    with col18:
+                        uploaded_alt = st.file_uploader("Choose a file", key='uploaded_alt', type='csv')
+                
+                    if uploaded_alt is not None:
+                        alt_input = pd.read_csv(uploaded_alt)
+                        alt_zone = from_wkt(df=alt_input, wkt_column='geometry', proj=4326)
                         
-                    html_map = make_folium_circlemarker(gdf=alternative_streets, 
-                                                        tiles='cartodbdark_matter', 
-                                                        zoom=12, fit_bounds=True, attr_name='greenView', 
-                                                        add_legend=True)
-                    folium_static(html_map, width=500, height=300)
+                        if alt_zone['greenView'].isnull().sum() > 0:
+                            st.write("NaN excluded")
+                            alt_zone = alt_zone.loc[~base_zone['greenView'].isna()].copy()
+                        
+                        with col22:    
+                            html_map = make_folium_circlemarker(gdf=alt_zone, tiles='cartodbdark_matter', 
+                                                            zoom=12, fit_bounds=True, attr_name='greenView', 
+                                                            add_legend=True)
+                            folium_static(html_map, width=500, height=300)
 
-                with col10:
-                    if input_panoId6 != legend6:
-                        try:
-                            pano_gvi = alternative_streets.loc[alternative_streets['panoID']==input_panoId6, 
-                                                                'greenView'].values[0]/100
-                        except:
-                            pass
-                            pano_gvi = None
-                    else:
-                        pano_gvi = None
-                    
-                    x3 = alternative_streets['greenView']/100
-                    hist_data3 = [x3]
-                    group_labels3 = ['distplot'] # name of the dataset
-                    
-                    fig = plot_distribution(hist_data=[x3], 
-                                            group_labels=group_labels3,
-                                            h_val=300,
-                                            w_val=200,
-                                            chart_title="Alternative Green Canopy",
-                                            x_ref=pano_gvi)
-                    st.plotly_chart(fig)
+                        with col23:
+                            if input_panoId6 != legend6:
+                                try:
+                                    pano_gvi = alt_zone.loc[alt_zone['panoId']==input_panoId6, 'greenView'].values[0]/100
+                                except:
+                                    pass
+                                    pano_gvi = None
+                            else:
+                                pano_gvi = None
+                        
+                            x3 = alt_zone['greenView']/100
+                            hist_data3 = [x3]
+                            group_labels3 = ['distplot'] # name of the dataset
+                            
+                            fig = plot_distribution(hist_data=[x3], 
+                                                    group_labels=group_labels3,
+                                                    h_val=300,
+                                                    w_val=200,
+                                                    chart_title="Alternative Green Canopy",
+                                                    x_ref=pano_gvi)
+                            st.plotly_chart(fig)
+
+                else:
+                    with col18:
+                        legend5 = 'paste your alt geometry here'
+                        input_geometry5 = st.text_input('Alternative zone ', 
+                                                        legend5, 
+                                                        label_visibility="visible",
+                                                        key="alt_zone")
             
-        
-                    
-                    
-                        
+                    with col22:
+                        if input_geometry5 != legend5:
+                            json_polygon = json.loads(input_geometry5)
+                            polygon_geom = Polygon(json_polygon['coordinates'][0])
+                            polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) # type: ignore
+                            alt_zone = GVI_BsAs.clip(polygon)
+                            
+                            html_map = make_folium_circlemarker(gdf=alt_zone, 
+                                                                tiles='cartodbdark_matter', 
+                                                                zoom=12, fit_bounds=True, attr_name='greenView', 
+                                                                add_legend=True)
+                            folium_static(html_map, width=500, height=300)
 
+                            with col23:
+                                if input_panoId6 != legend6:
+                                    try:
+                                        pano_gvi = alt_zone.loc[alt_zone['panoId']==input_panoId6, 'greenView'].values[0]/100
+                                    except:
+                                        pass
+                                        pano_gvi = None
+                                else:
+                                    pano_gvi = None
+                            
+                                x3 = alt_zone['greenView']/100
+                                hist_data3 = [x3]
+                                group_labels3 = ['distplot'] # name of the dataset
+                                
+                                fig = plot_distribution(hist_data=[x3], 
+                                                        group_labels=group_labels3,
+                                                        h_val=300,
+                                                        w_val=200,
+                                                        chart_title="Alternative Green Canopy",
+                                                        x_ref=pano_gvi)
+                                st.plotly_chart(fig)
+                        else:
+                            with col22:
+                                st.write("Insert geometry or upload file!!")
 
-
-                    
-                        
-                        
-                        
-
-            
-
-        

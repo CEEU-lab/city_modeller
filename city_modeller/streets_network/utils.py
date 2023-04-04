@@ -107,10 +107,10 @@ def make_folium_circlemarker(gdf, tiles, zoom, fit_bounds, attr_name,
         # TODO: Generalize looping placeholders to add markers to the container individually
         for y, x, attr, idx, Date in zip(gdf['y'], gdf['x'], 
                                         gdf[attr_name], 
-                                        gdf['panoID'],gdf['panoDate']):
+                                        gdf['panoId'],gdf['panoDate']):
 
             # TODO: Beautify the pop-up
-            html = '''panoID: %s<br>
+            html = '''panoId: %s<br>
             panoDate: %s<br>
             greenView:%sS''' % (idx, Date, attr)
 
