@@ -4,7 +4,31 @@ import branca.colormap as cm
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import plotly_express as px
+import tempfile
+from pathlib import Path
+from shapely import wkt
+import pyproj
+import geopandas as gpd
 
+
+
+def gdf_to_shz(gdf, name):
+    "To download file as ESRI Shp"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir, f"{name}.shz")
+        gdf.to_file(path, driver="ESRI Shapefile")
+        return path.read_bytes()
+    
+def from_wkt(df, wkt_column, proj):
+    df["geometry"]= df[wkt_column].apply(wkt.loads)
+    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
+
+    if proj:
+      user_crs = pyproj.CRS.from_user_input(proj)
+      gdf_user_crs = gdf.to_crs(user_crs)
+      return gdf_user_crs
+    else: 
+      return gdf
 
 def _folium_circlemarker_config(gdf, tiles, zoom, fit_bounds, attr_name):
     """
@@ -175,7 +199,8 @@ def plot_distribution(hist_data, group_labels,
             for k,v in x_ref.items():
                 add_dist_references(x_name=k,x_val=v/100, ref=mean_ref, fig=dist_fig)
         else:
-            add_dist_references(x_ref, mean_ref, dist_fig)
+            # TODO: see if we remove the placeholder for x_name param
+            add_dist_references(x_name='PanoId', x_val=x_ref, ref=mean_ref, fig=dist_fig)
     
     return dist_fig
 
