@@ -8,6 +8,7 @@ import streamlit as st
 from keplergl import KeplerGl
 from matplotlib import pyplot as plt
 from shapely.geometry import MultiPoint
+from shapely.wkt import dumps
 from streamlit_keplergl import keplergl_static
 
 from city_modeller.datasources import (
@@ -172,8 +173,11 @@ class PublicSpacesDashboard:
                     "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.radios["distance"] = self.distances
-                self.plot_kepler(self.radios)  # FIXME: Use public spaces.
+                # FIXME: config to be green for visible, gray for not.
+                parks = self.public_spaces.copy()
+                parks["distance"] = parks.visible.astype(int)  # FIXME
+                parks["geometry"] = parks.geometry.apply(dumps)
+                self.plot_kepler(parks.to_dict("split"))
 
         with st.container():
             col1, col2 = st.columns(2)
