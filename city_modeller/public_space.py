@@ -3,6 +3,9 @@ from copy import deepcopy
 from functools import partial
 from collections.abc import Iterable
 from typing import Optional
+import numpy as np
+import pandas as pd
+from shapely.ops import unary_union
 
 import geopandas as gpd
 import streamlit as st
@@ -171,16 +174,49 @@ class PublicSpacesDashboard:
         keplergl_static(map_1)
         map_1.add_data(data=data, name="radios")
 
-    def availability(self) -> None:  # TODO: Cache   
+    def availability(self) -> None:  # TODO: Cache  
+        radios=filter_census_data(get_census_data(), 8)
+        parques = bound_multipol_by_bbox(get_public_space(), get_bbox([8]))
+        polygons = list(parques.iloc[:,-1])
+        boundary = gpd.GeoSeries(unary_union(polygons))
+        boundary=gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary))
+        df=pd.merge(radios.reset_index(),gpd.overlay(radios.reset_index().iloc[:,], boundary, how="intersection"),on='index',how='left')
+        df=df.loc[:,['index', 'TOTAL_VIV_x', 'COMUNA_x', 'geometry_x','geometry_y']]
+        df.columns=['index', 'TOTAL_VIV', 'COMUNA', 'geometry_radio', 'geometry_ps_rc']
+        df['TOTAL_VIV']=df['TOTAL_VIV']+1
+        df['area_ps_rc']=df.geometry_ps_rc.area
+        df['area_ps_rc'].fillna(0,inplace=True)
+        df['ratio']=df['area_ps_rc']/df['TOTAL_VIV'] 
+        df.TOTAL_VIV=df.TOTAL_VIV+1
+        df['geometry']=df['geometry_radio']
+        radios=(df[(df['ratio']<2*10**(-5))&(df['ratio']>0)])
+        radios['distance']=np.log(radios['ratio'])
+
         with st.container():
-            st.markdown(
-                "<h1 style='text-align: center'>Radios Censales</h1>",
-                unsafe_allow_html=True,
-            )
-            self.radios["distance"] = self.distances
-            self.plot_kepler(self.radios) 
-        pass
-    
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.markdown(
+                    "<h3 style='text-align: left'>Typology</h3>",
+                    unsafe_allow_html=True,
+                )
+                for park_type in self.park_types:
+                    self.mask_dict[park_type] = st.checkbox(
+                        park_type.replace("/", " / "), True
+                    )
+                self.public_spaces["visible"] = self.public_spaces.clasificac.map(
+                    self.mask_dict
+                )
+                st.markdown("----")
+
+            with col2:
+                st.markdown(
+                    "<h1 style='text-align: center'>Ratios</h1>",
+                    unsafe_allow_html=True,
+                )
+                self.radios["distance"] = self.distances
+                self.plot_kepler(self.radios) 
+        
+
 
     def accessibility(self) -> None:  # TODO: Cache
         with st.container():
