@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from functools import partial
 from collections.abc import Iterable
 from typing import Optional
@@ -136,8 +137,37 @@ class PublicSpacesDashboard:
         )
         return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
 
-    def plot_kepler(self, data: gpd.GeoDataFrame) -> None:
-        map_1 = KeplerGl(height=500, data={"data": data}, config=self.config)
+    @property
+    def parks_config(self):
+        config = deepcopy(self.config)
+        config["config"]["visState"]["layers"][0]["config"]["visConfig"]["colorRange"][
+            "colors"
+        ] = ["#ffffff", "#006837"]
+        config["config"]["visState"]["layers"][0]["visualChannels"] = {
+            "colorField": {
+                "name": "visible",
+                "type": "boolean",
+            },
+            "colorScale": "ordinal",
+            "strokeColorField": None,
+            "strokeColorScale": "ordinal",
+            "sizeField": None,
+            "sizeScale": "linear",
+            "heightField": None,
+            "heightScale": "linear",
+            "radiusField": None,
+            "radiusScale": "linear",
+        }
+
+        return config
+
+    def plot_kepler(
+        self, data: gpd.GeoDataFrame, config: Optional[dict] = None
+    ) -> None:
+        _config = config or self.config
+        map_1 = KeplerGl(
+            height=500, data={"data": data}, config=_config, show_docs=False
+        )
         keplergl_static(map_1)
         map_1.add_data(data=data, name="radios")
 
@@ -173,11 +203,11 @@ class PublicSpacesDashboard:
                     "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                # FIXME: config to be green for visible, gray for not.
                 parks = self.public_spaces.copy()
-                parks["distance"] = parks.visible.astype(int)  # FIXME
                 parks["geometry"] = parks.geometry.apply(dumps)
-                self.plot_kepler(parks.to_dict("split"))
+                parks.loc["point_false", "visible"] = False
+                parks.loc["point_true", "visible"] = True
+                self.plot_kepler(parks.to_dict("split"), config=self.parks_config)
 
         with st.container():
             col1, col2 = st.columns(2)

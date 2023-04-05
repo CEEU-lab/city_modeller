@@ -39,12 +39,12 @@
                                 "type": "sequential",
                                 "category": "ColorBrewer",
                                 "colors": [
-                                    "#ffffcc",
-                                    "#d9f0a3",
-                                    "#addd8e",
-                                    "#78c679",
+                                    "#006837",
                                     "#31a354",
-                                    "#006837"
+                                    "#78c679",
+                                    "#addd8e",
+                                    "#d9f0a3",
+                                    "#ffffff"
                                 ]
                             },
                             "strokeColorRange": {
