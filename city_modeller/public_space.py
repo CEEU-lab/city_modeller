@@ -171,8 +171,16 @@ class PublicSpacesDashboard:
         keplergl_static(map_1)
         map_1.add_data(data=data, name="radios")
 
-    def availability(self) -> None:  # TODO: Cache
+    def availability(self) -> None:  # TODO: Cache   
+        with st.container():
+            st.markdown(
+                "<h1 style='text-align: center'>Radios Censales</h1>",
+                unsafe_allow_html=True,
+            )
+            self.radios["distance"] = self.distances
+            self.plot_kepler(self.radios) 
         pass
+    
 
     def accessibility(self) -> None:  # TODO: Cache
         with st.container():
