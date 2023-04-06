@@ -311,6 +311,44 @@ elif menu_list == "Environmental quality":
                     x_ref_vals = x_ref.to_dict()
                     h = 550
                     w = 350
+                
+                elif zone_analysis:
+                    #zones = {'BASE ZONE':['base_geom', 'base_uploaded'], 
+                     #        'ALTERNATIVE ZONE':['alt_geom', 'alt_uploaded']}
+                    #st.write(st.session_state)
+                    if 'base_geom' in st.session_state.keys():
+                        if st.session_state['base_geom'] != 'paste your base geometry here':
+                            input_geometry = st.session_state['base_geom']
+                            json_polygon = json.loads(input_geometry)
+                            polygon_geom = Polygon(json_polygon['coordinates'][0])
+                            polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) 
+                            base_zone = GVI_BsAs.clip(polygon)
+                            x_ref = base_zone['greenView'].mean()
+                            x_ref_vals = {}
+                            x_ref_vals['BASE ZONE'] = x_ref
+                            h = 550
+                            w = 350 
+                        else:
+                            x_ref_vals = None
+                            h = 550
+                            w = 350
+                    
+                    elif 'base_uploaded' in st.session_state.keys():
+                        #st.write(st.session_state)
+                        file_up = st.session_state.base_uploaded
+                        base_zone = pd.read_csv(file_up)
+                        x_ref = base_zone['greenView'].mean()
+                        x_ref_vals = {}
+                        x_ref_vals['BASE ZONE'] = x_ref
+                        #x_ref_vals = None
+                        h = 550
+                        w = 350 
+                        
+                    else:
+                        x_ref_vals = None
+                        h = 550
+                        w = 350
+
                 else:
                     x_ref_vals = None
                     h = 550
@@ -325,7 +363,8 @@ elif menu_list == "Environmental quality":
                 st.plotly_chart(fig)
             
             if impact: # Impact Results Section
-                # TODO: Deactivate zone analysis section
+                
+                # Deactivate zone analysis section
                 if st.session_state.get("Zone_section", True):
                     st.session_state.disabled = True
                 
@@ -333,7 +372,6 @@ elif menu_list == "Environmental quality":
                 gvi_avg_st = GVI_BsAs_within.groupby('NOMBRE')['greenView'].mean().to_dict()
                 air_qual_st['greenView'] = pd.Series(gvi_avg_st)
                 
-                #col11, col12, col13 = st.columns((0.3, 0.35, 0.35))
                 col24, col25, col26 = st.columns((0.3, 0.35, 0.35))
 
                 
@@ -408,7 +446,11 @@ elif menu_list == "Environmental quality":
                     st.plotly_chart(fig)
                     
             # ZONE RESULTS SECTION
-            if zone_analysis: 
+            if zone_analysis:
+                # Deactivate Impact analysis section
+                if st.session_state.get("Impact_section", True):
+                    st.session_state.disabled = True
+
                 col12, col13, col14, col15 = st.columns(4)
                 col16, col17, col18, col19 = st.columns(4)  
                 col20, col21, col22, col23 = st.columns((0.2,0.1,0.2,0.1))
@@ -433,11 +475,13 @@ elif menu_list == "Environmental quality":
 
                 if upload_base:
                     with col16:
-                        uploaded_base = st.file_uploader("Choose a file", key='uploaded_base', type='csv')
-                
-                    if uploaded_base is not None:
-                        base_input = pd.read_csv(uploaded_base)
-                        base_zone = from_wkt(df=base_input, wkt_column='geometry', proj=4326)
+                        uploaded_base = st.file_uploader("Choose a file", key='base_uploaded', type='csv')
+                        
+                    if 'base_uploaded' in st.session_state.keys():
+                        # calling a session file twice returns empty bytes object the second time
+                        base_input = base_zone.copy()
+                        base_zone = from_wkt(df=base_zone, 
+                                             wkt_column='geometry', proj=4326)
 
                         if base_zone['greenView'].isnull().sum() > 0:
                             st.write("NaN excluded")
@@ -478,7 +522,7 @@ elif menu_list == "Environmental quality":
                         legend3 = 'paste your base geometry here'
                         input_geometry3 = st.text_input('Base zone ', legend3, 
                                                             label_visibility="visible",
-                                                            key='base_zone')
+                                                            key='base_geom')
                 
                         if input_geometry3 != legend3:
                             json_polygon = json.loads(input_geometry3)
@@ -539,7 +583,7 @@ elif menu_list == "Environmental quality":
                 
                 if upload_alt:
                     with col18:
-                        uploaded_alt = st.file_uploader("Choose a file", key='uploaded_alt', type='csv')
+                        uploaded_alt = st.file_uploader("Choose a file", key='alt_uploaded', type='csv')
                 
                     if uploaded_alt is not None:
                         alt_input = pd.read_csv(uploaded_alt)
@@ -583,7 +627,7 @@ elif menu_list == "Environmental quality":
                         input_geometry5 = st.text_input('Alternative zone ', 
                                                         legend5, 
                                                         label_visibility="visible",
-                                                        key="alt_zone")
+                                                        key="alt_geom")
             
                     with col22:
                         if input_geometry5 != legend5:
