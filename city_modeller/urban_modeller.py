@@ -187,7 +187,6 @@ elif menu_list == "Environmental quality":
                     #center_running() #TODO: check if we want to customize more alternative positions foro the running legend
                     client_key = r'{}'.format(api_key)
                     raw_metadata = streets_selection['geometry'].apply(lambda x:GSVpanoMetadataCollector(x, client_key))
-                    #import pdb;pdb.set_trace()
                     metadata = raw_metadata.astype(str)
                     metadata_df = metadata.str.split(',', expand=True)
                     Panovars = ['panoDate', 'panoId', 'panoLat', 'panoLon']
@@ -267,17 +266,6 @@ elif menu_list == "Environmental quality":
 
             with col10: # MAIN RESULTS
                 GVI_BsAs = get_GVI_treepedia_BsAs()
-                
-                # Folium instead of Keplergl
-                #fig = make_folium_circlemarker(gdf=GVI_BsAs, tiles='cartodbdark_matter', 
-                #                               zoom=13, fit_bounds=True, attr_name='greenView', 
-                #                               add_legend=True, marker_radius=2)
-            
-                bolimpic_streets = get_BOlimpic_reference_streets_pts()
-                alternative_streets = get_alternative_reference_streets_pts() #REEMPLAZAR!!!
-                alternative_streets['greenView'] = np.random.uniform(0,1, len(alternative_streets))
-
-                
                 map_1 = KeplerGl(height=475, width=300, config=main_res_config)
                 map_1.add_data(data=GVI_BsAs, name="GVI")
                 landing_map = map_1
@@ -299,8 +287,6 @@ elif menu_list == "Environmental quality":
                     landing_map = map_2
 
                 keplergl_static(landing_map, center_map=True)   
-                # Folium instead of keplergl
-                #folium_static(fig, width=600, height=400)
 
             with col11:  
                 x1 = GVI_BsAs['greenView']/100
@@ -313,42 +299,55 @@ elif menu_list == "Environmental quality":
                     w = 350
                 
                 elif zone_analysis:
-                    #zones = {'BASE ZONE':['base_geom', 'base_uploaded'], 
-                     #        'ALTERNATIVE ZONE':['alt_geom', 'alt_uploaded']}
-                    #st.write(st.session_state)
-                    if 'base_geom' in st.session_state.keys():
-                        if st.session_state['base_geom'] != 'paste your base geometry here':
-                            input_geometry = st.session_state['base_geom']
-                            json_polygon = json.loads(input_geometry)
-                            polygon_geom = Polygon(json_polygon['coordinates'][0])
-                            polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) 
-                            base_zone = GVI_BsAs.clip(polygon)
-                            x_ref = base_zone['greenView'].mean()
-                            x_ref_vals = {}
-                            x_ref_vals['BASE ZONE'] = x_ref
-                            h = 550
-                            w = 350 
-                        else:
-                            x_ref_vals = None
+                    zones = {'BASE ZONE':['base_geom', 'base_uploaded', 'base'], 
+                             'ALTERNATIVE ZONE':['alt_geom', 'alt_uploaded', 'alternative']}
+                    
+                    x_ref_vals = {}
+                    for k,v in zones. items():
+                        if zones[k][0] in st.session_state.keys():
+                            if st.session_state[zones[k][0]] != 'paste your {} geometry here'.format(zones[k][2]):
+                                input_geometry = st.session_state[zones[k][0]]
+                                json_polygon = json.loads(input_geometry)
+                                polygon_geom = Polygon(json_polygon['coordinates'][0])
+                                polygon = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]) 
+                                zone = GVI_BsAs.clip(polygon)
+                                x_ref = zone['greenView'].mean()
+                                x_ref_vals[k] = x_ref
+                                h = 550
+                                w = 350
+                                
+                            else:
+                                # check if dict is empty
+                                if x_ref_vals == {}:
+                                    x_ref_vals = None
+                                    h = 550
+                                    w = 350
+                                else:
+                                    continue 
+
+                        elif zones[k][1] in st.session_state.keys():
+                            if zones[k][1] == 'base_uploaded':
+                                file_up = st.session_state.base_uploaded
+                            elif zones[k][1] == 'alt_uploaded':
+                                file_up = st.session_state.alt_uploaded
+                            else:
+                                raise ValueError("The Uploaded file must specify a session Key")
+                            
+                            zone = pd.read_csv(file_up)
+                            x_ref = zone['greenView'].mean()
+                            x_ref_vals[k] = x_ref
                             h = 550
                             w = 350
-                    
-                    elif 'base_uploaded' in st.session_state.keys():
-                        #st.write(st.session_state)
-                        file_up = st.session_state.base_uploaded
-                        base_zone = pd.read_csv(file_up)
-                        x_ref = base_zone['greenView'].mean()
-                        x_ref_vals = {}
-                        x_ref_vals['BASE ZONE'] = x_ref
-                        #x_ref_vals = None
-                        h = 550
-                        w = 350 
                         
-                    else:
-                        x_ref_vals = None
-                        h = 550
-                        w = 350
-
+                        else:
+                            # check if dict is empty
+                            if x_ref_vals == {}:
+                                x_ref_vals = None
+                                h = 550
+                                w = 350
+                            else:
+                                continue 
+                
                 else:
                     x_ref_vals = None
                     h = 550
@@ -474,47 +473,49 @@ elif menu_list == "Environmental quality":
                                                     key="base_pano")
 
                 if upload_base:
-                    with col16:
+                    with col16: 
                         uploaded_base = st.file_uploader("Choose a file", key='base_uploaded', type='csv')
                         
                     if 'base_uploaded' in st.session_state.keys():
-                        # calling a session file twice returns empty bytes object the second time
-                        base_input = base_zone.copy()
-                        base_zone = from_wkt(df=base_zone, 
-                                             wkt_column='geometry', proj=4326)
+                        if st.session_state['base_uploaded']:
+                            # reset buffer
+                            uploaded_base.seek(0)
+                            base_input = pd.read_csv(uploaded_base)
+                            base_zone = from_wkt(df=base_input, 
+                                                wkt_column='geometry', proj=4326)
 
-                        if base_zone['greenView'].isnull().sum() > 0:
-                            st.write("NaN excluded")
-                            base_zone = base_zone.loc[~base_zone['greenView'].isna()].copy()
-                        
-                        with col20:    
-                            html_map = make_folium_circlemarker(gdf=base_zone, tiles='cartodbdark_matter', 
-                                                            zoom=12, fit_bounds=True, attr_name='greenView', 
-                                                            add_legend=True)
-                            folium_static(html_map, width=500, height=300)
-                        
-                        with col21:  
-                            x2 = base_zone['greenView']/100
-                            hist_data2 = [x2]
-                            group_labels2 = ['distplot'] # name of the dataset
-
-                            if input_panoId4 != legend4:
-                                try:
-                                    pano_gvi = base_zone.loc[base_zone['panoId']==input_panoId4,'greenView'].values[0]/100 
-                                except:
-                                    pass
-                                    pano_gvi = None
-
-                            else:
-                                pano_gvi = None
+                            if base_zone['greenView'].isnull().sum() > 0:
+                                st.write("NaN excluded")
+                                base_zone = base_zone.loc[~base_zone['greenView'].isna()].copy()
                             
-                            fig = plot_distribution(hist_data=[x2], 
-                                                    group_labels=group_labels2,
-                                                    h_val=300,
-                                                    w_val=200,
-                                                    chart_title="Base Green Canopy",
-                                                    x_ref=pano_gvi)
-                            st.plotly_chart(fig)
+                            with col20:    
+                                html_map = make_folium_circlemarker(gdf=base_zone, tiles='cartodbdark_matter', 
+                                                                zoom=12, fit_bounds=True, attr_name='greenView', 
+                                                                add_legend=True)
+                                folium_static(html_map, width=500, height=300)
+                            
+                            with col21:  
+                                x2 = base_zone['greenView']/100
+                                hist_data2 = [x2]
+                                group_labels2 = ['distplot'] # name of the dataset
+
+                                if input_panoId4 != legend4:
+                                    try:
+                                        pano_gvi = base_zone.loc[base_zone['panoId']==input_panoId4,'greenView'].values[0]/100 
+                                    except:
+                                        pass
+                                        pano_gvi = None
+
+                                else:
+                                    pano_gvi = None
+                                
+                                fig = plot_distribution(hist_data=[x2], 
+                                                        group_labels=group_labels2,
+                                                        h_val=300,
+                                                        w_val=200,
+                                                        chart_title="Base Green Canopy",
+                                                        x_ref=pano_gvi)
+                                st.plotly_chart(fig)
 
                         
                 else:
@@ -575,7 +576,7 @@ elif menu_list == "Environmental quality":
                                                     )
                     
                 with col19:
-                    legend6 = 'paste your alt PanoId here'
+                    legend6 = 'paste your alternative PanoId here'
                     input_panoId6 = st.text_input('Alternative PanoId ', 
                                                 legend6, 
                                                 label_visibility="visible", 
@@ -584,46 +585,49 @@ elif menu_list == "Environmental quality":
                 if upload_alt:
                     with col18:
                         uploaded_alt = st.file_uploader("Choose a file", key='alt_uploaded', type='csv')
-                
-                    if uploaded_alt is not None:
-                        alt_input = pd.read_csv(uploaded_alt)
-                        alt_zone = from_wkt(df=alt_input, wkt_column='geometry', proj=4326)
-                        
-                        if alt_zone['greenView'].isnull().sum() > 0:
-                            st.write("NaN excluded")
-                            alt_zone = alt_zone.loc[~base_zone['greenView'].isna()].copy()
-                        
-                        with col22:    
-                            html_map = make_folium_circlemarker(gdf=alt_zone, tiles='cartodbdark_matter', 
-                                                            zoom=12, fit_bounds=True, attr_name='greenView', 
-                                                            add_legend=True)
-                            folium_static(html_map, width=500, height=300)
 
-                        with col23:
-                            if input_panoId6 != legend6:
-                                try:
-                                    pano_gvi = alt_zone.loc[alt_zone['panoId']==input_panoId6, 'greenView'].values[0]/100
-                                except:
-                                    pass
-                                    pano_gvi = None
-                            else:
-                                pano_gvi = None
-                        
-                            x3 = alt_zone['greenView']/100
-                            hist_data3 = [x3]
-                            group_labels3 = ['distplot'] # name of the dataset
+                    if 'alt_uploaded' in st.session_state.keys():
+                        if st.session_state['alt_uploaded']:
+                            # reset buffer
+                            uploaded_alt.seek(0)
+                            alt_input = pd.read_csv(uploaded_alt)
+                            alt_zone = from_wkt(df=alt_input, wkt_column='geometry', proj=4326)
                             
-                            fig = plot_distribution(hist_data=[x3], 
-                                                    group_labels=group_labels3,
-                                                    h_val=300,
-                                                    w_val=200,
-                                                    chart_title="Alternative Green Canopy",
-                                                    x_ref=pano_gvi)
-                            st.plotly_chart(fig)
+                            if alt_zone['greenView'].isnull().sum() > 0:
+                                st.write("NaN excluded")
+                                alt_zone = alt_zone.loc[~base_zone['greenView'].isna()].copy()
+                            
+                            with col22:    
+                                html_map = make_folium_circlemarker(gdf=alt_zone, tiles='cartodbdark_matter', 
+                                                                zoom=12, fit_bounds=True, attr_name='greenView', 
+                                                                add_legend=True)
+                                folium_static(html_map, width=500, height=300)
+
+                            with col23:
+                                if input_panoId6 != legend6:
+                                    try:
+                                        pano_gvi = alt_zone.loc[alt_zone['panoId']==input_panoId6, 'greenView'].values[0]/100
+                                    except:
+                                        pass
+                                        pano_gvi = None
+                                else:
+                                    pano_gvi = None
+                            
+                                x3 = alt_zone['greenView']/100
+                                hist_data3 = [x3]
+                                group_labels3 = ['distplot'] # name of the dataset
+                                
+                                fig = plot_distribution(hist_data=[x3], 
+                                                        group_labels=group_labels3,
+                                                        h_val=300,
+                                                        w_val=200,
+                                                        chart_title="Alternative Green Canopy",
+                                                        x_ref=pano_gvi)
+                                st.plotly_chart(fig)
 
                 else:
                     with col18:
-                        legend5 = 'paste your alt geometry here'
+                        legend5 = 'paste your alternative geometry here'
                         input_geometry5 = st.text_input('Alternative zone ', 
                                                         legend5, 
                                                         label_visibility="visible",
