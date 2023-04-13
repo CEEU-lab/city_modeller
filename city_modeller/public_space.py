@@ -125,7 +125,7 @@ class PublicSpacesDashboard:
     @staticmethod
     def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
         gjson = geojson.loads(geom)
-        if len(gjson["coordinates"]) < 4:
+        if len(gjson["coordinates"][0]) < 4:
             # TODO: Make red and smaller.
             st.markdown(f"Invalid Geometry ({gjson['coordinates'][0]}).")
             return
@@ -169,12 +169,6 @@ class PublicSpacesDashboard:
             "colorScale": "ordinal",
             "strokeColorField": None,
             "strokeColorScale": "ordinal",
-            "sizeField": None,
-            "sizeScale": "linear",
-            "heightField": None,
-            "heightScale": "linear",
-            "radiusField": None,
-            "radiusScale": "linear",
         }
 
         return config
@@ -262,7 +256,7 @@ class PublicSpacesDashboard:
                         park_type.replace("/", " / "), park_type != "USER INPUT"
                     )
                 parks["visible"] = self.public_spaces["visible"] = parks.clasificac.map(
-                        self.mask_dict
+                    self.mask_dict
                 )
                 parks.loc["point_false", "visible"] = False
                 parks.loc["point_true", "visible"] = True
@@ -280,9 +274,7 @@ class PublicSpacesDashboard:
                     "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(
-                    parks.to_dict("split"), config=self.parks_config
-                )
+                self.plot_kepler(parks.to_dict("split"), config=self.parks_config)
 
         with st.container():
             col1, col2 = st.columns(2)
