@@ -180,7 +180,7 @@ class PublicSpacesDashboard:
             [
                 {
                     "Public Space Name": "example_park",
-                    "Public Space Type": "PARQUE",
+                    "Public Space Type": "USER INPUT",
                     "Copied Geometry": geojson.dumps(
                         {
                             "type": "Polygon",
