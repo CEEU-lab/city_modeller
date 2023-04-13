@@ -129,6 +129,10 @@
                                 "format": null
                             },
                             {
+                                "name": "nombre",
+                                "format": null
+                            },
+                            {
                                 "name": "area",
                                 "format": null
                             },
