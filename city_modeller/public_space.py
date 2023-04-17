@@ -43,14 +43,14 @@ class PublicSpacesDashboard:
         config: Optional[dict] = None,
         config_path: Optional[str] = None,
     ) -> None:
-        self.radios = radios.copy()
+        self.radios: gpd.GeoDataFrame = radios.copy()
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
-        self.public_spaces = public_spaces
-        self.park_types = np.hstack(
+        self.public_spaces: gpd.GeoDataFrame = public_spaces
+        self.park_types: np.ndarray[str] = np.hstack(
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
         )
-        self.mask_dict = {}
+        self.mask_dict: dict = {}
         if config is None and config_path is None:
             raise AttributeError(
                 "Either a Kepler config or the path to a config JSON must be passed."
@@ -66,7 +66,7 @@ class PublicSpacesDashboard:
     @staticmethod
     def plot_curva_pob_min_cam(
         distancias: gpd.GeoSeries,
-        minutos: Iterable = range(1, 21),
+        minutos: Iterable[int] = range(1, 21),
         speed: int = 5,
         save: bool = False,
     ) -> tuple:
@@ -156,7 +156,7 @@ class PublicSpacesDashboard:
         return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
 
     @property
-    def parks_config(self):
+    def parks_config(self) -> dict[str, dict]:
         config = deepcopy(self.config)
         config["config"]["visState"]["layers"][0]["config"]["visConfig"]["colorRange"][
             "colors"
@@ -173,7 +173,7 @@ class PublicSpacesDashboard:
 
         return config
 
-    def _accessibility_input(self):
+    def _accessibility_input(self) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
         schema_row = pd.DataFrame(
@@ -218,7 +218,7 @@ class PublicSpacesDashboard:
             }
         )
         gdf = gpd.GeoDataFrame(user_input)
-        gdf["area"] = gdf.geometry.area
+        gdf["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf.dropna(subset="geometry")
 
     def plot_kepler(
