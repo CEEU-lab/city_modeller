@@ -9,6 +9,7 @@ from pathlib import Path
 from shapely import wkt
 import pyproj
 import geopandas as gpd
+import streamlit as st
 
 
 
@@ -19,9 +20,13 @@ def gdf_to_shz(gdf, name):
         gdf.to_file(path, driver="ESRI Shapefile")
         return path.read_bytes()
     
+@st.cache_data 
+def convert_df(df):
+    return df.to_csv(index=False).encode('utf-8')
+
 def from_wkt(df, wkt_column, proj):
     df["geometry"]= df[wkt_column].apply(wkt.loads)
-    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs=4326)
+    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs=4326) 
 
     if proj:
       user_crs = pyproj.CRS.from_user_input(proj)
