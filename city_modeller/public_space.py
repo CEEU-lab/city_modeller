@@ -293,7 +293,7 @@ class PublicSpacesDashboard:
                     "<h1 style='text-align: center'>Ratios</h1>",
                     unsafe_allow_html=True,
                 )
-                self.radios["distance"] = self.distances
+                self.radios["distance"] = self.distances(self.public_spaces)
                 self.plot_kepler(self.radios)
 
     def accessibility(self) -> None:
