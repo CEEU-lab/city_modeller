@@ -2,7 +2,7 @@ import json
 from copy import deepcopy
 from functools import partial
 from collections.abc import Iterable
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import geojson
 import geopandas as gpd
@@ -132,28 +132,24 @@ class PublicSpacesDashboard:
         multipoly = MultiPolygon([shape(gjson)])
         return multipoly if not multipoly.is_empty else None
 
+    @staticmethod
+    def multipoint_gdf(public_spaces: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+        # TODO: Add mode for entrances here?
+        public_space_points = public_spaces.copy().dropna(subset="geometry")
+        public_space_points["geometry"] = geometry_centroid(public_space_points)
+        return public_space_points.query("visible")
+
+    @staticmethod
+    def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
+        df = gdf.copy()
+        df["geometry"] = df.geometry.apply(dumps)
+        return df.to_dict("split")
+
     @property
     def census_radio_points(self) -> gpd.GeoDataFrame:
         census_points = self.radios.copy().to_crs(4326)  # TODO: Still necessary?
         census_points["geometry"] = geometry_centroid(census_points)
         return census_points
-
-    @property
-    def public_space_points(self) -> gpd.GeoDataFrame:
-        # TODO: Add mode for entrances here?
-        public_space_points = self.public_spaces.copy()
-        public_space_points["geometry"] = geometry_centroid(public_space_points)
-        return public_space_points.query("visible")
-
-    @property
-    def distances(self) -> gpd.GeoSeries:
-        public_spaces_multipoint = MultiPoint(
-            self.public_space_points.geometry.tolist()
-        )
-        parks_distances = partial(
-            distancia_mas_cercano, target_points=public_spaces_multipoint
-        )
-        return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
 
     @property
     def parks_config(self) -> dict[str, dict]:
@@ -172,6 +168,15 @@ class PublicSpacesDashboard:
         }
 
         return config
+
+    def distances(self, public_spaces: gpd.GeoDataFrame) -> gpd.GeoSeries:
+        public_spaces_multipoint = MultiPoint(
+            self.multipoint_gdf(public_spaces).geometry.tolist()
+        )
+        parks_distances = partial(
+            distancia_mas_cercano, target_points=public_spaces_multipoint
+        )
+        return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
 
     def _accessibility_input(self) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
@@ -240,9 +245,7 @@ class PublicSpacesDashboard:
 
         with user_table_container:
             user_input = self._accessibility_input()
-            self.public_spaces = pd.concat([self.public_spaces, user_input])
-            parks = self.public_spaces.copy()
-            parks["geometry"] = parks.geometry.apply(dumps)
+            parks = pd.concat([self.public_spaces, user_input])
 
         with green_spaces_container:
             col1, col2 = st.columns([1, 3])
@@ -255,11 +258,10 @@ class PublicSpacesDashboard:
                     self.mask_dict[park_type] = st.checkbox(
                         park_type.replace("/", " / "), park_type != "USER INPUT"
                     )
-                parks["visible"] = self.public_spaces["visible"] = parks.clasificac.map(
-                    self.mask_dict
-                )
+                parks["visible"] = parks.clasificac.map(self.mask_dict)
                 parks.loc["point_false", "visible"] = False
                 parks.loc["point_true", "visible"] = True
+                parks.visible = parks.visible.astype(bool)
                 st.markdown("----")
                 st.markdown(
                     "<h3 style='text-align: left'>Mode</h3>",
@@ -274,19 +276,19 @@ class PublicSpacesDashboard:
                     "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(parks.to_dict("split"), config=self.parks_config)
+                self.plot_kepler(self.kepler_df(parks), config=self.parks_config)
 
         with st.container():
             col1, col2 = st.columns(2)
             # Curva de población según minutos de caminata
             with col1:
-                fig, _ = self.plot_curva_pob_min_cam(self.distances, speed=speed)
+                fig, _ = self.plot_curva_pob_min_cam(self.distances(parks), speed=speed)
                 st.pyplot(fig)
             # Curva de poblacion segun area del espacio
             with col2:
                 fig, _ = self.plot_curva_caminata_area(
                     self.census_radio_points.geometry,
-                    self.public_space_points,
+                    self.multipoint_gdf(parks),
                     speed=speed,
                 )
                 st.pyplot(fig)
@@ -296,7 +298,7 @@ class PublicSpacesDashboard:
                 "<h1 style='text-align: center'>Radios Censales</h1>",
                 unsafe_allow_html=True,
             )
-            self.radios["distance"] = self.distances
+            self.radios["distance"] = self.distances(parks)
             self.plot_kepler(self.radios)
 
     def programming(self) -> None:
