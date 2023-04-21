@@ -19,83 +19,54 @@ st.write(
 with open("./sl/style.css") as f:
     st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
 
+# initialize menu
+menu_list = None
 
-menu_list = st.sidebar.radio("Navigation", ["Home", "Public space", "Environmental quality"])
+# SIDE BAR CONFIG
+st.sidebar.markdown("# Navigation 📍")
+if st.sidebar.button("Home"):
+    menu_list = 'Home'
 
+
+st.sidebar.markdown("## Modelling sections 📉")
+with st.sidebar.expander("Micromodelling"):
+    micro_menu_list = st.radio("Select your tematic template", ["Green surfaces", "Streets greenery"])
+
+with st.sidebar.expander("Macromodelling"):
+    macro_menu_list = st.radio("Select your tematic template", ["Urban land valuation"])
+
+# APP SECTIONS
 if menu_list == "Home":
-    st.write("LANDING DE LA PAGINA")
+    st.write("Starts here the landing page 🏠")
 
-elif menu_list == "Public space":
-    st.write("Hacer las tres visualizaciones aca")
+elif micro_menu_list == "Green surfaces":
+    st.write("Micromodelling Template")
 
-elif menu_list == "Environmental quality":
-    #from streamlit_folium import folium_static
-    #from streamlit_folium import st_folium
-    from datasources import *
-    from streets_network.utils import *
-    #import numpy as np
-    #import geopandas as gpd
-    #import json
-    from shapely import Polygon
-    import streamlit_toggle as tog
-    #from streamlit_extras.stoggle import stoggle
-    #from annotated_text import annotated_text, annotation
-    #from streamlit_keplergl import keplergl_static
-    #from keplergl import KeplerGl
-    from streets_network.greenery_simulation import *
-    from streets_network.gvi_map_config import main_res_config, stations_config
-    #from streamlit_extras.customize_running import center_running
-    from streets_greenery import *
+elif micro_menu_list == "Streets greenery":
+    import warnings
+    warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
     import yaml
+    from streets_greenery import *
+    from streets_network.gvi_map_config import (
+        main_res_config, 
+        stations_config
+    )
+    from datasources import (
+        get_GVI_treepedia_BsAs,
+        get_air_quality_stations_BsAs,
+        get_air_quality_data_BsAs,
+        get_BsAs_streets
+    )
     
-
-    st.subheader('Streets Network attributes - Green View level')
+    st.subheader('Streets Network attributes - Green View level 🌳')
 
     with st.container():
-        st.write("Street greenery provides a series of benefits to urban residents, such as energy saving, provision of shade, and aesthetic values.")
+        st.write("Street greenery provides a series of benefits to urban residents, such as air quality, provision of shade, and aesthetic values.")
         
         # All sections
         button1, button2, button3, button4 = st.columns(4)
     
-        with button1:
-            simulate_greenery = tog.st_toggle_switch(label="Simulate greenery", 
-                                                     key="Simulation_section", 
-                                                     default_value=False, 
-                                                     label_after = False, 
-                                                     inactive_color = '#D3D3D3', 
-                                                     active_color="#11567f", 
-                                                     track_color="#29B5E8"
-                                                        )
-            
-        with button2:
-            main_results = tog.st_toggle_switch(label="Explore results", 
-                                                 key="Results_section", 
-                                                 default_value=False, 
-                                                 label_after = False, 
-                                                 inactive_color = '#D3D3D3', 
-                                                 active_color="#11567f", 
-                                                 track_color="#29B5E8"
-                                                    )
-            
-        with button3:
-            zone_analysis = tog.st_toggle_switch(label="Explore zones", 
-                                                 key="Zone_section", 
-                                                 default_value=False, 
-                                                 label_after = False, 
-                                                 inactive_color = '#D3D3D3', 
-                                                 active_color="#11567f", 
-                                                 track_color="#29B5E8"
-                                                    )
-            
-        with button4:
-            impact_analysis = tog.st_toggle_switch(label="Explore impact", 
-                                                   key="Impact_section", 
-                                                   default_value=False, 
-                                                   label_after = False, 
-                                                   inactive_color = '#D3D3D3', 
-                                                   active_color="#11567f", 
-                                                   track_color="#29B5E8"
-                                                      )
+        simulate_greenery, main_results, zone_analysis, impact_analysis = activate_headers(button1, button2, button3, button4)
 
         # Set CRS for current region
         with open("config.yaml") as f:
@@ -110,11 +81,13 @@ elif menu_list == "Environmental quality":
             col7, col8, col9, _ = st.columns((0.25,0.25,0.25, 0.25))
             streets_gdf=get_BsAs_streets()
             
-            show_simulation_section(col1, col2, col3, 
-                                    col4, col5, col6,
-                                    col7, col8, col9,
-                                    streets_gdf, proj)
+            show_simulation_section(map_col=col1, interpolation_col=col2, 
+                                    apikey_col=col3, simulate_col=col4,
+                                    downgdf_col=col5, downcsv_col=col6,
+                                    img1_col=col7, img2_col=col8, img3_col=col9,
+                                    streets_gdf=streets_gdf, proj=proj)
         
+        # MAIN RESULTS SECTION
         if main_results:
             col10, _, col11 = st.columns((0.65, 0.05, 0.3))                            
 
@@ -128,6 +101,7 @@ elif menu_list == "Environmental quality":
             if zone_analysis and impact_analysis:
                 st.warning("Results must be explored at zone or impact level. Please, activate one of them only", icon="⚠️") 
 
+            # ZONE ANALYSIS
             elif zone_analysis and not impact_analysis:
                 col12, col13, col14, col15 = st.columns(4)
                 col16, col17, col18, col19 = st.columns(4)  
@@ -142,7 +116,8 @@ elif menu_list == "Environmental quality":
                 show_zone_section(toggle_col=col15, pano_input_col=col19, 
                                 zone_col=col18, map_col=col22, chart_col=col23, 
                                 macro_region=get_GVI_treepedia_BsAs(), zone_name='Alternative')
-                
+
+            # IMPACT ANALYSIS   
             elif impact_analysis and not zone_analysis:  
                 GVI_BsAs_within_St = get_Points_in_station_buff(buffer_dst=st.session_state['buffer_dist'], 
                                                             Points=get_GVI_treepedia_BsAs(), 
@@ -159,5 +134,7 @@ elif menu_list == "Environmental quality":
             else:
                 pass
 
+elif macro_menu_list == "Urban land valuation":
+    st.write("Starts here your land valuation model 🏗️")
                     
                     

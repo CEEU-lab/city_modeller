@@ -5,55 +5,112 @@ from streamlit_extras.stoggle import stoggle
 from streamlit_keplergl import keplergl_static
 from annotated_text import annotated_text, annotation
 from keplergl import KeplerGl
-import json
-import yaml
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely import Polygon
 from streets_network.utils import (
+    registerAPIkey,
+    interpolate_linestrings,
+    get_Points_in_station_buff,
     from_wkt,
+    build_zone,
+    merge_dictionaries,
     gdf_to_shz,
     convert_df, 
     make_folium_circlemarker, 
+    plot_simple_markers,
     plot_distribution, plot_correleation_mx, 
     plot_scatter
 )
 from streets_network.greenery_simulation import (
     GSVpanoMetadataCollector,
     GreenViewComputing_3Horizon,
-
 )
 
-def build_zone(geom, region):
-    '''
-    '''
-    json_polygon = json.loads(geom)
-    polygon_geom = Polygon(json_polygon['coordinates'][0])
-    zone = region.clip(polygon_geom)
-    return zone
-
-
-def merge_dictionaries(dict1, dict2):
-    '''
-    '''
-    if dict1 is None and dict2 is None:
-        return None
-    
-    elif dict1 is not None and dict2 is None:
-        return dict1
-    
-    elif dict1 is None and dict2 is not None:
-        return dict2
-    
-    else:
-        merged_dict = dict(dict1.items() | dict2.items())
-        return merged_dict
+def activate_headers(button1, button2, button3, button4):
+    """
+    Activates micromodelling sections
+    Parameters
+    ----------
+    button1 : bool
+        wether the toggle button was activated or not
+    button2 : bool
+        wether the toggle button was activated or not
+    button3 : bool
+        wether the toggle button was activated or not
+    button4 : bool
+        wether the toggle button was activated or not
+    Returns
+    -------
+    simulate_greenery : bool
+    main_results : bool 
+    zone_analysis : bool
+    impact_analysis : bool
+    """
+    with button1:
+        simulate_greenery = tog.st_toggle_switch(label="Simulation frame", 
+                                                    key="Simulation_section", 
+                                                    default_value=False, 
+                                                    label_after = False, 
+                                                    inactive_color = '#D3D3D3', 
+                                                    active_color="#11567f", 
+                                                    track_color="#29B5E8"
+                                                    )
+    with button2:
+        main_results = tog.st_toggle_switch(label="Explore results", 
+                                                key="Results_section", 
+                                                default_value=False, 
+                                                label_after = False, 
+                                                inactive_color = '#D3D3D3', 
+                                                active_color="#11567f", 
+                                                track_color="#29B5E8"
+                                                )
+        
+    with button3:
+        zone_analysis = tog.st_toggle_switch(label="Explore zones", 
+                                                key="Zone_section", 
+                                                default_value=False, 
+                                                label_after = False, 
+                                                inactive_color = '#D3D3D3', 
+                                                active_color="#11567f", 
+                                                track_color="#29B5E8"
+                                                )
+        
+    with button4:
+        impact_analysis = tog.st_toggle_switch(label="Explore impact", 
+                                                key="Impact_section", 
+                                                default_value=False, 
+                                                label_after = False, 
+                                                inactive_color = '#D3D3D3', 
+                                                active_color="#11567f", 
+                                                track_color="#29B5E8"
+                                                    )
+    return simulate_greenery, main_results, zone_analysis, impact_analysis
 
 
 def get_reference_mean(zone_name, zone_geom, zone_file, annot_txt, gdf):
-    '''
-    '''
+    """
+    Calculates the greenView average of analysis zones.
+    Parameters
+    ----------
+    zone_name : str
+        name of the zone analysis (e.g. base zone)
+    zone_geom : str
+        name of the streamlit session state. This is
+        used to check if the zone was built using a drawed
+        geometry input
+    zone_file : str
+        name of the streamlit session state. This is
+        used to check if the zone was built using an uploaded file
+    annot_txt : str
+        annotation name over the vertical reference line (e.g. BASE ZONE)
+    gdf : geopandas.GeoDataFrame
+        Point geometries with GreenView level field
+    Returns
+    -------
+    x_ref_dict : dict
+        name of the analysis zone with his greenView average 
+    """
     x_ref_dict = {}
     
     if zone_geom in st.session_state.keys():
@@ -93,8 +150,30 @@ def get_reference_mean(zone_name, zone_geom, zone_file, annot_txt, gdf):
 def uploaded_zone_greenery_distribution(session_key, file, panoId, 
                                         legend, map_col, chart_col, 
                                         zone_name):
-    '''
-    '''
+    """
+    Plots the greenery distribution (spatial and density) of an analysis 
+    zone defined with a user's uploaded file.
+    Parameters
+    ----------
+    session_key : str
+        name of the session key to be reached in the session state
+    file : 
+        none or streamlit UploadedFile or list of UploadedFile
+    panoId : str
+        name of the zone from where the pano comes from (base or alternative)
+    legend : str
+        field action description (e.g. "paste your panoId here")
+    map_col : streamlit container
+        column space to render maps
+    chart_col : streamlit container
+        column space to render charts
+    zone_name : str
+        wether Base or Alternative zone
+        
+    Returns
+    -------
+        None 
+    """
     if session_key in st.session_state.keys():
         if st.session_state[session_key]:
             # reset buffer
@@ -104,10 +183,10 @@ def uploaded_zone_greenery_distribution(session_key, file, panoId,
                             wkt_column='geometry', proj=4326)
 
             if zone['greenView'].isnull().sum() > 0:
-                zone = zone.loc[~zone['greenView'].isna()].copy()
+                zone = zone[~zone['greenView'].isna()].copy()
             
             with map_col:    
-                html_map = make_folium_circlemarker(gdf=zone, tiles='cartodbdark_matter', 
+                html_map, _ = make_folium_circlemarker(gdf=zone, tiles='cartodbdark_matter', 
                                                 zoom=12, fit_bounds=True, attr_name='greenView', 
                                                 add_legend=True)
                 folium_static(html_map, width=500, height=300)
@@ -118,7 +197,7 @@ def uploaded_zone_greenery_distribution(session_key, file, panoId,
 
                 if panoId != legend:
                     try:
-                        pano_gvi = zone.loc[zone['panoId']==panoId,'greenView'].values[0]/100 
+                        pano_gvi = zone.loc[zone['panoId']==panoId,'greenView'].values[0]/100  # type: ignore
                     except:
                         pass
                         pano_gvi = None
@@ -138,13 +217,37 @@ def uploaded_zone_greenery_distribution(session_key, file, panoId,
 def drawed_zone_greenery_distribution(geom, geom_legend, gdf, map_col, 
                                       chart_col, panoId, pano_legend, 
                                       zone_name):      
-    '''
-    '''
+    """
+    Plots the greenery distribution (spatial and density) of an analysis 
+    zone defined with a user's drawed geometry.
+    Parameters
+    ----------
+    geom : str
+        string representation of a Polygon type geometry
+    geom_legend : str
+        field action description (e.g. "paste your geometry here")
+    gdf : geopandas.GeoDataFrame
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+    map_col : streamlit container
+        column space to render maps
+    chart_col : streamlit container
+        column space to render charts
+    panoId : str
+        name of the zone from where the pano comes from (base or alternative)
+    pano_legend : str
+        field action description (e.g. "paste your PanoIdx here")
+    zone_name : str
+        wether Base or Alternative zone
+        
+    Returns
+    -------
+        None 
+    """
     if geom != geom_legend:
         zone = build_zone(geom=geom, region=gdf)
 
         with map_col:
-            html_map = make_folium_circlemarker(gdf=zone, tiles='cartodbdark_matter', 
+            html_map, _ = make_folium_circlemarker(gdf=zone, tiles='cartodbdark_matter', 
                                             zoom=12, fit_bounds=True, attr_name='greenView', 
                                             add_legend=True)
             folium_static(html_map, width=500, height=300)
@@ -178,8 +281,29 @@ def drawed_zone_greenery_distribution(geom, geom_legend, gdf, map_col,
 
 def show_zone_section(toggle_col, pano_input_col, zone_col, 
                       map_col, chart_col, macro_region, zone_name):
-    '''
-    '''
+    """
+    Renders the Explore Zone section.
+    Parameters
+    ----------
+    toggle_col : bool
+        True when toggle switch is activated
+    pano_input_col : streamlit container
+        column space to insert PanoIdx to be rendered in distribution plot
+    zone_col : streamlit container
+        field action description (e.g. "paste your Base zone geometry here")
+    map_col : streamlit container
+        column space to render maps
+    chart_col : streamlit container
+        column space to render charts
+    macro_region : geopandas.GeoDataFrame
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+    zone_name : str
+        wether Base or Alternative zone
+        
+    Returns
+    -------
+        None 
+    """
     with toggle_col:
         upload_base = tog.st_toggle_switch(label="Upload file", 
                                         key="{}_Zone_Upload".format(zone_name), 
@@ -219,8 +343,23 @@ def show_zone_section(toggle_col, pano_input_col, zone_col,
                                             zone_name=zone_name)
         
 def show_impact_section(stations_col, correl_plot_col, regplot_col, df):
-    '''
-    '''
+    """
+    Renders the Explore Impact section.
+    Parameters
+    ----------
+    stations_col : streamlit container
+        column space to describe air quality stations
+    correl_plot_col : streamlit container
+        column space to render correlation plot
+    regplot_col : streamlit container
+        column space to render correlation plot
+    df : pandas.DataFrame
+        Air Quality stations data with historical contaminants information
+        
+    Returns
+    -------
+        None 
+    """
     with stations_col:
         st.markdown(":deciduous_tree: :green[Air quality] stations  :deciduous_tree:")
 
@@ -278,7 +417,7 @@ def show_impact_section(stations_col, correl_plot_col, regplot_col, df):
         st.table(styled_df)
 
     with correl_plot_col:
-        axisvals = ['CO','NO2','PM10','GreenView'] 
+        axisvals = ['CO','NO2','PM10','GreenView'] #TODO: describe dataschema 
         fig = plot_correleation_mx(df=df, 
                                 xticks=axisvals, yticks=axisvals,
                                 h_val=400, w_val=600)
@@ -292,33 +431,32 @@ def show_impact_section(stations_col, correl_plot_col, regplot_col, df):
                         h_val=300, w_val=600)
         st.plotly_chart(fig)
 
-#TODO: check if this shouldn't be more general (maybe out of streets_greenery.py?)
-def get_projected_crs():
-    '''
-    '''
-    with open("config.yaml") as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-        proj = config['proj']
-    return proj
-
-def get_Points_in_station_buff(buffer_dst, Points, stations):
-    '''
-    '''
-    proj = get_projected_crs()
-    stations_gkbs = stations.to_crs(proj)
-    buffer_stations = stations_gkbs.buffer(buffer_dst).to_crs(4326)
-    stations['geometry'] = buffer_stations
-    # TODO: describe data schema for all datasources
-    stations_feat = stations[['NOMBRE','geometry']].copy()
-    PointsInBuff = gpd.sjoin(Points, stations_feat, 
-                             predicate='within')
-    return PointsInBuff
-
 def show_main_results_section(map_col, chart_col, Points, stations, 
                             show_impact, show_zones,
                             config_files):
-    '''
-    '''
+    """
+    Renders the Explore Results section.
+    Parameters
+    ----------
+    map_col : streamlit container
+        column space to render maps
+    chart_col : streamlit container
+        column space to render charts
+    Points : geopandas.GeoDataFrame
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+    stations : geopandas.GeoDataFrame
+        Air Quality stations as geom Points
+    show_impact : bool
+        Wether or not to show impact section
+    show_zones : bool
+        Wether or not to show zones section
+    config_files : dict
+        map styling configuration for kepler map 
+        
+    Returns
+    -------
+        None 
+    """
     with map_col: 
         GVI_BsAs = Points.copy()
         map_1 = KeplerGl(height=475, width=300, config=config_files['main_res_config'])
@@ -372,81 +510,129 @@ def show_main_results_section(map_col, chart_col, Points, stations,
                                 x_ref=x_ref_vals)
         st.plotly_chart(fig)
 
-def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
-    '''
-    '''
-    # Projected
-    lines_proj = lines_gdf.to_crs(proj)
-    min_dist = int(distance)
-
-    ids = []
-    pts = []
-
-    for idx, row in lines_proj.iterrows():
-        for distance in range(0, int(row['geometry'].length), min_dist):
-            point = row['geometry'].interpolate(distance)
-            ids.append(row['codigo']) #TODO: hardoced colname, describe dataschema (bsas streets)
-            pts.append(point)
-
-    d = {'idx':ids, 'geometry':pts}
-    interpol_points = gpd.GeoDataFrame(d, crs=proj) 
-
-    if to_geog:
-        # get back to geographic CRS
-        interpol_points_geog = interpol_points.copy().to_crs(4326) 
-        return interpol_points_geog
-    
-    else:
-        # stay in projected CRS
-        return interpol_points
-
 def get_PanoMetadata(gdf_points, colnames, api_key):
-    '''
-    '''
+    """
+    Calls the GSV endpoint to collect PanoIdx metadata.
+    Parameters
+    ----------
+    gdf_points : geopandas.GeoDataFrame
+        Interpolated Linestring Point geometries
+    colnames : list
+        Names of the metadata fields
+    api_key : str
+        Users GSV API Key
+        
+    Returns
+    -------
+    metadata_df : pandas.DataFrame
+        PanoIds collected metadata
+    NumNA : int
+        Unavailable PanoIdx
+    """
     client_key = r'{}'.format(api_key)
     raw_metadata = gdf_points['geometry'].apply(lambda x: GSVpanoMetadataCollector(x, client_key))
     metadata = raw_metadata.astype(str)
     metadata_df = metadata.str.split(',', expand=True)
     metadata_df.columns = colnames
-        
-    metadata_df['panoId'] = metadata_df['panoId'].apply(lambda x: x[2:-1])
-    metadata_df['panoDate'] = metadata_df['panoDate'].apply(lambda x: x[1:])
-    metadata_df['panoLon'] = metadata_df['panoLon'].apply(lambda x: x[:-1])
-
+    
     # filter out not available PanoIdx
     PanoNA = metadata_df.isnull().any(axis=1)
-    NumNA = len(PanoNA)
+    NumNA = len(metadata_df[PanoNA])
+    NAidx = PanoNA[PanoNA==True].index.values
     
     if NumNA > 0:
-        st.write("There are {} unavailable PanoIdx".format(len(PanoNA)))
-        metadata_df['panoId'].fillna("Not available", inplace=True)
-        metadata_df['panoDate'].fillna("999", inplace=True)
-        metadata_df['panoLon'].fillna("0", inplace=True)
-        metadata_df['panoLat'].fillna("0", inplace=True)
+        try:
+            metadata_df['panoId'] = metadata_df['panoId'].apply(lambda x: x[2:-1])
+            metadata_df['panoDate'] = metadata_df['panoDate'].apply(lambda x: x[1:])
+            metadata_df['panoLon'] = metadata_df['panoLon'].apply(lambda x: x[:-1])
+                    
+        except:
+            for idx in NAidx:
+                metadata_df.loc[idx]['panoId'] = "Not available"
+                metadata_df.loc[idx]['panoLon'] = gdf_points.loc[idx]['y']
+                metadata_df.loc[idx]['panoLat'] = gdf_points.loc[idx]['x']
+
+    else:
+        metadata_df['panoId'] = metadata_df['panoId'].apply(lambda x: x[2:-1])
+        metadata_df['panoDate'] = metadata_df['panoDate'].apply(lambda x: x[1:])
+        metadata_df['panoLon'] = metadata_df['panoLon'].apply(lambda x: x[:-1])
+    
     return metadata_df, NumNA
 
-def registerAPIkey():
-    input_key = st.empty()
-    legend = "paste your apiKey here"
-    api_key = input_key.text_input('API Key',  
-                                legend, 
-                                label_visibility="visible",
-                                key="apiKey_submit")
-    if api_key != legend:
-        input_key.empty()
-        st.info('GSV credentials has been registered')
+def show_PanoNA(annot_col, map_col, numNA, 
+                gdf_NA, PanoCollection, fig):
+    """
+    Renders the non available PanoIdx over the interpolated Linestring Points.
+    Parameters
+    ----------
+    annot_col : streamlit container
+        column space to show number of interpolated Points
+    map_col : streamlit container
+        column space to update map
+    numNA : int
+        number of not available PanoViews
+    gdf_NA : geopandas.GeoDataFrame
+        not Available PanoView Point geometries
+    colnames : list
+        names of the metadata fields
+    PanoCollection : folium.map.FeatureGroup
+        PanoIdx markers group
+    fig : folium.folium.Map
+        map where interpolated points is rendered
+        
+    Returns
+    -------
+    None
+    """
+    with annot_col: 
+        annotated_text(
+            "🔴 Not available Pano: ",
+            annotation(str(numNA), "panoId", color="black")) 
     
-    return api_key
+    with map_col:
+        html_map_, _ = plot_simple_markers(gdf=gdf_NA, y_col='panoLon' , x_col='panoLat',
+                            markers_group=PanoCollection, fig=fig, 
+                            marker_radius=5, color='red')
+        folium_static(html_map_, width=900, height=425)
 
 def build_and_show_gviRes(gdf_points, greenmonth, headingArr, 
-                          pitch, api_key, numGSVImg, col7, col8, col9):
+                          pitch, api_key, numGSVImg, img1_col, img2_col, img3_col):
+    """
+    Computes GreenView Index for collected PanoIdx and renders image results.
+    Parameters
+    ----------
+    gdf_points: geopandas.GeoDataFrame
+        PanoId metadata geodataframe
+    greenmonth: list
+        list of strings with month numbers(e.g.['01','02'])
+    headingArr: np.array
+        Array of panoramic horizontal references (e.g. [0,90,180] )
+    pitch : int
+        Vertical position of the panoramic references
+    api_key : str
+        Users GSV Api Key
+    NumGSVImg: int
+        Number of images taken for each PanoId. This dependes on 
+        the number of heading positions
+    img1_col : streamlit container
+        column space to show 0° Img results
+    img2_col : streamlit container
+        column space to show 120° Img results
+    img3_col : streamlit container
+        column space to show 240° Img results
+        
+    Returns
+    -------
+    gviRes : dict
+        GreenView Index by PanoId
+    """
     gviRes = {}
-    for idx,row in gdf_points.iterrows(): # OJO ACAAA
+    for idx,row in gdf_points.iterrows(): 
         panoID = row['panoId']
         panoDate = row['panoDate']
         month = panoDate.split('-')[1][:-1]
         lon = row['panoLon']
-        lat = row['panoLat']
+        #lat = row['panoLat']
         
         # in case, the longitude and latitude are invalide
         if len(lon)<3:
@@ -460,56 +646,78 @@ def build_and_show_gviRes(gdf_points, greenmonth, headingArr,
         GVIpct, GVimg, cap = GreenViewComputing_3Horizon(headingArr, panoID, pitch, api_key,numGSVImg)
         gviRes[panoID] = GVIpct
         idx = 0  
-        for col in [col7, col8, col9]:
+        for col in [img1_col, img2_col, img3_col]:
             with col:
                 with st.expander('{} at {}°'.format(panoID, int(headingArr[idx]))):
                     st.image(GVimg[idx], caption='GVI: {}%'.format(round(cap[idx],2)))
                     idx+=1
     return gviRes
 
-def LinestringToPoints(col2_1, col2_2, col2_3, streets_gdf, proj):
-    with col2_1:
+def LinestringToPoints(geom_col, dist_col, annot_col, gdf, crs):
+    """
+    Computes GreenView Index for collected PanoIdx and renders image results.
+    Parameters
+    ----------
+    geom_col : streamlit container
+        field action description (e.g. "paste your geometry here")
+    dist_col: streamlit container
+        field action description (e.g. "minimum distance between points")
+    annot_col : streamlit container
+        column space to show annotated number of PanoIdx
+    gdf: geopandas.GeoDataFrame
+        Street roads geodataframe
+    crs : str
+        Projected CRS name
+        
+    Returns
+    -------
+    streets_selection : geopandas.GeoDataFrame
+        Interpolated Point geometries collection
+    """
+    with geom_col:
         geom_legend = "paste your alt geometry here"
         input_geometry = st.text_input('Simulation area', 
                                         geom_legend, 
                                         label_visibility="visible",
-                                        key="street_selection")
-    
+                                        key="streets_selection")
         
-    with col2_2:                    
+    with dist_col:                    
         dist_legend = "put a minimum distance"
         input_distance = st.number_input(dist_legend, min_value=10, 
                                             max_value=200, value=20, 
                                             step=10, format='%i')
 
     if (geom_legend != input_geometry) and (input_distance > 0):
-        
-        zone_streets = build_zone(geom=input_geometry, region=streets_gdf)
+        zone_streets = build_zone(geom=input_geometry, region=gdf)
         streets_selection = interpolate_linestrings(distance=input_distance, 
                                                     lines_gdf=zone_streets, 
-                                                    proj=proj, to_geog=True)
-        
+                                                    proj=crs, to_geog=True)
         street_points = str(len(streets_selection))  
-
-        html_map = make_folium_circlemarker(gdf=streets_selection, 
-                                        tiles='cartodbdark_matter', 
-                                        zoom=14, fit_bounds=True, attr_name=False, 
-                                        add_legend=True)
-        folium_static(html_map, width=900, height=425)
 
     else:
         streets_selection = None
         street_points ='0'
         st.markdown("Insert your streets selection geometry and fill a distance value")
 
-    with col2_3:
+    with annot_col:
         annotated_text(
             "🔵 Panoramic references: ",
-            annotation(street_points, "panoId", color="black", border="1px dashed red"))
+            annotation(street_points, "panoId", color="black")) 
     return streets_selection
 
 
 def download_gdf(gdf_points):
+    """
+    Downloads ESRI shapefile.
+    Parameters
+    ----------
+    gdf_points: geopandas.GeoDataFrame
+        Simulated GVI Points
+        
+    Returns
+    -------
+    None
+    """
     ds_name = 'gvi_results'
     st.download_button(
         label="Download shapefile",
@@ -518,6 +726,17 @@ def download_gdf(gdf_points):
         )
 
 def download_csv(gdf_points):
+    """
+    Downloads csv.
+    Parameters
+    ----------
+    gdf_points: geopandas.GeoDataFrame
+        Simulated GVI Points
+        
+    Returns
+    -------
+    None
+    """
     ds_name = 'gvi_results'
     streets_selection_ = gdf_points.copy()
     streets_selection_['geometry'] = streets_selection_['geometry'].astype(str)
@@ -530,55 +749,145 @@ def download_csv(gdf_points):
         data=csv,
         file_name=f"{ds_name}.csv",
         )
+    
+def calculate_gvi(gdf, api_key, markers_group, html_map, 
+                  annot_col, map_col, img1_col, img2_col, img3_col):
+    """
+    Get Pano ids metadata and calculate greenery percent of the panoramic pictures
+    Parameters
+    ----------
+    gdf: geopandas.GeoDataFrame
+        PanoId metadata geodataframe
+    api_key : str
+        Users GSV Api Key
+    markers_group : folium.map.FeatureGroup
+        PanoIdx markers group
+    html_map : folium.folium.Map
+        map where interpolated points is rendered
+    annot_col : streamlit container
+        column space to show annotated number of PanoIdx
+    map_col : streamlit container
+        column space to show Pano idx map
+    img1_col : streamlit container
+        column space to show Pano image with greenery calculation
+    img2_col : streamlit container
+        column space to show Pano image with greenery calculation
+    img3_col : streamlit container
+        column space to show Pano image with greenery calculation
+    streets_gdf: geopandas.GeoDataFrame
+        street roads geodataframe
+    Returns
+    -------
+    gdf : geopandas.GeoDataFrame
+        Pano Idx metadata with greenview calculation
+    """
+    Panovars = ['panoDate', 'panoId', 'panoLat', 'panoLon']
+    metadata_df, PanoNA = get_PanoMetadata(gdf_points=gdf, colnames=Panovars,api_key=api_key)
+    
+    if PanoNA > 0:
+        metadata_df_NA = metadata_df.loc[metadata_df['panoId'] == 'Not available'].copy()
+        metadata_gdf_NA = gpd.GeoDataFrame(data=metadata_df_NA, 
+                                            geometry=gpd.points_from_xy(metadata_df_NA.panoLat,
+                                                                        metadata_df_NA.panoLon)) # type: ignore
+        metadata_df = metadata_df.loc[metadata_df['panoId'] != 'Not available'].copy()
+        
+        show_PanoNA(annot_col=annot_col, map_col=map_col, numNA=PanoNA, gdf_NA=metadata_gdf_NA, 
+                    PanoCollection=markers_group, fig=html_map)
+    
+    gdf[Panovars] = metadata_df[Panovars]
+    
+    # TODO: Set UX parameter to consider seasons for greenery calculation (Check/Uncheck spring-summer only, whole year)
+    greenmonth = ['01','02','03','04','05','06','07','08','09','10','11','12']
+    #greenmonth = ['01','02','09','10','11','12'] # sprint and summer
 
-def show_simulation_section(col1, col2, col3, 
-                            col4, col5, col6,
-                            col7, col8, col9,
+    # TODO: Set UX parameter to let users define number of heading angles
+    #headingArr = 360/6*np.array([0,1,2,3,4,5])
+    headingArr = 360/3*np.array([0,1,2])
+    numGSVImg = len(headingArr)*1.0
+    pitch = 0
+    gviRes = build_and_show_gviRes(gdf, greenmonth, headingArr, 
+                                   pitch, api_key, numGSVImg, img1_col, img2_col, img3_col)
+    gdf['greenView'] = gdf['panoId'].map(gviRes)
+    return gdf
+
+
+def show_simulation_section(map_col, interpolation_col, apikey_col, 
+                            simulate_col, downgdf_col, downcsv_col,
+                            img1_col, img2_col, img3_col,
                             streets_gdf, proj):
-    with col1:
-            st.subheader("Street greenery modelling")
+    """
+    Renders the GVI simulation frame.
+    Parameters
+    ----------
+    map_col : streamlit container
+        column space to show streets map
+    interpolation_col: streamlit container
+        column space to show interpolation parameters
+    apikey_col : streamlit container
+        column space to provide GSV apikey string
+    simulate_col : streamlit container
+        column space to run greenery simulation
+    downgdf_col : streamlit container
+        column space to download shp file
+    downcsv_col : streamlit container
+        column space to download csv file
+    img1_col : streamlit container
+        column space to show Pano image with greenery calculation
+    img2_col : streamlit container
+        column space to show Pano image with greenery calculation
+    img3_col : streamlit container
+        column space to show Pano image with greenery calculation
+    streets_gdf: geopandas.GeoDataFrame
+        street roads geodataframe
+    proj: str
+        Projected CRS name
+        
+    Returns
+    -------
+    None
+    """
+    # Intialize vars
+    streets_selection, markers_group, html_map = None, None, None
+    with map_col:
             caba_streets = streets_gdf
             map_3 = KeplerGl(height=475, width=300)
             map_3.add_data(data=caba_streets, name="Streets")
             landing_map = map_3
             keplergl_static(landing_map, center_map=True)
             
-    with col2:
+    with interpolation_col:
         col2_1, col2_2, col2_3 = st.columns((0.45,0.15, 0.25))
-        streets_selection = LinestringToPoints(col2_1, col2_2, col2_3, caba_streets, proj)
+        streets_selection = LinestringToPoints(geom_col=col2_1, dist_col=col2_2, annot_col=col2_3, 
+                                               gdf=caba_streets, crs=proj)
         
-    with col3:
+        # Update map with NA Panoidx
+        col2_4 = None
+        
+        if streets_selection is not None:
+            col2_4 = st.empty()
+
+            with col2_4.container():
+                html_map, markers_group = make_folium_circlemarker(gdf=streets_selection, 
+                                            tiles='cartodbdark_matter', 
+                                            zoom=14, fit_bounds=True, attr_name=False, 
+                                            add_legend=True, color='blue')
+                folium_static(html_map, width=900, height=425)
+    
+    with apikey_col:
         api_key = registerAPIkey()
         client_key = r'{}'.format(api_key)
     
-    with col4:
-        click = st.button("Get Panoramic Views 🏃‍♂️!")
+    with simulate_col:
+        click = st.button("Run simulation 🏃‍♂️!")
         if click:
-            #center_running() #TODO: check if we want to customize more alternative positions for the running legend
-            Panovars = ['panoDate', 'panoId', 'panoLat', 'panoLon']
-            metadata_df, PanoNA = get_PanoMetadata(gdf_points=streets_selection, colnames=Panovars,api_key=client_key)
-            
-            if PanoNA > 0:
-                metadata_df = metadata_df.loc[metadata_df['panoId'] != 'Not available'].copy()
-            
-            streets_selection[Panovars] = metadata_df[Panovars]
-    
-            # TODO: Set UX parameter to filter seasons (Check/Uncheck spring-summer only, whole year)
-            greenmonth = ['01','02','03','04','05','06','07','08','09','10','11','12']
-            #greenmonth = ['01','02','09','10','11','12'] # sprint and summer
+            output = calculate_gvi(gdf=streets_selection, api_key=client_key, 
+                                   markers_group=markers_group, html_map=html_map, 
+                                   annot_col=col2_3, map_col=col2_4, img1_col=img1_col, 
+                                   img2_col=img2_col, img3_col=img3_col)
 
-            # TODO: Set UX parameter to let users define number of heading angles
-            #headingArr = 360/6*np.array([0,1,2,3,4,5])
-            headingArr = 360/3*np.array([0,1,2])
-            numGSVImg = len(headingArr)*1.0
-            pitch = 0
-            gviRes = build_and_show_gviRes(streets_selection, greenmonth, headingArr, 
-                                           pitch, api_key, numGSVImg, col7, col8, col9)
-            streets_selection['greenView'] = streets_selection['panoId'].map(gviRes)
-
-            with col5:
-                download_gdf(streets_selection)
+            with downgdf_col:
+                download_gdf(output)
                     
-            with col6:
-                download_csv(streets_selection)
+            with downcsv_col:
+                download_csv(output)
                 

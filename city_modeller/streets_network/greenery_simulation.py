@@ -1,3 +1,4 @@
+import numpy as np
 import requests
 import streamlit as st    
 import time
@@ -7,14 +8,30 @@ import io
 import pymeanshift as pms
 
 def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
-    '''
-    This function is used to call the Google API url to collect the metadata of
+    """
+    Calls the Google API url to collect the metadata of 
     Google Street View Panoramas. 
     
-    Parameters: 
-        geom: shapely.geometry in EPSG4326
-        
-    '''
+    Parameters:
+    ----------- 
+    geom : shapely.geometry in EPSG4326
+        Resultant x/y coords after interpolation process
+    api_key : str
+        GSV client key
+    allow_prints : bool
+        allow informative print
+
+    Returns
+    -------
+    panoDate : str
+        Date of the panoramas  
+    panoId : str
+        Pano idx associated to the interpolated Point
+    panoLat : str
+        Lat coord of the Pano idx associated to the interpolated Point  
+    panoLon : str
+        Lon coord of the Pano idx associated to the interpolated Point    
+    """
     
     lon = geom.y
     lat = geom.x     
@@ -44,7 +61,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
         panoLon = data['location']['lng']
         
         if allow_prints:
-            st.write('The coordinate (\{},{})\, panoId is: {}, panoDate is: {}'.format(panoLon,panoLat,panoId, panoDate))
+            st.write('The coordinate ({},{}), panoId is: {}, panoDate is: {}'.format(panoLon,panoLat,panoId, panoDate))
         
         return panoDate, panoId, panoLat, panoLon
     
@@ -52,15 +69,32 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 def GreenViewComputing_3Horizon(headingArr,panoId,pitch,api_key,numGSVImg):
     
     """
-    This function is used to download the GSV from the information provide
-    by the gsv info txt, and save the result to a shapefile
+    Calls the endpoint associated to the collected Panoramas and calculates
+    Green View Index by calculating the green pixels average between all the
+    images tied to each panorama. 
     
-    Required modules: StringIO, numpy, requests, and PIL
-    
-        greenmonth: a list of the green season, for example in Boston, greenmonth = ['05','06','07','08','09']
-        
-    last modified by Xiaojiang Li, MIT Senseable City Lab, March 25, 2018
-    
+    Parameters:
+    ----------- 
+    headingArr : np.array
+        360° covering angles
+    panoId : str
+        panorama index
+    pitch : str
+        vertical covering angles. If implemented must be iterated like heading
+    api_key
+        GSV client key
+    numGSVImg: int
+        number of images associated to each Panorama. This depends 
+        on number of heading angles
+
+    Returns
+    -------
+    greenViewVal : float
+        Green View calculated for a given panorama
+    images : list
+        list of images associated to the panorama
+    captions : list
+        list of captions to describe each image  
     """
     # calculate the green view index
     greenPercent = 0.0
@@ -68,16 +102,13 @@ def GreenViewComputing_3Horizon(headingArr,panoId,pitch,api_key,numGSVImg):
     captions = []
     
     for heading in headingArr:
-        #st.write("Heading is: {}".format(heading))
-        
-        # using different keys for different process, each key can only request 25,000 imgs every 24 hours
+        # TODO: moves endpoint to config file?
+        # each key can only request 25,000 imgs every 24 hours
         URL = "https://maps.googleapis.com/maps/api/streetview?size=400x400&pano=%s&fov=80&heading=%d&pitch=%d&key=%s"%(panoId,heading,pitch,api_key)
-        #st.write(URL)
         
         # let the code to pause by 1s, in order to not go over data limitation of Google quota
         time.sleep(1)
-        #st.write(URL)
-        #import pdb;pdb.set_trace()
+        
         # classify the GSV images and calcuate the GVI
         try:
             response = requests.get(URL)
@@ -92,26 +123,33 @@ def GreenViewComputing_3Horizon(headingArr,panoId,pitch,api_key,numGSVImg):
         # if the GSV images are not download successfully or failed to run, then return a null value
         except:
             greenPercent = -1000
-            #percent = 0 #no greenery if error
             captions.append(0)
-            #break
             continue
 
-    # calculate the green view index by averaging six percents from six images
+    # calculate the green view index by averaging 3 percents from 3 images
     greenViewVal = greenPercent/numGSVImg
     #st.write('The greenview: {}, pano: {}'.format(greenViewVal, panoId))
     return greenViewVal, images, captions
                  
 
 def graythresh(array,level):
-    '''array: is the numpy array waiting for processing
-    return thresh: is the result got by OTSU algorithm
-    if the threshold is less than level, then set the level as the threshold
+    """
+    Applies OTSU thresholding method for greenery segmentation
+    Parameters
+    ----------
+    array : np.array
+        green to red + blue array of differences to use for thresholding 
+        pixels classification
+    level : float
+        if the threshold is less than level, then set the level as the threshold
+    
+    Returns
+    -------
+    threshold : float
+        is the result got by OTSU algorithm   
+    
     by Xiaojiang Li
-    '''
-    
-    import numpy as np
-    
+    """
     maxVal = np.max(array)
     minVal = np.min(array)
     
@@ -121,7 +159,7 @@ def graythresh(array,level):
         array = array*255
         # print "New max value is %s" %(np.max(array))
     elif maxVal >= 256:
-        array = np.int((array - minVal)/(maxVal - minVal))
+        array = np.int((array - minVal)/(maxVal - minVal)) # type: ignore
         # print "New min value is %s" %(np.min(array))
     
     # turn the negative to natural number
@@ -169,16 +207,21 @@ def graythresh(array,level):
 
 
 def VegetationClassification(Img):
-    '''
-    This function is used to classify the green vegetation from GSV image,
-    This is based on object based and otsu automatically thresholding method
-    The season of GSV images were also considered in this function
-        Img: the numpy array image, eg. Img = np.array(Image.open(StringIO(response.content)))
-        return the percentage of the green vegetation pixels in the GSV image
+    """
+    Classifies the green vegetation from GSV images.
+    Parameters
+    ----------
+    Img: the numpy array image, eg. 
+        Img = np.array(Image.open(io.BytesIO(response.content)))
+         
+    Returns
+    -------
+    greenPercent : float 
     
     By Xiaojiang Li
-    '''
+    """
     
+    # TODO: Explore alternatives for img segmentation
     # use the meanshift segmentation algorithm to segment the original GSV image
     (segmented_image, labels_image, number_regions) = pms.segment(Img,spatial_radius=6,
                                                      range_radius=7, min_density=40)

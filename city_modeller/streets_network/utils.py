@@ -7,14 +7,186 @@ import plotly_express as px
 import tempfile
 from pathlib import Path
 from shapely import wkt
+from shapely import Polygon
 import pyproj
 import geopandas as gpd
+import json
+import yaml
 import streamlit as st
 
+def registerAPIkey():
+    """
+    Register users GSV Api Key.
+    
+    Returns
+    -------
+    api_key : str
+        Users ApiKey
+    """
+    input_key = st.empty()
+    legend = "paste your apiKey here"
+    api_key = input_key.text_input('API Key',  
+                                legend, 
+                                label_visibility="visible",
+                                key="apiKey_submit")
+    if api_key != legend:
+        input_key.empty()
+        st.info('GSV credentials has been registered')
+    
+    return api_key
 
+def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
+    """
+    Finds interpolated Points along Linestring geometries using Linear Reference System.
+    Parameters
+    ----------
+    distance : int
+        linear distance between Points
+    lines_gdf : geopandas.GeoDataFrame
+        Linestring geom geodataframe (e.g."Streets")
+    proj : str
+        Name of the projected CRS
+    to_geog: bool
+        Wether or not to reproject layer in 2D
+    
+    Returns
+    -------
+    unique_points : geopandas.GeoDataFrame
+        Interpolated Points along street roads
+
+    """
+    # Projected
+    lines_proj = lines_gdf.to_crs(proj)
+    min_dist = int(distance)
+
+    ids = []
+    pts = []
+
+    for idx, row in lines_proj.iterrows():
+        for distance in range(0, int(row['geometry'].length), min_dist):
+            point = row['geometry'].interpolate(distance)
+            ids.append(row['codigo']) #TODO: hardoced colname, describe dataschema (bsas streets)
+            pts.append(point)
+
+    d = {'idx':ids, 'geometry':pts}
+    interpol_points = gpd.GeoDataFrame(d, crs=proj) #type:ignore
+    # remove duplicated for cases when ending streets overlaps with starting streets
+    unique_points = interpol_points[~interpol_points.duplicated('geometry', keep='last')].copy() 
+
+    if to_geog:
+        # get back to geographic CRS
+        interpol_points_geog = unique_points.copy().to_crs(4326) #type:ignore
+        return interpol_points_geog
+    
+    else:
+        # stay in projected CRS
+        return unique_points
+
+def get_Points_in_station_buff(buffer_dst, Points, stations):
+    """
+    Renders GVI points inside air quality station buffers.
+    Parameters
+    ----------
+    buffer_dst : int
+        linear distance from air quality stations
+    Points : geopandas.GeoDataFrame
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+    stations : geopandas.GeoDataFrame
+        Air Quality stations as geom Points
+    
+    Returns
+    -------
+    PointsInBuff : geopandas.GeoDataFrame
+        GVI Point geometries inside the buffer distance
+    """
+    proj = get_projected_crs(path='config.yaml') #TODO: Loads path from os.path
+    stations_gkbs = stations.to_crs(proj)
+    buffer_stations = stations_gkbs.buffer(buffer_dst).to_crs(4326)
+    stations['geometry'] = buffer_stations
+    # TODO: describe data schema for all datasources
+    stations_feat = stations[['NOMBRE','geometry']].copy()
+    PointsInBuff = gpd.sjoin(Points, stations_feat, 
+                             predicate='within')
+    return PointsInBuff
+
+def get_projected_crs(path):
+    """
+    Loads a pyproj CRS reference.
+    Parameters
+    ----------
+    path : str
+        route to the config file where the CRS is stored 
+    
+    Returns
+    -------
+    proj : str
+    """
+    with open(path) as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+        proj = config['proj']
+    return proj
+
+def build_zone(geom, region):
+    """
+    Clips a geometries collection inside Polygon boundaries
+    Parameters
+    ----------
+    geom : str
+        Polygon geometry coordinates stored as text
+    region : geopandas.GeoDataFrame
+        Point, Polygon or Line gdf to clip out geoemtries 
+    
+    Returns
+    -------
+    zone : geopandas.GeoDataFrame
+    """
+    json_polygon = json.loads(geom)
+    polygon_geom = Polygon(json_polygon['coordinates'][0])
+    zone = region.clip(polygon_geom)
+    return zone
+
+
+def merge_dictionaries(dict1, dict2):
+    """
+    Merge two dictionaries
+    Parameters
+    ----------
+    dict1 : dictionary
+        Base zone reference mean (e.g. {'Base zone': 12})
+    dict2 : dictionary
+        Alternative zone reference mean (e.g. {'Alternative zone': 8}) 
+    
+    Returns
+    -------
+    merged_dict : dictionary
+    """
+    if dict1 is None and dict2 is None:
+        return None
+    
+    elif dict1 is not None and dict2 is None:
+        return dict1
+    
+    elif dict1 is None and dict2 is not None:
+        return dict2
+    
+    else:
+        merged_dict = dict(dict1.items() | dict2.items())
+        return merged_dict
 
 def gdf_to_shz(gdf, name):
-    "To download file as ESRI Shp"
+    """
+    Downloads file as ESRI Shp
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        a geoDataFrame with GVI results
+    name : string
+        path file name for downloading
+    
+    Returns
+    -------
+    file in bytes mode
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         path = Path(tmpdir, f"{name}.shz")
         gdf.to_file(path, driver="ESRI Shapefile")
@@ -24,16 +196,32 @@ def gdf_to_shz(gdf, name):
 def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
 
-def from_wkt(df, wkt_column, proj):
+from geopandas.geodataframe import GeoDataFrame
+
+
+def from_wkt(df, wkt_column, proj) -> GeoDataFrame:
+    """
+    Loads a GeoDataFrame using well known text geometry.
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        a DataFrame with geometry column stored as text
+    wkt_column : string
+        name of the geometry string representation column
+    proj : int | str
+        EPSG code or str CRS name
+    Returns
+    -------
+    gdf : geopandas.GeoDataFrame
+    """
     df["geometry"]= df[wkt_column].apply(wkt.loads)
-    gdf = gpd.GeoDataFrame(df, geometry='geometry', crs=4326) 
+    gdf = GeoDataFrame(df, geometry='geometry', crs=4326)  # type: ignore
 
     if proj:
       user_crs = pyproj.CRS.from_user_input(proj)
-      gdf_user_crs = gdf.to_crs(user_crs)
-      return gdf_user_crs
-    else: 
-      return gdf
+      gdf = gdf.to_crs(user_crs)
+    
+    return gdf  # type: ignore
 
 def _folium_circlemarker_config(gdf, tiles, zoom, fit_bounds, attr_name):
     """
@@ -49,7 +237,7 @@ def _folium_circlemarker_config(gdf, tiles, zoom, fit_bounds, attr_name):
         tb = gdf.total_bounds
         m.fit_bounds([(tb[1], tb[0]), (tb[3], tb[2])])
 
-    markers_group = folium.map.FeatureGroup()
+    markers_group = folium.map.FeatureGroup() #type: ignore
 
     if attr_name:
         # colormap
@@ -67,7 +255,7 @@ def _folium_circlemarker_config(gdf, tiles, zoom, fit_bounds, attr_name):
     return folium_config
 
 def make_folium_circlemarker(gdf, tiles, zoom, fit_bounds, attr_name, 
-                              add_legend, marker_radius=5):
+                              add_legend, marker_radius=5, color=None):
     """
     Plot a GeoDataFrame of Points on a folium map object.
     Parameters
@@ -89,6 +277,7 @@ def make_folium_circlemarker(gdf, tiles, zoom, fit_bounds, attr_name,
     Returns
     -------
     m : folium.folium.Map
+    markers_group : folium.map.FeatureGroup
     """
     
     config = _folium_circlemarker_config(gdf, tiles, zoom, fit_bounds, attr_name)
@@ -120,14 +309,15 @@ def make_folium_circlemarker(gdf, tiles, zoom, fit_bounds, attr_name,
             greenView:%sS''' % (idx, Date, attr)
 
             iframe = folium.IFrame(html,
-                                width=200,
-                                height=100)
+                                width='325',
+                                height='75')
 
             popup = folium.Popup(iframe,
-                                max_width=300)
+                                max_width='325'
+                                )
             
             markers_group.add_child(
-                folium.vector_layers.CircleMarker(
+                folium.vector_layers.CircleMarker( #type:ignore
                 [y, x],
                 radius= marker_radius,
                 color=None,
@@ -139,24 +329,48 @@ def make_folium_circlemarker(gdf, tiles, zoom, fit_bounds, attr_name,
             )
         m.add_child(markers_group)
     else:
-        # Plot simple markers
-        for y, x in zip(gdf['y'], gdf['x']):
-            
+        m, markers_group = plot_simple_markers(gdf=gdf, y_col='y' , x_col='x',
+                                               markers_group=markers_group, fig=m, 
+                                               marker_radius=marker_radius, color=color)
+
+    return m, markers_group
+
+def plot_simple_markers(gdf, y_col, x_col,
+                        markers_group, fig, 
+                        marker_radius, color):
+    """
+    Plot a GeoDataFrame of Points on a folium map object.
+    Parameters
+    ----------
+    gdf : geopandas.GeoDataFrame
+        a GeoDataFrame of Point geometries and attributes
+    y_col: string
+        name of the Lon column attribute
+    x_col: string
+        name of the Lat column attribute
+    fig : folium.folium.Map
+        html container
+    markers_group : folium.map.FeatureGroup
+        markers feature group
+    Returns
+    -------
+    fig : folium.folium.Map
+    markers_group : folium.map.FeatureGroup
+                new markers feature group
+    """
+    for y, x in zip(gdf[y_col], gdf[x_col]):
             markers_group.add_child(
-                folium.vector_layers.CircleMarker(
+                folium.vector_layers.CircleMarker(  #type: ignore
                 [y, x],
                 radius= marker_radius,
                 color=None,
                 fill=True,
-                fill_color='blue',
+                fill_color=color,
                 fill_opacity=0.6,
                 )
             )
-        m.add_child(markers_group)
-
-
-    return m
-
+    fig.add_child(markers_group)
+    return fig, markers_group
 
 def plot_distribution(hist_data, group_labels, 
                       h_val, w_val, 
@@ -180,9 +394,8 @@ def plot_distribution(hist_data, group_labels,
     
     Returns
     -------
-    dict : Representation of a distplot figure
-    """
-                
+    dist_fig : plotly.graph_objs._figure.Figure
+    """         
     dist_fig = ff.create_distplot(hist_data, group_labels, colors=['lightgrey'],
                                     show_rug=False, show_hist=False, 
                                     curve_type='kde')
@@ -210,6 +423,22 @@ def plot_distribution(hist_data, group_labels,
     return dist_fig
 
 def add_dist_references(x_name, x_val, ref, fig):
+    """
+    Draws a vertical line reference into the distribution plot
+    Parameters
+    ----------
+    x_name : str
+        name of the vertical line from where reference comes (e.g. base zone)
+    x_val : float
+        value of the vertical line reference
+    ref : float
+        mean value of the distribution plot where the vertical line is added
+    fig : plotly.graph_objs._figure.Figure
+    
+    Returns
+    -------
+    fig : plotly.graph_objs._figure.Figure
+    """
     if x_val < ref:
         set_col = "#D8B365"
     else:
@@ -229,6 +458,26 @@ def add_dist_references(x_name, x_val, ref, fig):
     return fig
 
 def plot_correleation_mx(df, xticks, yticks, h_val, w_val):
+    """
+    Plots a correlation matrix between air contaminants and GVI
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        a table with aggregated information by air quality station (e.g. CO, PM2 & GVI)
+    xticks : list
+        name of the correlated fields over xaxis
+    yticks : list
+        name of the correlated fields over yaxis
+    h_val : int
+        figure height
+    w_val : int
+        figure width    
+    
+    Returns
+    -------
+    fig : plotly.graph_objs._figure.Figure
+    
+    """
     fig = go.Figure(data=go.Heatmap(
                     z=np.matrix(df.corr()),
                     x=xticks,
@@ -245,7 +494,27 @@ def plot_correleation_mx(df, xticks, yticks, h_val, w_val):
     return fig
 
 def plot_scatter(df, xname, yname, colorby, h_val, w_val):
+    """
+    Plots a scatter plot between air contaminants and GVI by station
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        a table with aggregated information by air quality station (e.g. CO, PM2 & GVI)
+    xname : str
+        title of the xaxis
+    yname : str
+        title of the yaxis
+    colorby : array
+        names collection to color each bubble by name
+    h_val : int
+        figure height
+    w_val : int
+        figure width    
     
+    Returns
+    -------
+    fig : plotly.graph_objs._figure.Figure
+    """
     fig = px.scatter(df, x=xname, y=yname,  
                  trendline="ols", trendline_scope="overall", 
                  color=colorby,
