@@ -8,14 +8,14 @@ Urban dynamics performance assessment with data-driven modelling templates
 To install the app, it is recommended to create a virtual environment, as shown below:
 
 ``` shell
-> virtualenv venv --python=python3.9
+> virtualenv venv --python=python3.10
 > source venv/bin/activate
 ```
 
 Or, using `conda`'s wrapper for virtualenv:
 
 ``` shell
-> conda create -n venv python=3.9
+> conda create -n venv python=3.10
 > conda activate venv
 ```
 
