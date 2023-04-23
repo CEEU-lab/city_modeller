@@ -238,7 +238,7 @@ class PublicSpacesDashboard:
         kepler.add_data(data=data)
 
     def availability(self) -> None:  # TODO: Cache
-        @st.cache_data 
+        @st.cache_data(show_spinner=False)
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
             neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
@@ -553,14 +553,12 @@ class PublicSpacesDashboard:
 
     def run_dashboard(self) -> None:
         (
-            availavility_toggle,
-            accessibility_toggle,
+            a_and_a_toggle,
             programming_toggle,
             safety_toggle,
-        ) = section_toggles(["Availability", "Accessibility", "Programming", "Safety"])
-        if availavility_toggle:
+        ) = section_toggles(["Availability & Accessibility", "Programming", "Safety"])
+        if a_and_a_toggle:
             self.availability()
-        if accessibility_toggle:
             self.accessibility()
         if programming_toggle:
             self.programming()
