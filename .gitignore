@@ -132,3 +132,4 @@ dmypy.json
 city_modeller/data/
 .DS_Store
 figures
+**.ipynb
