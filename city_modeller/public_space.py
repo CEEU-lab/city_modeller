@@ -242,25 +242,29 @@ class PublicSpacesDashboard:
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
             neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-            neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
+            neighborhoods = gpd.GeoDataFrame(
+                neighborhoods, geometry="geometry", crs="epsg:4326"
+            )
             radios = gpd.read_file("data/radios.zip")
             radios = gpd.GeoDataFrame(radios, geometry="geometry", crs="epsg:4326")
-            radios=radios[radios.nomprov=='Ciudad Autónoma de Buenos Aires']
+            radios = radios[radios.nomprov == "Ciudad Autónoma de Buenos Aires"]
             radios = (
-            radios.reindex(columns=["ind01", "nomdepto", "geometry"])
-            .reset_index()
-            .iloc[:, 1:]
+                radios.reindex(columns=["ind01", "nomdepto", "geometry"])
+                .reset_index()
+                .iloc[:, 1:]
             )
             radios.columns = ["TOTAL_VIV", "COMUNA", "geometry"]
             radios["TOTAL_VIV"] = radios.apply(lambda x: int(x["TOTAL_VIV"]), axis=1)
             parques = gpd.read_file("data/public_space.geojson")
             parques = gpd.GeoDataFrame(parques, geometry="geometry", crs="epsg:4326")
-            park_types_options= parques["clasificac"].unique()
+            park_types_options = parques["clasificac"].unique()
             if selected_park_types:
                 parques = parques[parques["clasificac"].isin(selected_park_types)]
             polygons = list(parques.iloc[:, -1])
             boundary = gpd.GeoSeries(unary_union(polygons))
-            boundary = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary), crs="epsg:4326")
+            boundary = gpd.GeoDataFrame(
+                geometry=gpd.GeoSeries(boundary), crs="epsg:4326"
+            )
             df = pd.merge(
                 radios.reset_index(),
                 gpd.overlay(
@@ -273,37 +277,47 @@ class PublicSpacesDashboard:
                 on="index",
                 how="left",
             )
-            df_1 = df.loc[:, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]]
-            df_1.columns = ["index","TOTAL_VIV","Communes","geometry_radio","geometry_ps_rc"]
+            df_1 = df.loc[
+                :, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]
+            ]
+            df_1.columns = [
+                "index",
+                "TOTAL_VIV",
+                "Communes",
+                "geometry_radio",
+                "geometry_ps_rc",
+            ]
             df_1["TOTAL_VIV"] = df_1["TOTAL_VIV"] + 1
             df_1["area_ps_rc"] = df_1.geometry_ps_rc.area
             df_1["area_ps_rc"].fillna(0, inplace=True)
             df_1.TOTAL_VIV = df_1.TOTAL_VIV + 1
-            df_1["area_ps_rc"]=df_1["area_ps_rc"]+ df_1.area_ps_rc.std()
+            df_1["area_ps_rc"] = df_1["area_ps_rc"] + df_1.area_ps_rc.std()
             df_1["ratio"] = df_1["area_ps_rc"] / df_1["TOTAL_VIV"]
             df_1["geometry"] = df_1["geometry_radio"]
-            df_2=df_1.loc[:,["area_ps_rc",'TOTAL_VIV','Communes','ratio','geometry']]
-            radios=df_2
-            #radios = df_2[(df_2["ratio"] < 2 * 10 ** (-5)) & (df_2["ratio"] >= 0)]
+            df_2 = df_1.loc[
+                :, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]
+            ]
+            radios = df_2
+            # radios = df_2[(df_2["ratio"] < 2 * 10 ** (-5)) & (df_2["ratio"] >= 0)]
             radios["distance"] = np.log(radios["ratio"])
-            radios['geometry_centroid']=radios.geometry.centroid
-            radios['Neighborhoods']=neighborhoods.apply(lambda x: x['geometry'].contains(radios['geometry_centroid']),axis=1).T.dot(neighborhoods.BARRIO)
+            radios["geometry_centroid"] = radios.geometry.centroid
+            radios["Neighborhoods"] = neighborhoods.apply(
+                lambda x: x["geometry"].contains(radios["geometry_centroid"]), axis=1
+            ).T.dot(neighborhoods.BARRIO)
 
             # Other preprocessing steps...
-            return radios,park_types_options 
+            return radios, park_types_options
 
         # Load the dataframe using the load_data function
-        df,park_types_options = load_data([]) # pass an empty list for selected_communes
+        df, park_types_options = load_data(
+            []
+        )  # pass an empty list for selected_communes
 
         # Use the commune_options variable to create the multiselect dropdown
         selected_park_types = st.multiselect("park_types", park_types_options)
 
         # Load the dataframe using the load_data function with the selected communes
-        df,park_types_options = load_data(selected_park_types) 
-
-
-
-
+        df, park_types_options = load_data(selected_park_types)
 
         # Create a function to filter and display results based on user selections
         def filter_dataframe(df, process, filter_column, selected_values):
@@ -316,11 +330,6 @@ class PublicSpacesDashboard:
             else:
                 filtered_df = df[df["censal Ratios"].isin(selected_values)]
                 return filtered_df
-            
-        def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
-                df = gdf.copy()
-                df["geometry"] = df.geometry.apply(dumps)
-                return df.to_dict("split")
 
         # Create a multiselect dropdown to select process
         process_options = ["Commune", "Neighborhood", "Ratios"]
@@ -331,139 +340,323 @@ class PublicSpacesDashboard:
             # commune_options = df["Communes"].unique()
             # selected_commune = st.multiselect("Select a commune", commune_options)
             # with open('config/config_commune_av.json') as f:
-            #     config_c= json.load(f)  
+            #     config_c= json.load(f)
             # if selected_commune:
             #     option1 = st.radio('Select an option', ('m2/inhabitant', 'm2'))
             #     if option1 == 'm2/inhabitant':
             #         config_c['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='distance'
-                    
+
             #     elif option1 == 'm2':
             #         config_c['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='area_ps_rc'
-                                                    
+
             #     if st.button("Submit"):
             #         filter_dataframe(df, "Commune", "Communes", selected_commune)
             #         filtered_dataframe=filter_dataframe(df, "Commune", "Communes", selected_commune)
             #         kepler = KeplerGl(
-            #         height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:6])} , show_docs=False,config=config_c
+            #         height=500, data={"data": self.kepler_df(filtered_dataframe.iloc[:,:6])} , show_docs=False,config=config_c
             #         )
             #         keplergl_static(kepler)
-            #         kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:6]))
-            
+            #         kepler.add_data(data=self.kepler_df(filtered_dataframe.iloc[:,:6]))
+
             # Create a multiselect dropdown to select neighborhood column
             commune_options = df["Communes"].unique()
             selected_commune = st.multiselect("Select a commune", commune_options)
-            with open('config/config_commune_av.json') as f:
-                config_n= json.load(f) 
+            with open("config/config_commune_av.json") as f:
+                config_n = json.load(f)
             if selected_commune:
-                option1 = st.radio('Select an option', ('m2/inhabitant', 'm2'))
-                if option1 == 'm2/inhabitant':
-                    option21 =st.radio('Aggregate by', ('Ratios', 'Commune'))
-                    if option21 == 'Ratios':
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='distance'
-                        df = df.drop('geometry_centroid', axis=1)
-                    elif option21 == 'Communes':
+                option1 = st.radio("Select an option", ("m2/inhabitant", "m2"))
+                if option1 == "m2/inhabitant":
+                    option21 = st.radio("Aggregate by", ("Ratios", "Commune"))
+                    if option21 == "Ratios":
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "distance"
+                        df = df.drop("geometry_centroid", axis=1)
+                    elif option21 == "Communes":
                         neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-                        neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
-                        neighborhoods.columns=['Neighborhoods', 'Commune', 'PERIMETRO', 'AREA', 'OBJETO', 'geometry']
-                        radios_neigh_com=pd.merge(df,neighborhoods,on='Neighborhoods')
-                        barrio_geom=radios_neigh_com.loc[:,['Commune','geometry_y']].drop_duplicates()
-                        radios_neigh_com_gb=radios_neigh_com.groupby('Commune')['TOTAL_VIV','area_ps_rc'].sum().reset_index()
-                        radios_neigh_com_gb['ratio_neigh']=radios_neigh_com_gb.apply(lambda x: x['TOTAL_VIV'] / x['area_ps_rc'], axis=1)
-                        radios_neigh_com_gb.columns=['Commune','TOTAL_VIV','area_neigh','ratio_neigh']
-                        radios_neigh_com_gb_geom=pd.merge(radios_neigh_com_gb,barrio_geom,on='Neighborhoods') 
-                        radios_neigh_com_gb_geom.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh','geometry']
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(radios_neigh_com_gb_geom, geometry="geometry", crs="epsg:4326")
-                        df=radios_neigh_com_gb_geom 
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='ratio_neigh'     
-                                        
-                elif option1 == 'm2':
-                    option21 =st.radio('Aggregate by', ('Ratios', 'Neighborhoods'))
-                    if option21 == 'Ratios':
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='area_ps_rc'
-                        df = df.drop('geometry_centroid', axis=1)
-                    elif option21 == 'Neighborhoods':
+                        neighborhoods = gpd.GeoDataFrame(
+                            neighborhoods, geometry="geometry", crs="epsg:4326"
+                        )
+                        neighborhoods.columns = [
+                            "Neighborhoods",
+                            "Commune",
+                            "PERIMETRO",
+                            "AREA",
+                            "OBJETO",
+                            "geometry",
+                        ]
+                        radios_neigh_com = pd.merge(
+                            df, neighborhoods, on="Neighborhoods"
+                        )
+                        barrio_geom = radios_neigh_com.loc[
+                            :, ["Commune", "geometry_y"]
+                        ].drop_duplicates()
+                        radios_neigh_com_gb = (
+                            radios_neigh_com.groupby("Commune")[
+                                "TOTAL_VIV", "area_ps_rc"
+                            ]
+                            .sum()
+                            .reset_index()
+                        )
+                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+                            lambda x: x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                        )
+                        radios_neigh_com_gb.columns = [
+                            "Commune",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                        ]
+                        radios_neigh_com_gb_geom = pd.merge(
+                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+                        )
+                        radios_neigh_com_gb_geom.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                            "geometry",
+                        ]
+                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                            radios_neigh_com_gb_geom,
+                            geometry="geometry",
+                            crs="epsg:4326",
+                        )
+                        df = radios_neigh_com_gb_geom
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "ratio_neigh"
+
+                elif option1 == "m2":
+                    option21 = st.radio("Aggregate by", ("Ratios", "Neighborhoods"))
+                    if option21 == "Ratios":
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "area_ps_rc"
+                        df = df.drop("geometry_centroid", axis=1)
+                    elif option21 == "Neighborhoods":
                         neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-                        neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
-                        neighborhoods.columns=['Neighborhoods', 'Commune', 'PERIMETRO', 'AREA', 'OBJETO', 'geometry']
-                        radios_neigh_com=pd.merge(df,neighborhoods,on='Neighborhoods')
-                        barrio_geom=radios_neigh_com.loc[:,['Neighborhoods','geometry_y']].drop_duplicates()
-                        radios_neigh_com_gb=radios_neigh_com.groupby('Neighborhoods')['TOTAL_VIV','area_ps_rc'].sum().reset_index()
-                        radios_neigh_com_gb['ratio_neigh']=radios_neigh_com_gb.apply(lambda x: x['TOTAL_VIV'] / x['area_ps_rc'], axis=1)
-                        radios_neigh_com_gb.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh']
-                        radios_neigh_com_gb_geom=pd.merge(radios_neigh_com_gb,barrio_geom,on='Neighborhoods') 
-                        radios_neigh_com_gb_geom.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh','geometry']
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(radios_neigh_com_gb_geom, geometry="geometry", crs="epsg:4326")
-                        df=radios_neigh_com_gb_geom 
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='area_neigh'     
-                                        
+                        neighborhoods = gpd.GeoDataFrame(
+                            neighborhoods, geometry="geometry", crs="epsg:4326"
+                        )
+                        neighborhoods.columns = [
+                            "Neighborhoods",
+                            "Commune",
+                            "PERIMETRO",
+                            "AREA",
+                            "OBJETO",
+                            "geometry",
+                        ]
+                        radios_neigh_com = pd.merge(
+                            df, neighborhoods, on="Neighborhoods"
+                        )
+                        barrio_geom = radios_neigh_com.loc[
+                            :, ["Neighborhoods", "geometry_y"]
+                        ].drop_duplicates()
+                        radios_neigh_com_gb = (
+                            radios_neigh_com.groupby("Neighborhoods")[
+                                "TOTAL_VIV", "area_ps_rc"
+                            ]
+                            .sum()
+                            .reset_index()
+                        )
+                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+                            lambda x: x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                        )
+                        radios_neigh_com_gb.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                        ]
+                        radios_neigh_com_gb_geom = pd.merge(
+                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+                        )
+                        radios_neigh_com_gb_geom.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                            "geometry",
+                        ]
+                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                            radios_neigh_com_gb_geom,
+                            geometry="geometry",
+                            crs="epsg:4326",
+                        )
+                        df = radios_neigh_com_gb_geom
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "area_neigh"
+
                 if st.button("Submit"):
-                    filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    filtered_dataframe=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    #st.write(filtered_dataframe)
+                    filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
+                    filtered_dataframe = filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
+                    # st.write(filtered_dataframe)
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": self.kepler_df(filtered_dataframe.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:]))
-                
+                    kepler.add_data(data=self.kepler_df(filtered_dataframe.iloc[:, :]))
+
         if "Neighborhood" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
             neighborhood_options = df["Neighborhoods"].unique()
-            selected_neighborhood = st.multiselect("Select a neighborhood", neighborhood_options)
-            with open('config/config_neigh_av.json') as f:
-                config_n= json.load(f) 
+            selected_neighborhood = st.multiselect(
+                "Select a neighborhood", neighborhood_options
+            )
+            with open("config/config_neigh_av.json") as f:
+                config_n = json.load(f)
             if selected_neighborhood:
-                option1 = st.radio('Select an option', ('m2/inhabitant', 'm2'))
-                if option1 == 'm2/inhabitant':
-                    option21 =st.radio('Aggregate by', ('Ratios', 'Neighborhoods'))
-                    if option21 == 'Ratios':
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='distance'
-                        df = df.drop('geometry_centroid', axis=1)
-                    elif option21 == 'Neighborhoods':
+                option1 = st.radio("Select an option", ("m2/inhabitant", "m2"))
+                if option1 == "m2/inhabitant":
+                    option21 = st.radio("Aggregate by", ("Ratios", "Neighborhoods"))
+                    if option21 == "Ratios":
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "distance"
+                        df = df.drop("geometry_centroid", axis=1)
+                    elif option21 == "Neighborhoods":
                         neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-                        neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
-                        neighborhoods.columns=['Neighborhoods', 'Commune', 'PERIMETRO', 'AREA', 'OBJETO', 'geometry']
-                        radios_neigh_com=pd.merge(df,neighborhoods,on='Neighborhoods')
-                        barrio_geom=radios_neigh_com.loc[:,['Neighborhoods','geometry_y']].drop_duplicates()
-                        radios_neigh_com_gb=radios_neigh_com.groupby('Neighborhoods')['TOTAL_VIV','area_ps_rc'].sum().reset_index()
-                        radios_neigh_com_gb['ratio_neigh']=radios_neigh_com_gb.apply(lambda x: x['TOTAL_VIV'] / x['area_ps_rc'], axis=1)
-                        radios_neigh_com_gb.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh']
-                        radios_neigh_com_gb_geom=pd.merge(radios_neigh_com_gb,barrio_geom,on='Neighborhoods') 
-                        radios_neigh_com_gb_geom.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh','geometry']
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(radios_neigh_com_gb_geom, geometry="geometry", crs="epsg:4326")
-                        df=radios_neigh_com_gb_geom 
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='ratio_neigh'     
-                                        
-                elif option1 == 'm2':
-                    option21 =st.radio('Aggregate by', ('Ratios', 'Neighborhoods'))
-                    if option21 == 'Ratios':
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='area_ps_rc'
-                        df = df.drop('geometry_centroid', axis=1)
-                    elif option21 == 'Neighborhoods':
+                        neighborhoods = gpd.GeoDataFrame(
+                            neighborhoods, geometry="geometry", crs="epsg:4326"
+                        )
+                        neighborhoods.columns = [
+                            "Neighborhoods",
+                            "Commune",
+                            "PERIMETRO",
+                            "AREA",
+                            "OBJETO",
+                            "geometry",
+                        ]
+                        radios_neigh_com = pd.merge(
+                            df, neighborhoods, on="Neighborhoods"
+                        )
+                        barrio_geom = radios_neigh_com.loc[
+                            :, ["Neighborhoods", "geometry_y"]
+                        ].drop_duplicates()
+                        radios_neigh_com_gb = (
+                            radios_neigh_com.groupby("Neighborhoods")[
+                                "TOTAL_VIV", "area_ps_rc"
+                            ]
+                            .sum()
+                            .reset_index()
+                        )
+                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+                            lambda x: x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                        )
+                        radios_neigh_com_gb.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                        ]
+                        radios_neigh_com_gb_geom = pd.merge(
+                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+                        )
+                        radios_neigh_com_gb_geom.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                            "geometry",
+                        ]
+                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                            radios_neigh_com_gb_geom,
+                            geometry="geometry",
+                            crs="epsg:4326",
+                        )
+                        df = radios_neigh_com_gb_geom
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "ratio_neigh"
+
+                elif option1 == "m2":
+                    option21 = st.radio("Aggregate by", ("Ratios", "Neighborhoods"))
+                    if option21 == "Ratios":
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "area_ps_rc"
+                        df = df.drop("geometry_centroid", axis=1)
+                    elif option21 == "Neighborhoods":
                         neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-                        neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
-                        neighborhoods.columns=['Neighborhoods', 'Commune', 'PERIMETRO', 'AREA', 'OBJETO', 'geometry']
-                        radios_neigh_com=pd.merge(df,neighborhoods,on='Neighborhoods')
-                        barrio_geom=radios_neigh_com.loc[:,['Neighborhoods','geometry_y']].drop_duplicates()
-                        radios_neigh_com_gb=radios_neigh_com.groupby('Neighborhoods')['TOTAL_VIV','area_ps_rc'].sum().reset_index()
-                        radios_neigh_com_gb['ratio_neigh']=radios_neigh_com_gb.apply(lambda x: x['TOTAL_VIV'] / x['area_ps_rc'], axis=1)
-                        radios_neigh_com_gb.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh']
-                        radios_neigh_com_gb_geom=pd.merge(radios_neigh_com_gb,barrio_geom,on='Neighborhoods') 
-                        radios_neigh_com_gb_geom.columns=['Neighborhoods','TOTAL_VIV','area_neigh','ratio_neigh','geometry']
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(radios_neigh_com_gb_geom, geometry="geometry", crs="epsg:4326")
-                        df=radios_neigh_com_gb_geom 
-                        config_n['config']['visState']['layers'][0]['visualChannels']['colorField']['name']='area_neigh'     
-                                        
+                        neighborhoods = gpd.GeoDataFrame(
+                            neighborhoods, geometry="geometry", crs="epsg:4326"
+                        )
+                        neighborhoods.columns = [
+                            "Neighborhoods",
+                            "Commune",
+                            "PERIMETRO",
+                            "AREA",
+                            "OBJETO",
+                            "geometry",
+                        ]
+                        radios_neigh_com = pd.merge(
+                            df, neighborhoods, on="Neighborhoods"
+                        )
+                        barrio_geom = radios_neigh_com.loc[
+                            :, ["Neighborhoods", "geometry_y"]
+                        ].drop_duplicates()
+                        radios_neigh_com_gb = (
+                            radios_neigh_com.groupby("Neighborhoods")[
+                                "TOTAL_VIV", "area_ps_rc"
+                            ]
+                            .sum()
+                            .reset_index()
+                        )
+                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+                            lambda x: x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                        )
+                        radios_neigh_com_gb.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                        ]
+                        radios_neigh_com_gb_geom = pd.merge(
+                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+                        )
+                        radios_neigh_com_gb_geom.columns = [
+                            "Neighborhoods",
+                            "TOTAL_VIV",
+                            "area_neigh",
+                            "ratio_neigh",
+                            "geometry",
+                        ]
+                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                            radios_neigh_com_gb_geom,
+                            geometry="geometry",
+                            crs="epsg:4326",
+                        )
+                        df = radios_neigh_com_gb_geom
+                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                            "colorField"
+                        ]["name"] = "area_neigh"
+
                 if st.button("Submit"):
-                    filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    filtered_dataframe=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    #st.write(filtered_dataframe)
+                    filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
+                    filtered_dataframe = filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
+                    # st.write(filtered_dataframe)
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": self.kepler_df(filtered_dataframe.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:]))
-                
+                    kepler.add_data(data=self.kepler_df(filtered_dataframe.iloc[:, :]))
+
         if "Ratios" in selected_process:
             # Create a multiselect dropdown to select ratio column
             if st.button("Submit"):
