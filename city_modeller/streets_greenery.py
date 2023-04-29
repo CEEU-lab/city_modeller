@@ -29,19 +29,23 @@ from streets_network.greenery_simulation import (
 )
 
 
-def activate_headers(button1, button2, button3, button4):
+HEADING_ANGLES = 3
+
+
+# NOTE: This might be going to widgets.py.
+def activate_headers(simulate_button, results_button, zone_button, impact_button):
     """
     Activates micromodelling sections
     Parameters
     ----------
-    button1 : bool
-        wether the toggle button was activated or not
-    button2 : bool
-        wether the toggle button was activated or not
-    button3 : bool
-        wether the toggle button was activated or not
-    button4 : bool
-        wether the toggle button was activated or not
+    simulate_button : bool
+        whether the toggle button was activated or not
+    results_button : bool
+        whether the toggle button was activated or not
+    zone_button : bool
+        whether the toggle button was activated or not
+    impact_button : bool
+        whether the toggle button was activated or not
     Returns
     -------
     simulate_greenery : bool
@@ -49,7 +53,7 @@ def activate_headers(button1, button2, button3, button4):
     zone_analysis : bool
     impact_analysis : bool
     """
-    with button1:
+    with simulate_button:
         simulate_greenery = tog.st_toggle_switch(
             label="Simulation frame",
             key="Simulation_section",
@@ -59,7 +63,7 @@ def activate_headers(button1, button2, button3, button4):
             active_color="#11567f",
             track_color="#29B5E8",
         )
-    with button2:
+    with results_button:
         main_results = tog.st_toggle_switch(
             label="Explore results",
             key="Results_section",
@@ -70,7 +74,7 @@ def activate_headers(button1, button2, button3, button4):
             track_color="#29B5E8",
         )
 
-    with button3:
+    with zone_button:
         zone_analysis = tog.st_toggle_switch(
             label="Explore zones",
             key="Zone_section",
@@ -81,7 +85,7 @@ def activate_headers(button1, button2, button3, button4):
             track_color="#29B5E8",
         )
 
-    with button4:
+    with impact_button:
         impact_analysis = tog.st_toggle_switch(
             label="Explore impact",
             key="Impact_section",
@@ -103,7 +107,7 @@ def get_reference_mean(zone_name, zone_geom, zone_file, annot_txt, gdf):
         name of the zone analysis (e.g. base zone)
     zone_geom : str
         name of the streamlit session state. This is
-        used to check if the zone was built using a drawed
+        used to check if the zone was built using a drawn
         geometry input
     zone_file : str
         name of the streamlit session state. This is
@@ -156,7 +160,7 @@ def get_reference_mean(zone_name, zone_geom, zone_file, annot_txt, gdf):
 
 def uploaded_zone_greenery_distribution(
     session_key, file, panoId, legend, map_col, chart_col, zone_name
-):
+) -> st.delta_generator.DeltaGenerator:
     """
     Plots the greenery distribution (spatial and density) of an analysis
     zone defined with a user's uploaded file.
@@ -175,11 +179,11 @@ def uploaded_zone_greenery_distribution(
     chart_col : streamlit container
         column space to render charts
     zone_name : str
-        wether Base or Alternative zone
+        whether Base or Alternative zone
 
     Returns
     -------
-        None
+        st.delta_generator.DeltaGenerator
     """
     if session_key in st.session_state.keys():
         if st.session_state[session_key]:
@@ -227,12 +231,12 @@ def uploaded_zone_greenery_distribution(
                 return st.plotly_chart(fig)
 
 
-def drawed_zone_greenery_distribution(
+def drawn_zone_greenery_distribution(
     geom, geom_legend, gdf, map_col, chart_col, panoId, pano_legend, zone_name
 ):
     """
     Plots the greenery distribution (spatial and density) of an analysis
-    zone defined with a user's drawed geometry.
+    zone defined with a user's drawn geometry.
     Parameters
     ----------
     geom : str
@@ -250,7 +254,7 @@ def drawed_zone_greenery_distribution(
     pano_legend : str
         field action description (e.g. "paste your PanoIdx here")
     zone_name : str
-        wether Base or Alternative zone
+        whether Base or Alternative zone
 
     Returns
     -------
@@ -321,7 +325,7 @@ def show_zone_section(
     macro_region : geopandas.GeoDataFrame
         GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
     zone_name : str
-        wether Base or Alternative zone
+        whether Base or Alternative zone
 
     Returns
     -------
@@ -372,7 +376,7 @@ def show_zone_section(
                 key="{}_geom".format(lower_name),
             )
 
-        drawed_zone_greenery_distribution(
+        drawn_zone_greenery_distribution(
             geom=input_geometry,
             geom_legend=geom_legend,
             gdf=macro_region,
@@ -495,9 +499,9 @@ def show_main_results_section(
     stations : geopandas.GeoDataFrame
         Air Quality stations as geom Points
     show_impact : bool
-        Wether or not to show impact section
+        Whether or not to show impact section
     show_zones : bool
-        Wether or not to show zones section
+        Whether or not to show zones section
     config_files : dict
         map styling configuration for kepler map
 
@@ -931,7 +935,7 @@ def calculate_gvi(
 
     # TODO: Set UX parameter to let users define number of heading angles
     # headingArr = 360/6*np.array([0,1,2,3,4,5])
-    headingArr = 360 / 3 * np.array([0, 1, 2])
+    headingArr = 360 / HEADING_ANGLES * np.array([0, 1, 2])
     numGSVImg = len(headingArr) * 1.0
     pitch = 0
     gviRes = build_and_show_gviRes(

@@ -66,14 +66,16 @@ elif micro_menu_list == "Streets greenery":
         )
 
         # All sections
-        button1, button2, button3, button4 = st.columns(4)
+        simulate_button, results_button, zone_button, impact_button = st.columns(4)
 
         (
             simulate_greenery,
             main_results,
             zone_analysis,
             impact_analysis,
-        ) = activate_headers(button1, button2, button3, button4)
+        ) = activate_headers(
+            simulate_button, results_button, zone_button, impact_button
+        )
 
         # Set CRS for current region
         with open("config.yaml") as f:

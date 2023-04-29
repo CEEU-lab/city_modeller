@@ -197,7 +197,7 @@ def graythresh(array, level):
 
     maxval = np.max(sigma_b_squared)
 
-    IsAllInf = (CIN == 256)
+    IsAllInf = CIN == 256
     if not IsAllInf:
         index = np.where(sigma_b_squared == maxval)
         idx = np.mean(index)
@@ -245,13 +245,13 @@ def VegetationClassification(Img):
     ExG = green_red_Diff + green_blue_Diff
     diffImg = green_red_Diff * green_blue_Diff
 
-    redThreImgU = (red < 0.6)
-    greenThreImgU = (green < 0.9)
-    blueThreImgU = (blue < 0.6)
+    redThreImgU = red < 0.6
+    greenThreImgU = green < 0.9
+    blueThreImgU = blue < 0.6
 
-    shadowRedU = (red < 0.3)
-    shadowGreenU = (green < 0.3)
-    shadowBlueU = (blue < 0.3)
+    shadowRedU = red < 0.3
+    shadowGreenU = green < 0.3
+    shadowBlueU = blue < 0.3
     del red, blue, green, I
 
     greenImg1 = redThreImgU * blueThreImgU * greenThreImgU
@@ -272,7 +272,7 @@ def VegetationClassification(Img):
     del greenImgShadow1, greenImgShadow2
 
     # calculate the percentage of the green vegetation
-    greenPxlNum = len(np.where(greenImg != 0)[0])
+    greenPxlNum = (greenImg != 0).sum()
     greenPercent = greenPxlNum / (400.0 * 400) * 100
     del greenImg1, greenImg2
     del greenImg3, greenImg4

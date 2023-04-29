@@ -6,6 +6,8 @@ streamlit==1.19.0
 streamlit_folium
 streamlit-toggle-switch
 streamlit-keplergl
+streamlit-extras
+st-annotated-text
 keplergl==0.3.0
 seaborn
 plotly
