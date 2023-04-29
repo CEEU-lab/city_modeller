@@ -9,7 +9,7 @@ import pymeanshift as pms
 
 
 MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
-IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
+ngIMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
 
 
 def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
@@ -178,8 +178,7 @@ def graythresh(array, level):
         # print("New min value is %s" %(np.min(array)))
 
     # turn the negative to natural number
-    negIdx = np.where(array < 0)
-    array[negIdx] = 0
+    array = np.clip(array, 0)
 
     # calculate the hist of 'array'
     dims = np.shape(array)
