@@ -3,13 +3,12 @@ import requests
 import streamlit as st
 import time
 from PIL import Image
-import numpy as np
 import io
 import pymeanshift as pms
 
 
 MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
-ngIMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
+IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
 
 
 def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
@@ -37,7 +36,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
     panoLon : str
         Lon coord of the Pano idx associated to the interpolated Point
     """
-
+    assert geom.crs == "EPSG:4326", "Invalid Geometry. CRS should be 'EPSG:4326'"
     lon = geom.y
     lat = geom.x
 
@@ -181,7 +180,6 @@ def graythresh(array, level):
     array = np.clip(array, 0)
 
     # calculate the hist of 'array'
-    dims = np.shape(array)
     hist = np.histogram(array, range(257))
     P_hist = hist[0] * 1.0 / np.sum(hist[0])
 
