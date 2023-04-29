@@ -8,6 +8,9 @@ import io
 import pymeanshift as pms
 
 
+MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
+
+
 def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
     """
     Calls the Google API url to collect the metadata of
@@ -51,7 +54,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 
     # in case there is not panorama in the site, therefore, continue
     if data["status"] != "OK":
-        if allow_prints:
+        if allow_prints:  # TODO: Make widget with red text.
             st.write("Reference Point not available")
     else:
         # get the meta data of the panorama
@@ -60,7 +63,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
         panoLat = data["location"]["lat"]
         panoLon = data["location"]["lng"]
 
-        if allow_prints:
+        if allow_prints:  # TODO: Make widget with red text.
             st.write(
                 "The coordinate ({},{}), panoId is: {}, panoDate is: {}".format(
                     panoLon, panoLat, panoId, panoDate
@@ -114,7 +117,7 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
         )
 
         # let the code to pause by 1s, in order to not go over data limitation of Google quota
-        time.sleep(1)
+        time.sleep(1)  # FIXME: Try to reduce this to make faster.
 
         # classify the GSV images and calcuate the GVI
         try:
@@ -127,7 +130,7 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
             greenPercent = greenPercent + percent
 
         # if the GSV images are not download successfully or failed to run, then return a null value
-        except:
+        except:  # FIXME
             greenPercent = -1000
             captions.append(0)
             continue
@@ -162,11 +165,12 @@ def graythresh(array, level):
     #   if the inputImage is a float of double dataset then we transform the data
     #   in to byte and range from [0 255]
     if maxVal <= 1:
-        array = array * 255
-        # print "New max value is %s" %(np.max(array))
+        array = array * 255  # NOTE: Might need an int.
+        # print("New max value is %s" %(np.max(array)))
     elif maxVal >= 256:
+        # FIXME: This is a MinMaxScaler, and is 0-1, and turned to int.
         array = np.int((array - minVal) / (maxVal - minVal))  # type: ignore
-        # print "New min value is %s" %(np.min(array))
+        # print("New min value is %s" %(np.min(array)))
 
     # turn the negative to natural number
     negIdx = np.where(array < 0)
@@ -189,16 +193,12 @@ def graythresh(array, level):
     sigma_b_squared = (mu_t * omega - mu) ** 2 / (omega * (1 - omega))
 
     # try to found if all sigma_b squrered are NaN or Infinity
-    indInf = np.where(sigma_b_squared == np.inf)
-
-    CIN = 0
-    if len(indInf[0]) > 0:
-        CIN = len(indInf[0])
+    CIN = np.sum(sigma_b_squared == np.inf)
 
     maxval = np.max(sigma_b_squared)
 
-    IsAllInf = CIN == 256
-    if IsAllInf != 1:
+    IsAllInf = (CIN == 256)
+    if not IsAllInf:
         index = np.where(sigma_b_squared == maxval)
         idx = np.mean(index)
         threshold = (idx - 1) / 255.0
@@ -245,13 +245,13 @@ def VegetationClassification(Img):
     ExG = green_red_Diff + green_blue_Diff
     diffImg = green_red_Diff * green_blue_Diff
 
-    redThreImgU = red < 0.6
-    greenThreImgU = green < 0.9
-    blueThreImgU = blue < 0.6
+    redThreImgU = (red < 0.6)
+    greenThreImgU = (green < 0.9)
+    blueThreImgU = (blue < 0.6)
 
-    shadowRedU = red < 0.3
-    shadowGreenU = green < 0.3
-    shadowBlueU = blue < 0.3
+    shadowRedU = (red < 0.3)
+    shadowGreenU = (green < 0.3)
+    shadowBlueU = (blue < 0.3)
     del red, blue, green, I
 
     greenImg1 = redThreImgU * blueThreImgU * greenThreImgU
@@ -263,10 +263,7 @@ def VegetationClassification(Img):
     greenImg4 = green_red_Diff > 0
     threshold = graythresh(ExG, 0.1)
 
-    if threshold > 0.1:
-        threshold = 0.1
-    elif threshold < 0.05:
-        threshold = 0.05
+    threshold = np.clip(threshold, MIN_THRESHOLD, MAX_THRESHOLD)
 
     greenImg2 = ExG > threshold
     greenImgShadow2 = ExG > 0.05
