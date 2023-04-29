@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 
 
@@ -49,7 +50,14 @@ elif micro_menu_list == "Streets greenery":
 
     warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
     import yaml
-    from streets_greenery import *
+    from streets_greenery import (
+        activate_headers,
+        get_Points_in_station_buff,
+        show_impact_section,
+        show_main_results_section,
+        show_simulation_section,
+        show_zone_section,
+    )
     from streets_network.gvi_map_config import main_res_config, stations_config
     from datasources import (
         get_GVI_treepedia_BsAs,
@@ -62,7 +70,8 @@ elif micro_menu_list == "Streets greenery":
 
     with st.container():
         st.write(
-            "Street greenery provides a series of benefits to urban residents, such as air quality, provision of shade, and aesthetic values."
+            "Street greenery provides a series of benefits to urban residents, such as "
+            + "air quality, provision of shade, and aesthetic values."
         )
 
         # All sections
@@ -123,7 +132,8 @@ elif micro_menu_list == "Streets greenery":
 
             if zone_analysis and impact_analysis:
                 st.warning(
-                    "Results must be explored at zone or impact level. Please, activate one of them only",
+                    "Results must be explored at zone or impact level. Please, activate"
+                    + " one of them only",
                     icon="⚠️",
                 )
 

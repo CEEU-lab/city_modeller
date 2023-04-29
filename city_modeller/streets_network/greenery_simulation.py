@@ -9,6 +9,7 @@ import pymeanshift as pms
 
 
 MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
+IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
 
 
 def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
@@ -41,7 +42,8 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
     lat = geom.x
 
     # get the meta data of panoramas
-    meta_base = "https://maps.googleapis.com/maps/api/streetview/metadata?"  # TODO: Maybe better inside config file?
+    # TODO: Maybe better inside config file?
+    meta_base = "https://maps.googleapis.com/maps/api/streetview/metadata?"
 
     location = "{},{}".format(lon, lat)
     # define the params for the metadata reques
@@ -109,14 +111,16 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
     captions = []
 
     for heading in headingArr:
-        # TODO: moves endpoint to config file?
+        # TODO: moves endpoint to config file? Use request params.
         # each key can only request 25,000 imgs every 24 hours
         URL = (
-            "https://maps.googleapis.com/maps/api/streetview?size=400x400&pano=%s&fov=80&heading=%d&pitch=%d&key=%s"
-            % (panoId, heading, pitch, api_key)
+            "https://maps.googleapis.com/maps/api/streetview?"
+            + f"size={IMAGE_WIDTH}x{IMAGE_HEIGHT}&pano={panoId}&fov=80&"
+            + f"heading={heading}&pitch={pitch}&key={api_key}"
         )
 
-        # let the code to pause by 1s, in order to not go over data limitation of Google quota
+        # let the code to pause by 1s, in order to not go over data limitation of
+        # Google quota
         time.sleep(1)  # FIXME: Try to reduce this to make faster.
 
         # classify the GSV images and calcuate the GVI
@@ -129,7 +133,8 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
             captions.append(percent)
             greenPercent = greenPercent + percent
 
-        # if the GSV images are not download successfully or failed to run, then return a null value
+        # if the GSV images are not download successfully or failed to run, then return
+        # a null value
         except:  # FIXME
             greenPercent = -1000
             captions.append(0)
@@ -273,7 +278,7 @@ def VegetationClassification(Img):
 
     # calculate the percentage of the green vegetation
     greenPxlNum = (greenImg != 0).sum()
-    greenPercent = greenPxlNum / (400.0 * 400) * 100
+    greenPercent = greenPxlNum / (IMAGE_WIDTH * IMAGE_HEIGHT) * 100
     del greenImg1, greenImg2
     del greenImg3, greenImg4
 

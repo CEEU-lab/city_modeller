@@ -212,7 +212,10 @@ def uploaded_zone_greenery_distribution(
 
                 if panoId != legend:
                     try:
-                        pano_gvi = zone.loc[zone["panoId"] == panoId, "greenView"].values[0] / 100  # type: ignore
+                        pano_gvi = (
+                            zone.loc[zone["panoId"] == panoId, "greenView"].values[0]
+                            / 100
+                        )  # type: ignore
                     except:
                         pass
                         pano_gvi = None
@@ -244,7 +247,8 @@ def drawn_zone_greenery_distribution(
     geom_legend : str
         field action description (e.g. "paste your geometry here")
     gdf : geopandas.GeoDataFrame
-        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
+        Aires)
     map_col : streamlit container
         column space to render maps
     chart_col : streamlit container
@@ -323,7 +327,8 @@ def show_zone_section(
     chart_col : streamlit container
         column space to render charts
     macro_region : geopandas.GeoDataFrame
-        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
+        Aires)
     zone_name : str
         whether Base or Alternative zone
 
@@ -414,8 +419,8 @@ def show_impact_section(stations_col, correl_plot_col, regplot_col, df):
             """
             <strong>Address:</strong> Ramos Mejía 800 <br>
             <strong>Start date:</strong> 01-01-2005 <br>
-            <strong>Description:</strong> Residential-commercial area with medium vehicular flow 
-            and very low incidence of fixed sources. Next to a tree space located in the 
+            <strong>Description:</strong> Residential-commercial area with medium vehicular flow
+            and very low incidence of fixed sources. Next to a tree space located in the
             geographic center of the City. Representative of a set of areas with similar characteristics.
             """,
         )
@@ -425,19 +430,19 @@ def show_impact_section(stations_col, correl_plot_col, regplot_col, df):
             """
             <strong>Address:</strong> Av. Córdoba 1700 <br>
             <strong>Start date:</strong> 01-05-2009 <br>
-            <strong>Description:</strong> Residential-commercial area with high traffic flow 
-            and very low incidence of fixed sources. Representative of a set of areas with 
+            <strong>Description:</strong> Residential-commercial area with high traffic flow
+            and very low incidence of fixed sources. Representative of a set of areas with
             similar characteristics close to avenues in the City.
             """,
         )
 
         stoggle(
             "🏟️ LA BOCA",
-            """ 
+            """
             <strong>Address:</strong> Av. Brasil 100 <br>
             <strong>Start date:</strong> 01-05-2009 <br>
-            <strong>Description:</strong> Mixed area with medium-low vehicular 
-            flow and incidence of fixed sources.Located within the area of ​​
+            <strong>Description:</strong> Mixed area with medium-low vehicular
+            flow and incidence of fixed sources.Located within the area of
             incidence of the Matanza-Riachuelo basin.
             """,
         )
