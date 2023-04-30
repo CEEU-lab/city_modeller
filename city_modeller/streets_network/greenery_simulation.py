@@ -36,7 +36,6 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
     panoLon : str
         Lon coord of the Pano idx associated to the interpolated Point
     """
-    assert geom.crs == "EPSG:4326", "Invalid Geometry. CRS should be 'EPSG:4326'"
     lon = geom.y
     lat = geom.x
 
