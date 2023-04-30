@@ -176,7 +176,7 @@ def graythresh(array, level):
         # print("New min value is %s" %(np.min(array)))
 
     # turn the negative to natural number
-    array = np.clip(array, 0)
+    array = np.maximum(array, 0)
 
     # calculate the hist of 'array'
     hist = np.histogram(array, range(257))
@@ -246,13 +246,13 @@ def VegetationClassification(Img):
     ExG = green_red_Diff + green_blue_Diff
     diffImg = green_red_Diff * green_blue_Diff
 
-    redThreImgU = red < 0.6
-    greenThreImgU = green < 0.9
-    blueThreImgU = blue < 0.6
+    redThreImgU = (red < 0.6)
+    greenThreImgU = (green < 0.9)
+    blueThreImgU = (blue < 0.6)
 
-    shadowRedU = red < 0.3
-    shadowGreenU = green < 0.3
-    shadowBlueU = blue < 0.3
+    shadowRedU = (red < 0.3)
+    shadowGreenU = (green < 0.3)
+    shadowBlueU = (blue < 0.3)
     del red, blue, green, I
 
     greenImg1 = redThreImgU * blueThreImgU * greenThreImgU
@@ -260,14 +260,14 @@ def VegetationClassification(Img):
     del redThreImgU, greenThreImgU, blueThreImgU
     del shadowRedU, shadowGreenU, shadowBlueU
 
-    greenImg3 = diffImg > 0.0
-    greenImg4 = green_red_Diff > 0
+    greenImg3 = (diffImg > 0.0)
+    greenImg4 = (green_red_Diff > 0)
     threshold = graythresh(ExG, 0.1)
 
     threshold = np.clip(threshold, MIN_THRESHOLD, MAX_THRESHOLD)
 
-    greenImg2 = ExG > threshold
-    greenImgShadow2 = ExG > 0.05
+    greenImg2 = (ExG > threshold)
+    greenImgShadow2 = (ExG > 0.05)
     greenImg = greenImg1 * greenImg2 + greenImgShadow2 * greenImgShadow1
     del ExG, green_blue_Diff, green_red_Diff
     del greenImgShadow1, greenImgShadow2
