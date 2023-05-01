@@ -17,6 +17,7 @@ st.write(
 )
 
 # CSS
+# TODO: Use PROJECT_DIR to avoid runtime issues when not inside package dir.
 with open("./sl/style.css") as f:
     st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
 

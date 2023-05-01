@@ -58,14 +58,3 @@ To run the urban modeller app's streamlit server locally, use:
 ``` shell
 streamlit run main.py
 ```
-
-## Prerequisites
-
-For images segmentation, this app requires [pymeanshift](https://github.com/fjean/pymeanshift) implementation of the OTSU thresholding method.
-To install it you can use the following instructions:
-``` shell
-> cd /your_user/city_modeller/..
-> git clone https://github.com/fjean/pymeanshift.git
-> pip install ../pymeanshift
-```
-Or [read more here](https://github.com/fjean/pymeanshift/wiki/Install)
