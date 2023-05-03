@@ -1,18 +1,19 @@
-import folium
-import numpy as np
+import json
+import tempfile
+import yaml
+from pathlib import Path
+
 import branca.colormap as cm
+import folium
+import geopandas as gpd
+import numpy as np
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import plotly_express as px
-import tempfile
-from pathlib import Path
+import pyproj
+import streamlit as st
 from shapely import wkt
 from shapely import Polygon
-import pyproj
-import geopandas as gpd
-import json
-import yaml
-import streamlit as st
 
 
 def registerAPIkey():
@@ -105,7 +106,7 @@ def get_Points_in_station_buff(buffer_dst, Points, stations):
     PointsInBuff : geopandas.GeoDataFrame
         GVI Point geometries inside the buffer distance
     """
-    proj = get_projected_crs(path="config.yaml")  # TODO: Loads path from os.path
+    proj = get_projected_crs(path=f"{PROJECT_DIR}/config/proj.yaml")
     stations_gkbs = stations.to_crs(proj)
     buffer_stations = stations_gkbs.buffer(buffer_dst).to_crs(4326)
     stations["geometry"] = buffer_stations

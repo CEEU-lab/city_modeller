@@ -53,5 +53,5 @@ setup(
     package_data={
         "city_modeller": ["VERSION"],
     },
-    install_requires=[parse_requirements("requirements.txt")],  # TODO: Change to a .in
+    install_requires=[parse_requirements("requirements.in")],  # TODO: Change to a .in
 )

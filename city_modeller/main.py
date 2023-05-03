@@ -1,5 +1,9 @@
+import json
+
 import pandas as pd
 import streamlit as st
+
+from city_modeller.utils import PROJECT_DIR
 
 
 st.set_page_config(
@@ -50,8 +54,7 @@ elif micro_menu_list == "Streets greenery":
     import warnings
 
     warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
-    import yaml
-    from streets_greenery import (
+    from city_modeller.streets_greenery import (
         activate_headers,
         get_Points_in_station_buff,
         show_impact_section,
@@ -59,13 +62,18 @@ elif micro_menu_list == "Streets greenery":
         show_simulation_section,
         show_zone_section,
     )
-    from streets_network.gvi_map_config import main_res_config, stations_config
-    from datasources import (
+    from city_modeller.datasources import (
         get_GVI_treepedia_BsAs,
         get_air_quality_stations_BsAs,
         get_air_quality_data_BsAs,
         get_BsAs_streets,
     )
+    from city_modeller.streets_network.utils import get_projected_crs
+
+    with open(f"{PROJECT_DIR}/config/gvi_main.json") as f:
+        main_res_config = json.load(f)
+    with open(f"{PROJECT_DIR}/config/gvi_stations.json") as f:
+        stations_config = json.load(f)
 
     st.subheader("Streets Network attributes - Green View level 🌳")
 
@@ -88,9 +96,7 @@ elif micro_menu_list == "Streets greenery":
         )
 
         # Set CRS for current region
-        with open("config.yaml") as f:
-            config = yaml.load(f, Loader=yaml.FullLoader)
-        proj = config["proj"]
+        proj = get_projected_crs(f"{PROJECT_DIR}/config/proj.yaml")
 
         # SIMULATION SECTION
         if simulate_greenery:

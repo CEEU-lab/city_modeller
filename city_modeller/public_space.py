@@ -29,10 +29,11 @@ from city_modeller.utils import (
     pob_a_distancia,
     PROJECT_DIR,
 )
-from city_modeller.widgets import sidebar, section_toggles
+from city_modeller.widgets import sidebar, section_toggles, error_message
 
 
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
+st.set_page_config(page_title="Public Spaces", layout="wide")
 
 
 class PublicSpacesDashboard:
@@ -60,7 +61,6 @@ class PublicSpacesDashboard:
         else:
             with open(config_path) as config_file:
                 self.config = json.load(config_file)
-        st.set_page_config(page_title="Public Spaces", layout="wide")
         sidebar()
 
     @staticmethod
@@ -126,8 +126,7 @@ class PublicSpacesDashboard:
     def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
         gjson = geojson.loads(geom)
         if len(gjson["coordinates"][0]) < 4:
-            # TODO: Make red and smaller.
-            st.markdown(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
             return
         multipoly = MultiPolygon([shape(gjson)])
         return multipoly if not multipoly.is_empty else None

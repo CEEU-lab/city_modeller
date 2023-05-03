@@ -1,0 +1,20 @@
+numpy>=1.21.3
+pandas>=1.3.4
+matplotlib>=3.4.3
+altair==4.2.2
+streamlit==1.19.0
+streamlit_folium
+streamlit-toggle-switch
+streamlit-keplergl
+streamlit-extras
+st-annotated-text
+keplergl==0.3.0
+seaborn
+plotly
+plotly_express
+geopandas
+mapclassify
+rtree
+folium
+pymeanshift @ git+https://github.com/fjean/pymeanshift.git@0.2.2  # pymeanshift==0.2.2
+geojson

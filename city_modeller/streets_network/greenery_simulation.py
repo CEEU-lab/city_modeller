@@ -1,10 +1,13 @@
+import io
+import time
+
 import numpy as np
+import pymeanshift as pms
 import requests
 import streamlit as st
-import time
 from PIL import Image
-import io
-import pymeanshift as pms
+
+from city_modeller.widgets import error_message
 
 
 MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
@@ -55,7 +58,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
     # in case there is not panorama in the site, therefore, continue
     if data["status"] != "OK":
         if allow_prints:  # TODO: Make widget with red text.
-            st.write("Reference Point not available")
+            error_message("Reference Point not available")
     else:
         # get the meta data of the panorama
         panoDate = data["date"]
@@ -64,7 +67,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
         panoLon = data["location"]["lng"]
 
         if allow_prints:  # TODO: Make widget with red text.
-            st.write(
+            error_message(
                 "The coordinate ({},{}), panoId is: {}, panoDate is: {}".format(
                     panoLon, panoLat, panoId, panoDate
                 )

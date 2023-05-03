@@ -26,3 +26,9 @@ def section_toggles(sections: list[str]) -> list[bool]:
                 )
             )
     return buttons
+
+
+def error_message(msg: str) -> None:
+    st.markdown(
+        f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True
+    )

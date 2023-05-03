@@ -56,7 +56,6 @@ def get_census_data() -> gpd.GeoDataFrame:
     return radios
 
 
-@st.cache_data
 def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame:
     """Filtra el gdf por numero de comuna.
 
