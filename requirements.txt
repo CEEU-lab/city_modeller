@@ -17,3 +17,4 @@ mapclassify
 rtree
 folium
 git+https://github.com/fjean/pymeanshift.git@0.2.2  # pymeanshift==0.2.2
+geojson
