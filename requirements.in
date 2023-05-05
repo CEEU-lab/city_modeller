@@ -16,5 +16,5 @@ geopandas
 mapclassify
 rtree
 folium
-pymeanshift @ git+https://github.com/fjean/pymeanshift.git@0.2.2  # pymeanshift==0.2.2
 geojson
+# pymeanshift==0.2.2 in extras_require
