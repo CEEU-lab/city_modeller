@@ -55,7 +55,6 @@ def main():
             config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         )
         ps.run_dashboard()
-        st.write("Micromodelling Template")
 
     elif micro_menu_list == "Streets greenery":
         import warnings
