@@ -14,6 +14,7 @@ import pyproj
 import streamlit as st
 from shapely import wkt
 from shapely import Polygon
+from city_modeller.utils import PROJECT_DIR
 
 
 def registerAPIkey():
