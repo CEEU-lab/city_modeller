@@ -29,11 +29,10 @@ from city_modeller.utils import (
     pob_a_distancia,
     PROJECT_DIR,
 )
-from city_modeller.widgets import sidebar, section_toggles, error_message
+from city_modeller.widgets import section_toggles, error_message
 
 
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
-st.set_page_config(page_title="Public Spaces", layout="wide")
 
 
 class PublicSpacesDashboard:
@@ -61,7 +60,6 @@ class PublicSpacesDashboard:
         else:
             with open(config_path) as config_file:
                 self.config = json.load(config_file)
-        sidebar()
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -332,6 +330,7 @@ class PublicSpacesDashboard:
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="Public Spaces", layout="wide")
     dashboard = PublicSpacesDashboard(
         radios=filter_census_data(get_census_data(), 8),
         public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
