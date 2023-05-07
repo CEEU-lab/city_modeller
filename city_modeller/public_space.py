@@ -27,6 +27,7 @@ from city_modeller.utils import (
     bound_multipol_by_bbox,
     distancia_mas_cercano,
     geometry_centroid,
+    parse_config_json,
     pob_a_distancia,
     PROJECT_DIR,
 )
@@ -41,8 +42,8 @@ class PublicSpacesDashboard(Dashboard):
         self,
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
-        config: Optional[dict] = None,
-        config_path: Optional[str] = None,
+        default_config: Optional[dict] = None,
+        default_config_path: Optional[str] = None,
     ) -> None:
         self.radios: gpd.GeoDataFrame = radios.copy()
         public_spaces = public_spaces.copy()
@@ -52,14 +53,15 @@ class PublicSpacesDashboard(Dashboard):
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
         )
         self.mask_dict: dict = {}
-        if config is None and config_path is None:
+        self.config = parse_config_json(default_config, default_config_path)
+        if default_config is None and default_config_path is None:
             raise AttributeError(
                 "Either a Kepler config or the path to a config JSON must be passed."
             )
-        elif config is not None:
-            self.config = config
+        elif default_config is not None:
+            self.config = default_config
         else:
-            with open(config_path) as config_file:
+            with open(default_config_path) as config_file:
                 self.config = json.load(config_file)
 
     @staticmethod
@@ -335,6 +337,6 @@ if __name__ == "__main__":
     dashboard = PublicSpacesDashboard(
         radios=filter_census_data(get_census_data(), 8),
         public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
-        config_path=f"{PROJECT_DIR}/config/public_spaces.json",
+        default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
     )
     dashboard.run_dashboard()

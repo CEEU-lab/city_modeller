@@ -1,5 +1,8 @@
+import json
 import os
+import yaml
 from numbers import Number
+from typing import Optional
 
 import geopandas as gpd
 from numpy import ndarray
@@ -86,3 +89,36 @@ def bound_multipol_by_bbox(
     gdf2 = gpd.GeoDataFrame(gpd.GeoSeries(bb_polygon), columns=["geometry"])
     intersections = gpd.overlay(gdf2, gdf, how="intersection")
     return intersections
+
+
+def parse_config_json(
+    config: Optional[dict] = None, config_path: Optional[str] = None
+) -> dict:
+    if config is None and config_path is None:
+        raise AttributeError(
+            "Either a Kepler config or the path to a config JSON must be passed."
+        )
+    elif config is not None:
+        config = config
+    else:
+        with open(config_path) as config_file:
+            config = json.load(config_file)
+    return config
+
+
+def get_projected_crs(path):
+    """
+    Loads a pyproj CRS reference.
+    Parameters
+    ----------
+    path : str
+        route to the config file where the CRS is stored
+
+    Returns
+    -------
+    proj : str
+    """
+    with open(path) as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+        proj = config["proj"]
+    return proj

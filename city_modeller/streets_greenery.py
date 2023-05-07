@@ -1,3 +1,5 @@
+from typing import Optional
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -29,6 +31,7 @@ from city_modeller.streets_network.utils import (
     plot_scatter,
     registerAPIkey,
 )
+from city_modeller.utils import parse_config_json
 from city_modeller.widgets import section_toggles
 
 
@@ -255,7 +258,7 @@ def linestring_to_points(geom_col, dist_col, annot_col, gdf, crs):
     return streets_selection
 
 
-def download_gdf(gdf_points):
+def download_gdf(gdf_points):  # TODO: Make Widgets.
     """
     Downloads ESRI shapefile.
     Parameters
@@ -275,7 +278,7 @@ def download_gdf(gdf_points):
     )
 
 
-def download_csv(gdf_points):
+def download_csv(gdf_points):  # TODO: Make Widgets.
     """
     Downloads csv.
     Parameters
@@ -383,11 +386,9 @@ def calculate_gvi(
         "11",
         "12",
     ]
-    # greenmonth = ['01','02','09','10','11','12'] # sprint and summer
 
-    # TODO: Set UX parameter to let users define number of heading angles
-    # headingArr = 360/6*np.array([0,1,2,3,4,5])
-    headingArr = 360 / HEADING_ANGLES * np.array([0, 1, 2])
+    # TODO: Set UI element to let users define number of heading angles.
+    headingArr = 360 / HEADING_ANGLES * np.arange(HEADING_ANGLES)
     numGSVImg = len(headingArr) * 1.0
     pitch = 0
     gviRes = build_and_show_gviRes(
@@ -406,9 +407,23 @@ def calculate_gvi(
 
 
 class GreenViewIndexDashboard(Dashboard):
-    def __init__(self, streets_gdf: gpd.GeoDataFrame, proj: str) -> None:
+    def __init__(
+        self,
+        streets_gdf: gpd.GeoDataFrame,
+        treepedia_gdf: gpd.GeoDataFrame,
+        stations_gdf: gpd.GeoDataFrame,
+        proj: str,
+        main_ref_config: Optional[dict] = None,
+        main_ref_config_path: Optional[str] = None,
+        stations_config: Optional[dict] = None,
+        stations_config_path: Optional[str] = None,
+    ) -> None:
         self.streets_gdf = streets_gdf
+        self.treepedia_gdf = treepedia_gdf
+        self.stations_gdf = stations_gdf
         self.proj = proj
+        self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
+        self.stations_config = parse_config_json(stations_config, stations_config_path)
 
         st.subheader("Streets Network attributes - Green View level 🌳")
 
@@ -701,45 +716,21 @@ class GreenViewIndexDashboard(Dashboard):
                 with downcsv_col:
                     download_csv(output)
 
-    def main_results(
-        self,
-        map_col,
-        chart_col,
-        Points,
-        stations,
-        show_impact,
-        show_zones,
-        config_files,
-    ) -> None:
+    def main_results(self, show_impact: bool, show_zones: bool) -> None:
         """
         Renders the Explore Results section.
         Parameters
         ----------
-        map_col : streamlit container
-            column space to render maps
-        chart_col : streamlit container
-            column space to render charts
-        Points : geopandas.GeoDataFrame
-            GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
-            Aires)
-        stations : geopandas.GeoDataFrame
-            Air Quality stations as geom Points
         show_impact : bool
             Whether or not to show impact section
         show_zones : bool
             Whether or not to show zones section
-        config_files : dict
-            map styling configuration for kepler map
 
-        Returns
-        -------
-            None
         """
+        map_col, _, chart_col = st.columns((0.65, 0.05, 0.3))
         with map_col:
-            GVI_BsAs = Points.copy()
-            map_1 = KeplerGl(
-                height=475, width=300, config=config_files["main_res_config"]
-            )
+            GVI_BsAs = self.treepedia_gdf.copy()
+            map_1 = KeplerGl(height=475, width=300, config=self.main_ref_config)
             map_1.add_data(data=GVI_BsAs, name="GVI")
             landing_map = map_1
 
@@ -755,13 +746,11 @@ class GreenViewIndexDashboard(Dashboard):
                     step=10,
                     key="buffer_dist",
                 )
-                BsAs_air_qual_st = stations
+                BsAs_air_qual_st = self.stations_gdf.copy()
                 GVI_BsAs_within_St = get_points_in_station_buff(
-                    buffer_dst, Points=GVI_BsAs, stations=BsAs_air_qual_st
+                    buffer_dst, points=GVI_BsAs, stations=BsAs_air_qual_st
                 )
-                map_2 = KeplerGl(
-                    height=475, width=300, config=config_files["stations_config"]
-                )
+                map_2 = KeplerGl(height=475, width=300, config=self.stations_config)
                 map_2.add_data(data=GVI_BsAs_within_St, name="GVI")
                 map_2.add_data(data=BsAs_air_qual_st, name="Air quality stations")
                 landing_map = map_2
@@ -1013,7 +1002,7 @@ class GreenViewIndexDashboard(Dashboard):
         if simulation_toggle:
             self.simulation()
         if main_results_toggle:
-            self.main_results()
+            self.main_results(show_impact=impact_toggle, show_zones=zone_toggle)
             if zone_toggle and impact_toggle:
                 st.warning(
                     "Results must be explored at zone or impact level. Please, "

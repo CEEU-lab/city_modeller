@@ -1,6 +1,5 @@
 import json
 import tempfile
-import yaml
 from pathlib import Path
 
 import branca.colormap as cm
@@ -14,7 +13,7 @@ import pyproj
 import streamlit as st
 from shapely import wkt
 from shapely import Polygon
-from city_modeller.utils import PROJECT_DIR
+from city_modeller.utils import PROJECT_DIR, get_projected_crs
 
 
 def registerAPIkey():
@@ -89,14 +88,14 @@ def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
         return unique_points
 
 
-def get_points_in_station_buff(buffer_dst, Points, stations):
+def get_points_in_station_buff(buffer_dst, points, stations):
     """
     Renders GVI points inside air quality station buffers.
     Parameters
     ----------
     buffer_dst : int
         linear distance from air quality stations
-    Points : geopandas.GeoDataFrame
+    points : geopandas.GeoDataFrame
         GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
         Aires)
     stations : geopandas.GeoDataFrame
@@ -113,26 +112,8 @@ def get_points_in_station_buff(buffer_dst, Points, stations):
     stations["geometry"] = buffer_stations
     # TODO: describe data schema for all datasources
     stations_feat = stations[["NOMBRE", "geometry"]].copy()
-    PointsInBuff = gpd.sjoin(Points, stations_feat, predicate="within")
+    PointsInBuff = gpd.sjoin(points, stations_feat, predicate="within")
     return PointsInBuff
-
-
-def get_projected_crs(path):
-    """
-    Loads a pyproj CRS reference.
-    Parameters
-    ----------
-    path : str
-        route to the config file where the CRS is stored
-
-    Returns
-    -------
-    proj : str
-    """
-    with open(path) as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-        proj = config["proj"]
-    return proj
 
 
 def build_zone(geom, region):
