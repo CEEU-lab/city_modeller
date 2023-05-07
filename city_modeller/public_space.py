@@ -302,11 +302,6 @@ class PublicSpacesDashboard:
         df,park_types_options = load_data(selected_park_types) 
 
 
-
-
-
-
-
         # Create a function to filter and display results based on user selections
         def filter_dataframe(df, process, filter_column, selected_values):
             if process == "Commune":
@@ -509,7 +504,6 @@ class PublicSpacesDashboard:
                 if st.button("Submit"):
                     filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
                     filtered_dataframe=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    #st.write(filtered_dataframe)
                     kepler = KeplerGl(
                     height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:])} , show_docs=False,config=config_n
                     )
