@@ -45,7 +45,6 @@ def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
     ----------
     distance : int
         linear distance between Points
-    lines_gdf : geopandas.GeoDataFrame
         Linestring geom geodataframe (e.g."Streets")
     proj : str
         Name of the projected CRS
@@ -90,7 +89,7 @@ def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
         return unique_points
 
 
-def get_Points_in_station_buff(buffer_dst, Points, stations):
+def get_points_in_station_buff(buffer_dst, Points, stations):
     """
     Renders GVI points inside air quality station buffers.
     Parameters
@@ -98,7 +97,8 @@ def get_Points_in_station_buff(buffer_dst, Points, stations):
     buffer_dst : int
         linear distance from air quality stations
     Points : geopandas.GeoDataFrame
-        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos Aires)
+        GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
+        Aires)
     stations : geopandas.GeoDataFrame
         Air Quality stations as geom Points
 
@@ -208,10 +208,7 @@ def convert_df(df):
     return df.to_csv(index=False).encode("utf-8")
 
 
-from geopandas.geodataframe import GeoDataFrame
-
-
-def from_wkt(df, wkt_column, proj) -> GeoDataFrame:
+def from_wkt(df, wkt_column, proj) -> gpd.GeoDataFrame:
     """
     Loads a GeoDataFrame using well known text geometry.
     Parameters
@@ -224,10 +221,10 @@ def from_wkt(df, wkt_column, proj) -> GeoDataFrame:
         EPSG code or str CRS name
     Returns
     -------
-    gdf : geopandas.GeoDataFrame
+    gdf : gpd.GeoDataFrame
     """
     df["geometry"] = df[wkt_column].apply(wkt.loads)
-    gdf = GeoDataFrame(df, geometry="geometry", crs=4326)  # type: ignore
+    gdf = gpd.GeoDataFrame(df, geometry="geometry", crs=4326)  # type: ignore
 
     if proj:
         user_crs = pyproj.CRS.from_user_input(proj)
@@ -317,7 +314,8 @@ def make_folium_circlemarker(
             colormap.caption = attr_name
             colormap.add_to(m)
 
-        # TODO: Generalize looping placeholders to add markers to the container individually
+        # TODO: Generalize looping placeholders to add markers to the container
+        # individually
         for y, x, attr, idx, Date in zip(
             gdf["y"], gdf["x"], gdf[attr_name], gdf["panoId"], gdf["panoDate"]
         ):

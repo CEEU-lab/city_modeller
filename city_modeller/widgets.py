@@ -2,10 +2,11 @@ import streamlit as st
 from streamlit_toggle import st_toggle_switch
 
 
-def sidebar() -> str:
-    return st.sidebar.radio(
-        "Navigation", ["Home", "Public space", "Environmental quality"]
-    )
+def subsection_buttons(subsections: list[str]) -> list:
+    return [
+        st.sidebar.button(subsection, type="secondary", use_container_width=True)
+        for subsection in subsections
+    ]
 
 
 def section_toggles(sections: list[str]) -> list[bool]:

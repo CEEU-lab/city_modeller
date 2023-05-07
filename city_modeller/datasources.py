@@ -7,12 +7,15 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from city_modeller.utils import init_package, PROJECT_DIR
+from city_modeller.utils import PROJECT_DIR
+
+
+data_dir = os.path.join(PROJECT_DIR, "data")
 
 
 @st.cache_data
 def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
-    path = "data/greenview_buenosaires.geojson"
+    path = f"{data_dir}/greenview_buenosaires.geojson"
     gdf = gpd.read_file(path, driver="GeoJSON")
     gdf.rename(columns={"panoID": "panoId"}, inplace=True)
     return gdf
@@ -20,21 +23,21 @@ def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
 
 @st.cache_data
 def get_air_quality_stations_BsAs() -> gpd.GeoDataFrame:
-    path = "data/air_quality_stations.geojson"
+    path = f"{data_dir}/air_quality_stations.geojson"
     gdf = gpd.read_file(path, driver="GeoJSON")
     return gdf
 
 
 @st.cache_data
 def get_air_quality_data_BsAs() -> pd.DataFrame:
-    path = "data/air_quality_data.csv"
+    path = f"{data_dir}/air_quality_data.csv"
     df = pd.read_csv(path, index_col=0)
     return df
 
 
 @st.cache_data
 def get_BsAs_streets() -> gpd.GeoDataFrame:
-    path = "data/CabaStreet_wgs84.zip"
+    path = f"{data_dir}/CabaStreet_wgs84.zip"
     gdf = gpd.read_file(path)
     return gdf
 
@@ -43,7 +46,6 @@ def get_BsAs_streets() -> gpd.GeoDataFrame:
 def get_census_data() -> gpd.GeoDataFrame:
     """Obtiene data de radios censales."""
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
-    data_dir = os.path.join(PROJECT_DIR, "data")
     radios = gpd.read_file(f"{data_dir}/radios.zip")
     # leemos la informacion censal de poblacion por radio
     radios = (
@@ -92,7 +94,6 @@ def get_public_space(
     gpd.GeoDataFrame
         GeoDataFrame de espacio verde público.
     """
-    init_package(PROJECT_DIR)
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
         print(f"{path} no contiene un geojson, descargando de {url_home}...")
