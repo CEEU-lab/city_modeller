@@ -115,31 +115,7 @@ def main():
 
             # ZONE ANALYSIS
             elif zone_toggle and not impact_toggle:
-                col12, col13, _, col15 = st.columns(4)
-                col16, col17, col18, col19 = st.columns(4)
-                col20, col21, col22, col23 = st.columns((0.2, 0.1, 0.2, 0.1))
-
-                with col12:
-                    st.markdown("**Define your streets zone analysis**")
-
-                gvi.zone(
-                    toggle_col=col13,
-                    pano_input_col=col17,
-                    zone_col=col16,
-                    map_col=col20,
-                    chart_col=col21,
-                    macro_region=get_GVI_treepedia_BsAs(),
-                    zone_name="Base",
-                )
-                gvi.zone(
-                    toggle_col=col15,
-                    pano_input_col=col19,
-                    zone_col=col18,
-                    map_col=col22,
-                    chart_col=col23,
-                    macro_region=get_GVI_treepedia_BsAs(),
-                    zone_name="Alternative",
-                )
+                gvi.zone()
 
             # IMPACT ANALYSIS
             elif impact_toggle and not zone_toggle:

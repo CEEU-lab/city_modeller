@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 
 import geopandas as gpd
 import numpy as np
@@ -647,6 +647,94 @@ class GreenViewIndexDashboard(Dashboard):
             with map_col:
                 return st.write("Insert geometry or upload file!!")
 
+    def _compute_zone(
+        self,
+        toggle_col: st.container,
+        pano_input_col: st.container,
+        zone_col: st.container,
+        map_col: st.container,
+        chart_col: st.container,
+        zone_name: Literal["Base", "Alternative"],
+    ):
+        """
+        Renders the Explore Zone section for one zone.
+        Parameters
+        ----------
+        toggle_col : bool
+            True when toggle switch is activated
+        pano_input_col : streamlit container
+            column space to insert PanoIdx to be rendered in distribution plot
+        zone_col : streamlit container
+            field action description (e.g. "paste your Base zone geometry here")
+        map_col : streamlit container
+            column space to render maps
+        chart_col : streamlit container
+            column space to render charts
+        macro_region : geopandas.GeoDataFrame
+            GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
+            Aires)
+        zone_name : str
+            Whether Base or Alternative zone
+
+        """
+        with toggle_col:
+            upload_base = tog.st_toggle_switch(
+                label="Upload file",
+                key="{}_Zone_Upload".format(zone_name),
+                default_value=False,
+                label_after=False,
+                inactive_color="#D3D3D3",
+                active_color="#008000",
+                track_color="#79e979",
+            )
+        with pano_input_col:
+            lower_name = zone_name.lower()
+            pano_legend = "paste your {} PanoId here".format(lower_name)
+            input_panoId = st.text_input(
+                "{} PanoId".format(zone_name),
+                pano_legend,
+                label_visibility="visible",
+                key="{}_pano".format(lower_name),
+            )
+
+        if upload_base:
+            key_name = "{}_uploaded".format(lower_name)
+            with zone_col:
+                uploaded_zone = st.file_uploader(
+                    "Choose a file", key=key_name, type="csv"
+                )
+
+            self._uploaded_zone_greenery_distribution(
+                session_key=key_name,
+                file=uploaded_zone,
+                panoId=input_panoId,
+                legend=pano_legend,
+                map_col=map_col,
+                chart_col=chart_col,
+                zone_name=zone_name,
+            )
+
+        else:
+            with zone_col:
+                geom_legend = "paste your {} geometry here".format(lower_name)
+                input_geometry = st.text_input(
+                    "{} zone".format(zone_name),
+                    geom_legend,
+                    label_visibility="visible",
+                    key="{}_geom".format(lower_name),
+                )
+
+            self._drawn_zone_greenery_distribution(
+                geom=input_geometry,
+                geom_legend=geom_legend,
+                gdf=self.treepedia_gdf.copy(),
+                map_col=map_col,
+                chart_col=chart_col,
+                panoId=input_panoId,
+                pano_legend=pano_legend,
+                zone_name=zone_name,
+            )
+
     def simulation(self) -> None:
         """Renders the GVI simulation frame."""
         map_col, interpolation_col = st.columns(2)
@@ -800,97 +888,37 @@ class GreenViewIndexDashboard(Dashboard):
             )
             st.plotly_chart(fig)
 
-    def zone(
-        self,
-        toggle_col,
-        pano_input_col,
-        zone_col,
-        map_col,
-        chart_col,
-        macro_region,
-        zone_name,
-    ) -> None:
-        """
-        Renders the Explore Zone section.
-        Parameters
-        ----------
-        toggle_col : bool
-            True when toggle switch is activated
-        pano_input_col : streamlit container
-            column space to insert PanoIdx to be rendered in distribution plot
-        zone_col : streamlit container
-            field action description (e.g. "paste your Base zone geometry here")
-        map_col : streamlit container
-            column space to render maps
-        chart_col : streamlit container
-            column space to render charts
-        macro_region : geopandas.GeoDataFrame
-            GreenViewIndex by Point geometry for the entire region (e.g. City of Buenos
-            Aires)
-        zone_name : str
-            whether Base or Alternative zone
+    def zone(self) -> None:
+        markdown_col, toggle_col_base, _, toggle_col_alt = st.columns(4)
+        (
+            zone_col_base,
+            pano_input_col_base,
+            zone_col_alt,
+            pano_input_col_alt,
+        ) = st.columns(4)
+        map_col_base, chart_col_base, map_col_alt, chart_col_alt = st.columns(
+            (0.2, 0.1, 0.2, 0.1)
+        )
 
-        Returns
-        -------
-            None
-        """
-        with toggle_col:
-            upload_base = tog.st_toggle_switch(
-                label="Upload file",
-                key="{}_Zone_Upload".format(zone_name),
-                default_value=False,
-                label_after=False,
-                inactive_color="#D3D3D3",
-                active_color="#008000",
-                track_color="#79e979",
-            )
-        with pano_input_col:
-            lower_name = zone_name.lower()
-            pano_legend = "paste your {} PanoId here".format(lower_name)
-            input_panoId = st.text_input(
-                "{} PanoId".format(zone_name),
-                pano_legend,
-                label_visibility="visible",
-                key="{}_pano".format(lower_name),
-            )
+        with markdown_col:
+            st.markdown("**Define your streets zone analysis**")
 
-        if upload_base:
-            key_name = "{}_uploaded".format(lower_name)
-            with zone_col:
-                uploaded_zone = st.file_uploader(
-                    "Choose a file", key=key_name, type="csv"
-                )
-
-            self._uploaded_zone_greenery_distribution(
-                session_key=key_name,
-                file=uploaded_zone,
-                panoId=input_panoId,
-                legend=pano_legend,
-                map_col=map_col,
-                chart_col=chart_col,
-                zone_name=zone_name,
-            )
-
-        else:
-            with zone_col:
-                geom_legend = "paste your {} geometry here".format(lower_name)
-                input_geometry = st.text_input(
-                    "{} zone".format(zone_name),
-                    geom_legend,
-                    label_visibility="visible",
-                    key="{}_geom".format(lower_name),
-                )
-
-            self._drawn_zone_greenery_distribution(
-                geom=input_geometry,
-                geom_legend=geom_legend,
-                gdf=macro_region,
-                map_col=map_col,
-                chart_col=chart_col,
-                panoId=input_panoId,
-                pano_legend=pano_legend,
-                zone_name=zone_name,
-            )
+        self._compute_zone(
+            toggle_col=toggle_col_base,
+            pano_input_col=pano_input_col_base,
+            zone_col=zone_col_base,
+            map_col=map_col_base,
+            chart_col=chart_col_base,
+            zone_name="Base",
+        )
+        self._compute_zone(
+            toggle_col=toggle_col_alt,
+            pano_input_col=pano_input_col_alt,
+            zone_col=zone_col_alt,
+            map_col=map_col_alt,
+            chart_col=chart_col_alt,
+            zone_name="Alternative",
+        )
 
     def impact(self, stations_col, correl_plot_col, regplot_col, df) -> None:
         """
