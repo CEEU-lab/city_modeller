@@ -16,7 +16,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.wkt import dumps
 from streamlit_keplergl import keplergl_static
 
-from city_modeller.base.dashboard import Dashboard
+from city_modeller.base import Dashboard
 from city_modeller.datasources import (
     filter_census_data,
     get_bbox,

@@ -11,7 +11,7 @@ from streamlit_extras.stoggle import stoggle
 from streamlit_folium import folium_static
 from streamlit_keplergl import keplergl_static
 
-from city_modeller.base.dashboard import Dashboard
+from city_modeller.base import Dashboard
 from city_modeller.streets_network.greenery_simulation import (
     GSVpanoMetadataCollector,
     GreenViewComputing_3Horizon,

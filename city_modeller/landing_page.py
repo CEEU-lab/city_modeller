@@ -1,6 +1,6 @@
 import streamlit as st
 
-from city_modeller.base.dashboard import Dashboard
+from city_modeller.base import Dashboard
 
 
 class LandingPageDashboard(Dashboard):

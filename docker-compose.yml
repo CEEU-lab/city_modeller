@@ -1,0 +1,22 @@
+---
+version: "3"
+
+services:
+
+  streamlit:
+    build: .
+    image: city_modeller
+    container_name: city_modeller_dashboard
+    restart: always
+    entrypoint: ["streamlit", "run"]
+    command: ["/app/city_modeller/main.py", "--server.headless", "true", "--server.fileWatcherType", "none", "--browser.gatherUsageStats", "false"]
+    volumes:
+      - ./city_modeller/data:/app/city_modeller/data
+    ports:
+      - "8501:8501"
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 192.168.243.0/24

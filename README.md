@@ -53,8 +53,32 @@ To comply with the app's code style and linting configuration, it is extremely r
 
 ## Usage
 
-To run the urban modeller app's streamlit server locally, use:
+To run the urban modeller app's streamlit server locally, after installation, use:
 
 ``` shell
 streamlit run main.py
+```
+
+## Running from Docker
+
+To use a Docker container, you first need to build it using:
+
+``` shell
+docker build . -t city_modeller
+```
+
+And then run it using:
+
+``` shell
+docker run -p 8501:8501 -v $PWD:/app city_modeller
+```
+
+In this way, you can run the whole app without installing the Python dependencies.
+
+## Running using Docker Compose
+
+To avoid building the image manually and exposing the port, simply run
+
+``` shell
+docker-compose up streamlit
 ```
