@@ -18,7 +18,6 @@ from city_modeller.streets_network.greenery_simulation import (
 )
 from city_modeller.streets_network.utils import (
     build_zone,
-    from_wkt,
     get_points_in_station_buff,
     interpolate_linestrings,
     make_folium_circlemarker,
@@ -29,7 +28,7 @@ from city_modeller.streets_network.utils import (
     plot_scatter,
     registerAPIkey,
 )
-from city_modeller.utils import parse_config_json
+from city_modeller.utils import parse_config_json, from_wkt
 from city_modeller.widgets import download_csv, download_gdf, section_toggles
 
 
