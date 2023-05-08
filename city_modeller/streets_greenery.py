@@ -379,14 +379,6 @@ class GreenViewIndexDashboard(Dashboard):
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
         self.stations_config = parse_config_json(stations_config, stations_config_path)
 
-        st.subheader("Streets Network attributes - Green View level 🌳")
-
-        with st.container():
-            st.write(
-                "Street greenery provides a series of benefits to urban residents, such"
-                + " as air quality, provision of shade, and aesthetic values."
-            )
-
     @staticmethod
     def _get_reference_mean(zone_name, zone_geom, zone_file, annot_txt, gdf):
         """
@@ -972,6 +964,13 @@ class GreenViewIndexDashboard(Dashboard):
             st.plotly_chart(fig)
 
     def run_dashboard(self) -> None:
+        st.subheader("Streets Network attributes - Green View level 🌳")
+
+        with st.container():
+            st.write(
+                "Street greenery provides a series of benefits to urban residents, such"
+                + " as air quality, provision of shade, and aesthetic values."
+            )
         (
             simulation_toggle,
             main_results_toggle,
