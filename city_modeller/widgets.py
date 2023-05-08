@@ -1,5 +1,9 @@
+import geopandas as gpd
+import pandas as pd
 import streamlit as st
 from streamlit_toggle import st_toggle_switch
+
+from city_modeller.utils import convert_df, gdf_to_shz
 
 
 def subsection_buttons(subsections: list[str]) -> list:
@@ -32,4 +36,47 @@ def section_toggles(sections: list[str]) -> list[bool]:
 def error_message(msg: str) -> None:
     st.markdown(
         f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True
+    )
+
+
+def download_csv(gdf_points: gpd.GeoDataFrame) -> None:  # TODO: Make Widgets.
+    """
+    Downloads csv.
+    Parameters
+    ----------
+    gdf_points: geopandas.GeoDataFrame
+        Simulated GVI Points
+
+    """
+    ds_name = "gvi_results"
+    streets_selection_ = gdf_points.copy()
+    streets_selection_["geometry"] = streets_selection_["geometry"].astype(str)
+
+    df = pd.DataFrame(streets_selection_)
+    csv = convert_df(df)
+
+    st.download_button(
+        label="Download CSV",
+        data=csv,
+        file_name=f"{ds_name}.csv",
+    )
+
+
+def download_gdf(gdf_points: gpd.GeoDataFrame) -> None:
+    """
+    Downloads ESRI shapefile.
+    Parameters
+    ----------
+    gdf_points: geopandas.GeoDataFrame
+        Simulated GVI Points
+
+    Returns
+    -------
+    None
+    """
+    ds_name = "gvi_results"
+    st.download_button(
+        label="Download shapefile",
+        data=gdf_to_shz(gdf_points, name=ds_name),
+        file_name=f"{ds_name}.shz",
     )

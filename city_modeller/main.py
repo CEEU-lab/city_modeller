@@ -1,6 +1,5 @@
 import warnings
 
-import pandas as pd
 import streamlit as st
 
 from city_modeller.datasources import (
@@ -16,14 +15,8 @@ from city_modeller.datasources import (
 from city_modeller.landing_page import LandingPageDashboard
 from city_modeller.public_space import PublicSpacesDashboard
 from city_modeller.streets_greenery import GreenViewIndexDashboard
+from city_modeller.streets_network.utils import get_projected_crs
 from city_modeller.utils import PROJECT_DIR, bound_multipol_by_bbox, init_package
-
-# FIXME
-from city_modeller.widgets import section_toggles  # DELETE
-from city_modeller.streets_network.utils import (
-    get_projected_crs,
-    get_points_in_station_buff,
-)
 
 
 warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
@@ -80,68 +73,14 @@ def main():
             streets_gdf=get_BsAs_streets(),
             treepedia_gdf=get_GVI_treepedia_BsAs(),
             stations_gdf=get_air_quality_stations_BsAs(),
+            air_quality_df=get_air_quality_data_BsAs(),
             proj=get_projected_crs(f"{PROJECT_DIR}/config/proj.yaml"),
             main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
             stations_config_path=f"{PROJECT_DIR}/config/gvi_stations.json",
         )
-        (
-            simulation_toggle,
-            main_results_toggle,
-            zone_toggle,
-            impact_toggle,
-        ) = section_toggles(
-            [
-                "Simulation frame",
-                "Explore results",
-                "Explore zones",
-                "Explore impact",
-            ]
-        )
+        gvi.run_dashboard()
 
-        # SIMULATION SECTION
-        if simulation_toggle:
-            gvi.simulation()
-
-        # MAIN RESULTS SECTION
-        if main_results_toggle:
-            gvi.main_results(show_impact=impact_toggle, show_zones=zone_toggle)
-
-            if zone_toggle and impact_toggle:
-                st.warning(
-                    "Results must be explored at zone or impact level. Please, "
-                    + " activate one of them only",
-                    icon="⚠️",
-                )
-
-            # ZONE ANALYSIS
-            elif zone_toggle and not impact_toggle:
-                gvi.zone()
-
-            # IMPACT ANALYSIS
-            elif impact_toggle and not zone_toggle:
-                GVI_BsAs_within_St = get_points_in_station_buff(
-                    buffer_dst=st.session_state["buffer_dist"],
-                    points=get_GVI_treepedia_BsAs(),
-                    stations=get_air_quality_stations_BsAs(),
-                )
-                # TODO: describe data schema for all datasources
-                gvi_avg_st = (
-                    GVI_BsAs_within_St.groupby("NOMBRE")["greenView"].mean().to_dict()
-                )
-                BsAs_air_qual_st = get_air_quality_data_BsAs()
-                BsAs_air_qual_st["greenView"] = pd.Series(gvi_avg_st)
-
-                col24, col25, col26 = st.columns((0.3, 0.35, 0.35))
-                gvi.impact(
-                    stations_col=col24,
-                    correl_plot_col=col25,
-                    regplot_col=col26,
-                    df=BsAs_air_qual_st,
-                )
-
-            else:
-                pass
-
+    # FIXME: This can never be accessed.
     elif macro_menu_list == "Urban land valuation":
         st.write("Starts here your land valuation model 🏗️")
 

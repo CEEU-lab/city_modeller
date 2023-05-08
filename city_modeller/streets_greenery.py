@@ -18,9 +18,7 @@ from city_modeller.streets_network.greenery_simulation import (
 )
 from city_modeller.streets_network.utils import (
     build_zone,
-    convert_df,
     from_wkt,
-    gdf_to_shz,
     get_points_in_station_buff,
     interpolate_linestrings,
     make_folium_circlemarker,
@@ -32,7 +30,7 @@ from city_modeller.streets_network.utils import (
     registerAPIkey,
 )
 from city_modeller.utils import parse_config_json
-from city_modeller.widgets import section_toggles
+from city_modeller.widgets import download_csv, download_gdf, section_toggles
 
 
 HEADING_ANGLES = 3
@@ -258,52 +256,6 @@ def linestring_to_points(geom_col, dist_col, annot_col, gdf, crs):
     return streets_selection
 
 
-def download_gdf(gdf_points):  # TODO: Make Widgets.
-    """
-    Downloads ESRI shapefile.
-    Parameters
-    ----------
-    gdf_points: geopandas.GeoDataFrame
-        Simulated GVI Points
-
-    Returns
-    -------
-    None
-    """
-    ds_name = "gvi_results"
-    st.download_button(
-        label="Download shapefile",
-        data=gdf_to_shz(gdf_points, name=ds_name),
-        file_name=f"{ds_name}.shz",
-    )
-
-
-def download_csv(gdf_points):  # TODO: Make Widgets.
-    """
-    Downloads csv.
-    Parameters
-    ----------
-    gdf_points: geopandas.GeoDataFrame
-        Simulated GVI Points
-
-    Returns
-    -------
-    None
-    """
-    ds_name = "gvi_results"
-    streets_selection_ = gdf_points.copy()
-    streets_selection_["geometry"] = streets_selection_["geometry"].astype(str)
-
-    df = pd.DataFrame(streets_selection_)
-    csv = convert_df(df)
-
-    st.download_button(
-        label="Download CSV",
-        data=csv,
-        file_name=f"{ds_name}.csv",
-    )
-
-
 def calculate_gvi(
     gdf,
     api_key,
@@ -406,12 +358,14 @@ def calculate_gvi(
     return gdf
 
 
+# TODO: Check which copy()'s are necessary.
 class GreenViewIndexDashboard(Dashboard):
     def __init__(
         self,
         streets_gdf: gpd.GeoDataFrame,
         treepedia_gdf: gpd.GeoDataFrame,
         stations_gdf: gpd.GeoDataFrame,
+        air_quality_df: pd.DataFrame,
         proj: str,
         main_ref_config: Optional[dict] = None,
         main_ref_config_path: Optional[str] = None,
@@ -421,6 +375,7 @@ class GreenViewIndexDashboard(Dashboard):
         self.streets_gdf = streets_gdf
         self.treepedia_gdf = treepedia_gdf
         self.stations_gdf = stations_gdf
+        self.air_quality_df = air_quality_df
         self.proj = proj
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
         self.stations_config = parse_config_json(stations_config, stations_config_path)
@@ -817,12 +772,12 @@ class GreenViewIndexDashboard(Dashboard):
         """
         map_col, _, chart_col = st.columns((0.65, 0.05, 0.3))
         with map_col:
-            GVI_BsAs = self.treepedia_gdf.copy()
+            gvi_bsas = self.treepedia_gdf.copy()
             map_1 = KeplerGl(height=475, width=300, config=self.main_ref_config)
-            map_1.add_data(data=GVI_BsAs, name="GVI")
+            map_1.add_data(data=gvi_bsas, name="GVI")
             landing_map = map_1
 
-            if show_impact:
+            if show_impact:  # FIXME: Determine whether or not to move to self.impact
                 legend_title = (
                     "Insert a buffer distance in meters from air quality stations"
                 )
@@ -835,22 +790,22 @@ class GreenViewIndexDashboard(Dashboard):
                     key="buffer_dist",
                 )
                 BsAs_air_qual_st = self.stations_gdf.copy()
-                GVI_BsAs_within_St = get_points_in_station_buff(
-                    buffer_dst, points=GVI_BsAs, stations=BsAs_air_qual_st
+                gvi_bsas_within_st = get_points_in_station_buff(
+                    buffer_dst, points=gvi_bsas, stations=BsAs_air_qual_st
                 )
                 map_2 = KeplerGl(height=475, width=300, config=self.stations_config)
-                map_2.add_data(data=GVI_BsAs_within_St, name="GVI")
+                map_2.add_data(data=gvi_bsas_within_st, name="GVI")
                 map_2.add_data(data=BsAs_air_qual_st, name="Air quality stations")
                 landing_map = map_2
 
             keplergl_static(landing_map, center_map=True)
 
         with chart_col:
-            x = GVI_BsAs["greenView"] / 100
+            x = gvi_bsas["greenView"] / 100
             group_labels = ["distplot"]
 
-            if show_impact:
-                x_ref = GVI_BsAs_within_St.groupby("NOMBRE")["greenView"].mean()
+            if show_impact:  # FIXME: Determine whether or not to move to self.zone
+                x_ref = gvi_bsas_within_st.groupby("NOMBRE")["greenView"].mean()
                 x_ref_vals = x_ref.to_dict()
                 height, width = 650, 450
 
@@ -860,7 +815,7 @@ class GreenViewIndexDashboard(Dashboard):
                     zone_geom="base_geom",
                     zone_file="base_uploaded",
                     annot_txt="BASE ZONE",
-                    gdf=GVI_BsAs,
+                    gdf=gvi_bsas,
                 )
 
                 alt_ref_vals = self._get_reference_mean(
@@ -868,7 +823,7 @@ class GreenViewIndexDashboard(Dashboard):
                     zone_geom="alternative_geom",
                     zone_file="alternative_uploaded",
                     annot_txt="ALTERNATIVE ZONE",
-                    gdf=GVI_BsAs,
+                    gdf=gvi_bsas,
                 )
 
                 x_ref_vals = merge_dictionaries(dict1=base_ref_vals, dict2=alt_ref_vals)
@@ -920,24 +875,19 @@ class GreenViewIndexDashboard(Dashboard):
             zone_name="Alternative",
         )
 
-    def impact(self, stations_col, correl_plot_col, regplot_col, df) -> None:
-        """
-        Renders the Explore Impact section.
-        Parameters
-        ----------
-        stations_col : streamlit container
-            column space to describe air quality stations
-        correl_plot_col : streamlit container
-            column space to render correlation plot
-        regplot_col : streamlit container
-            column space to render correlation plot
-        df : pandas.DataFrame
-            Air Quality stations data with historical contaminants information
+    def impact(self) -> None:
+        """Renders the Explore Impact section."""
+        gvi_bsas_within_st = get_points_in_station_buff(
+            buffer_dst=st.session_state["buffer_dist"],
+            points=self.treepedia_gdf.copy(),
+            stations=self.stations_gdf.copy(),
+        )
+        # TODO: describe data schema for all datasources
+        gvi_avg_st = gvi_bsas_within_st.groupby("NOMBRE")["greenView"].mean().to_dict()
+        bsas_air_qual_st = self.air_quality_df.copy()
+        bsas_air_qual_st["greenView"] = pd.Series(gvi_avg_st)
 
-        Returns
-        -------
-            None
-        """
+        stations_col, correl_plot_col, regplot_col = st.columns((0.3, 0.35, 0.35))
         with stations_col:
             st.markdown(
                 ":deciduous_tree: :green[Air quality] stations  :deciduous_tree:"
@@ -993,7 +943,7 @@ class GreenViewIndexDashboard(Dashboard):
                 dict(selector="th", props=th_props),
                 dict(selector="td", props=td_props),
             ]
-            styled_df = df.style.set_properties(
+            styled_df = bsas_air_qual_st.style.set_properties(
                 **{"text-align": "left"}
             ).set_table_styles(styles)
             st.table(styled_df)
@@ -1001,7 +951,11 @@ class GreenViewIndexDashboard(Dashboard):
         with correl_plot_col:
             axisvals = ["CO", "NO2", "PM10", "GreenView"]  # TODO: describe dataschema
             fig = plot_correleation_mx(
-                df=df, xticks=axisvals, yticks=axisvals, h_val=400, w_val=600
+                df=bsas_air_qual_st,
+                xticks=axisvals,
+                yticks=axisvals,
+                h_val=400,
+                w_val=600,
             )
             st.plotly_chart(fig)
 
@@ -1009,10 +963,10 @@ class GreenViewIndexDashboard(Dashboard):
             # TODO: define air quality data schema
             yaxis = st.selectbox("xaxis", ("CO", "NO2", "PM10"))
             fig = plot_scatter(
-                df=df,
+                df=bsas_air_qual_st,
                 xname="greenView",
                 yname=yaxis,
-                colorby=df.index,
+                colorby=bsas_air_qual_st.index,
                 h_val=300,
                 w_val=600,
             )

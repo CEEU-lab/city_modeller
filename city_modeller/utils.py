@@ -1,12 +1,17 @@
 import json
 import os
+import tempfile
 import yaml
 from numbers import Number
+from pathlib import Path
 from typing import Optional
 
 import geopandas as gpd
-from numpy import ndarray
 import pandas as pd
+import pyproj
+import streamlit as st
+from numpy import ndarray
+from shapely import wkt
 from shapely.ops import nearest_points
 from shapely.geometry import Point, Polygon, MultiPoint
 
@@ -122,3 +127,53 @@ def get_projected_crs(path):
         config = yaml.load(f, Loader=yaml.FullLoader)
         proj = config["proj"]
     return proj
+
+
+def gdf_to_shz(gdf: gpd.GeoDataFrame, name: str) -> bytes:
+    """
+    Downloads file as ESRI Shp
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        a geoDataFrame with GVI results
+    name : string
+        path file name for downloading
+
+    Returns
+    -------
+    file in bytes mode
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir, f"{name}.shz")
+        gdf.to_file(path, driver="ESRI Shapefile")
+        return path.read_bytes()
+
+
+@st.cache_data
+def convert_df(df):
+    return df.to_csv(index=False).encode("utf-8")
+
+
+def from_wkt(df, wkt_column, proj) -> gpd.GeoDataFrame:
+    """
+    Loads a GeoDataFrame using well known text geometry.
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        a DataFrame with geometry column stored as text
+    wkt_column : string
+        name of the geometry string representation column
+    proj : int | str
+        EPSG code or str CRS name
+    Returns
+    -------
+    gdf : gpd.GeoDataFrame
+    """
+    df["geometry"] = df[wkt_column].apply(wkt.loads)
+    gdf = gpd.GeoDataFrame(df, geometry="geometry", crs=4326)  # type: ignore
+
+    if proj:
+        user_crs = pyproj.CRS.from_user_input(proj)
+        gdf = gdf.to_crs(user_crs)
+
+    return gdf  # type: ignore
