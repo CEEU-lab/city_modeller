@@ -17,6 +17,7 @@ from shapely.ops import unary_union
 from shapely.wkt import dumps
 from streamlit_keplergl import keplergl_static
 
+from city_modeller.base import Dashboard
 from city_modeller.datasources import (
     filter_census_data,
     get_bbox,
@@ -27,22 +28,23 @@ from city_modeller.utils import (
     bound_multipol_by_bbox,
     distancia_mas_cercano,
     geometry_centroid,
+    parse_config_json,
     pob_a_distancia,
     PROJECT_DIR,
 )
-from city_modeller.widgets import sidebar, section_toggles
+from city_modeller.widgets import section_toggles, error_message
 
 
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
 
 
-class PublicSpacesDashboard:
+class PublicSpacesDashboard(Dashboard):
     def __init__(
         self,
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
-        config: Optional[dict] = None,
-        config_path: Optional[str] = None,
+        default_config: Optional[dict] = None,
+        default_config_path: Optional[str] = None,
     ) -> None:
         self.radios: gpd.GeoDataFrame = radios.copy()
         public_spaces = public_spaces.copy()
@@ -52,17 +54,16 @@ class PublicSpacesDashboard:
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
         )
         self.mask_dict: dict = {}
-        if config is None and config_path is None:
+        self.config = parse_config_json(default_config, default_config_path)
+        if default_config is None and default_config_path is None:
             raise AttributeError(
                 "Either a Kepler config or the path to a config JSON must be passed."
             )
-        elif config is not None:
-            self.config = config
+        elif default_config is not None:
+            self.config = default_config
         else:
-            with open(config_path) as config_file:
+            with open(default_config_path) as config_file:
                 self.config = json.load(config_file)
-        st.set_page_config(page_title="Public Spaces", layout="wide")
-        sidebar()
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -127,8 +128,7 @@ class PublicSpacesDashboard:
     def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
         gjson = geojson.loads(geom)
         if len(gjson["coordinates"][0]) < 4:
-            # TODO: Make red and smaller.
-            st.markdown(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
             return
         multipoly = MultiPolygon([shape(gjson)])
         return multipoly if not multipoly.is_empty else None
@@ -629,9 +629,10 @@ class PublicSpacesDashboard:
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="Public Spaces", layout="wide")
     dashboard = PublicSpacesDashboard(
         radios=filter_census_data(get_census_data(), 8),
         public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
-        config_path=f"{PROJECT_DIR}/config/public_spaces.json",
+        default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
     )
     dashboard.run_dashboard()

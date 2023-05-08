@@ -1,0 +1,5 @@
+city_modeller.egg-info
+.pytest_cache
+__pycache__
+LICENSE
+.gitignore
