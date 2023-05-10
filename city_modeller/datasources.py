@@ -2,16 +2,50 @@ import os
 from typing import List
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import requests
+import streamlit as st
 
-from city_modeller.utils import init_package, PROJECT_DIR
+from city_modeller.utils import PROJECT_DIR
 
 
+data_dir = os.path.join(PROJECT_DIR, "data")
+
+
+@st.cache_data
+def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
+    path = f"{data_dir}/greenview_buenosaires.geojson"
+    gdf = gpd.read_file(path, driver="GeoJSON")
+    gdf.rename(columns={"panoID": "panoId"}, inplace=True)
+    return gdf
+
+
+@st.cache_data
+def get_air_quality_stations_BsAs() -> gpd.GeoDataFrame:
+    path = f"{data_dir}/air_quality_stations.geojson"
+    gdf = gpd.read_file(path, driver="GeoJSON")
+    return gdf
+
+
+@st.cache_data
+def get_air_quality_data_BsAs() -> pd.DataFrame:
+    path = f"{data_dir}/air_quality_data.csv"
+    df = pd.read_csv(path, index_col=0)
+    return df
+
+
+@st.cache_data
+def get_BsAs_streets() -> gpd.GeoDataFrame:
+    path = f"{data_dir}/CabaStreet_wgs84.zip"
+    gdf = gpd.read_file(path)
+    return gdf
+
+
+@st.cache_data
 def get_census_data() -> gpd.GeoDataFrame:
     """Obtiene data de radios censales."""
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
-    data_dir = os.path.join(PROJECT_DIR, "data")
     radios = gpd.read_file(f"{data_dir}/radios.zip")
     # leemos la informacion censal de poblacion por radio
     radios = (
@@ -43,6 +77,7 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
     return radios_filt
 
 
+@st.cache_data
 def get_public_space(
     path: str = f"{PROJECT_DIR}/data/public_space.geojson",
 ) -> gpd.GeoDataFrame:
@@ -59,7 +94,6 @@ def get_public_space(
     gpd.GeoDataFrame
         GeoDataFrame de espacio verde público.
     """
-    init_package(PROJECT_DIR)
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
         print(f"{path} no contiene un geojson, descargando de {url_home}...")
@@ -78,7 +112,7 @@ def get_public_space(
     return gdf
 
 
-def get_bbox(comunas_idx: List[int]) -> gpd.GeoDataFrame:
+def get_bbox(comunas_idx: List[int]) -> np.ndarray:
     """Devuelve el bounding box para un conjunto de comunas.
 
     Parameters
