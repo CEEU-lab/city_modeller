@@ -35,7 +35,7 @@ with open(
     version = vf.read().strip()
 
 setup(
-    name="CityMachinerie",
+    name="city_modeller",
     version=version,
     description="city_modeller_app",
     long_description=long_description,
@@ -53,5 +53,9 @@ setup(
     package_data={
         "city_modeller": ["VERSION"],
     },
-    install_requires=[parse_requirements("requirements.txt")],  # TODO: Change to a .in
+    install_requires=[parse_requirements("requirements.in")],
+    extras_require={
+        "pymeanshift": "pymeanshift "
+        + "@ git+https://github.com/fjean/pymeanshift.git@0.2.2"
+    },
 )

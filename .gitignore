@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # data directory and other stuff.
-data/
+data
 .DS_Store
+figures
