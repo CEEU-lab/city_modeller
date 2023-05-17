@@ -241,7 +241,7 @@ class PublicSpacesDashboard(Dashboard):
             parques = self.public_spaces[
                 self.public_spaces["clasificac"].isin(selected_park_types)
             ]
-            polygons = list(parques.iloc[:, -1])
+            polygons = list(parques.geometry)
             boundary = gpd.GeoSeries(unary_union(polygons))
             boundary = gpd.GeoDataFrame(
                 geometry=gpd.GeoSeries(boundary), crs="epsg:4326"
