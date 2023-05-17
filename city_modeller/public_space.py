@@ -35,6 +35,30 @@ from city_modeller.utils import (
 from city_modeller.widgets import section_toggles, error_message
 
 
+import streamlit as st
+import pandas as pd
+import geopandas as gpd
+import numpy as np
+from shapely.ops import unary_union
+from keplergl import KeplerGl
+from streamlit_keplergl import keplergl_static
+from typing import Any, Optional, Union
+from shapely.wkt import dumps
+import json
+import geopandas as gpd
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import networkx as nx
+import osmnx as ox
+import shapely.wkt
+import shapely.wkt as wkt
+print(ox.__version__)
+ox.config(log_file=True, log_console=True, use_cache=True)
+from shapely.geometry import Point
+
+
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
 
 
@@ -238,7 +262,7 @@ class PublicSpacesDashboard(Dashboard):
         kepler.add_data(data=data)
 
     def availability(self) -> None:  # TODO: Cache
-        @st.cache_data(show_spinner=False) 
+        @st.cache_data 
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
             neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
@@ -300,24 +324,134 @@ class PublicSpacesDashboard(Dashboard):
 
         # Load the dataframe using the load_data function with the selected communes
         df,park_types_options = load_data(selected_park_types) 
+        parques = gpd.read_file("data/public_space.geojson")
+        parques = gpd.GeoDataFrame(parques, geometry="geometry", crs="epsg:4326")
+        parques["Communes"]= parques.apply(lambda x: str('Comuna ') + str(int(x['COMUNA'])),axis=1)
+        df_parques = parques[parques["clasificac"].isin(selected_park_types)]
+        df_parques['geometry']=df_parques.geometry.centroid
+        df_parques=gpd.GeoDataFrame(df_parques)
+
+
+
+
+
+
 
 
         # Create a function to filter and display results based on user selections
         def filter_dataframe(df, process, filter_column, selected_values):
             if process == "Commune":
-                filtered_df = df[df["Communes"].isin(selected_values)]
+                filtered_df = df[df[filter_column].isin(selected_values)]
                 return filtered_df
             elif process == "Neighborhood":
-                filtered_df = df[df["Neighborhoods"].isin(selected_values)]
+                filtered_df = df[df[filter_column].isin(selected_values)]
                 return filtered_df
             else:
-                filtered_df = df[df["Ratios"].isin(selected_values)]
+                filtered_df = df[df[filter_column].isin(selected_values)]
                 return filtered_df
-            
+
         def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
-                df = gdf.copy()
-                df["geometry"] = df.geometry.apply(dumps)
-                return df.to_dict("split")
+            df = gdf.copy()
+            df["geometry"] = df.geometry.apply(dumps)
+            return df.to_dict("split")
+
+        def get_isochrone(
+        lon, lat, walk_times=[15, 30], speed=4.5, name=None, point_index=None
+        ):
+            loc = (lat, lon)
+            G = ox.graph_from_point(loc, simplify=True, network_type="walk")
+            gdf_nodes = ox.graph_to_gdfs(G, edges=False)
+            center_node = ox.distance.nearest_nodes(G, lon, lat)
+
+            meters_per_minute = speed * 1000 / 60  
+            for u, v, k, data in G.edges(data=True, keys=True):
+                data["time"] = data["length"] / meters_per_minute
+            polys = []
+            for walk_time in walk_times:
+                subgraph = nx.ego_graph(G, center_node, radius=walk_time, distance="time")
+                node_points = [
+                    Point(data["x"], data["y"]) for node, data in subgraph.nodes(data=True)
+                ]
+                polys.append(gpd.GeoSeries(node_points).unary_union.convex_hull)
+            info = {}
+            if name:
+                info["name"] = [name for t in walk_times]
+            if point_index:
+                info["point_index"] = [point_index for t in walk_times]
+            return {**{"geometry": polys, "time": walk_times}, **info}
+
+        def apply_isochrones_gdf(gdf_point, geometry_columns='geometry',node_tag_name='name', WT = [5, 10, 15]):
+            isochrones = pd.concat(
+                        [
+                            gpd.GeoDataFrame(
+                                get_isochrone(
+                                    r[geometry_columns].x,
+                                    r[geometry_columns].y,
+                                    name=r[node_tag_name],
+                                    point_index=i,
+                                    walk_times=WT,
+                                ),
+                                crs=gdf_point.crs,
+                            )
+                            for i, r in gdf_point.iterrows()
+                        ]
+                    )
+            return isochrones
+
+        def decouple_overlapping_rings_intra(isochrones, WT = [5, 10, 15]):
+            gdf = isochrones.set_index(["time", "point_index"]).copy().dropna()
+            for idx in range(len(WT)-1,0,-1):
+                gdf.loc[WT[idx], "geometry"] = (
+                    gdf.loc[WT[idx]]
+                    .apply(
+                        lambda r: r["geometry"].symmetric_difference(
+                            gdf.loc[(WT[idx-1], r.name), "geometry"]
+                        ),
+                        axis=1,
+                    )
+                    .values
+                )
+            return gdf.reset_index()
+
+
+        def merging_overlapping_rings_inter(gdf):
+            # Group the geometries based on the "time" column
+            gdf_grouped = gdf.groupby("time")["geometry"]
+            gdf_grouped_time_union=gdf.groupby("time")["geometry"].agg(lambda g: g.unary_union).reset_index().sort_values(by='time')
+            # Get the unique time scopes in descending order
+            time_scopes = sorted(gdf_grouped_time_union.time.unique())
+            # Initialize the merged geometry list
+            merged_geometries = {}
+            # Iterate over the time scopes
+            for i, time_scope in enumerate(time_scopes):
+                if i == 0:
+                    # For the first time scope, append the geometry as is
+                    merged_geometries[str(time_scope)]=(gdf_grouped.get_group(time_scope).unary_union)
+                else:
+                    # Initialize the temporary geometry as the current time scope geometry
+                    temp_geom = gdf_grouped.get_group(time_scope).unary_union
+                    # Subtract the overlapping parts of the outer rings with the inner rings
+                    for j in range(i):
+                        temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
+                    # Append the resulting geometry to the merged geometries list
+                    merged_geometries[str(time_scope)]=(temp_geom)
+                    # Convert the merged geometries into a MultiPolygon
+                    result_geometry = gpd.GeoSeries(merged_geometries).reset_index().rename(columns={"index": "time", 0: "geometry"})
+                    result_geometry.columns=['time','geometry']
+                    # Convert the resulting geometry to a GeoDataFrame
+                    result_gdf = gpd.GeoDataFrame(result_geometry,geometry="geometry")
+            return result_gdf
+
+        def isochrone_mapping(gdf_point, wt =[5,10,15],node_tag_name='name',geometry_columns='geometry'):
+            return merging_overlapping_rings_inter(
+                                            decouple_overlapping_rings_intra(
+                                            apply_isochrones_gdf(gdf_point,
+                                                                    geometry_columns=geometry_columns,
+                                                                    node_tag_name=node_tag_name, 
+                                                                    WT = wt),
+                                            WT = wt))
+
+
 
         # Create a multiselect dropdown to select process
         process_options = ["Commune", "Neighborhood", "Ratios"]
@@ -355,7 +489,7 @@ class PublicSpacesDashboard(Dashboard):
                         config_n["config"]["visState"]["layers"][0]["visualChannels"][
                         "colorField"
                         ]["name"] = "area_ps_rc"
-                    
+                
 
                 if st.button("Submit"):
                     filter_dataframe(gdf, "Commune", "Communes", selected_commune)
@@ -365,8 +499,18 @@ class PublicSpacesDashboard(Dashboard):
                     )
                     keplergl_static(kepler)
                     kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:]))
+
+
+                    filtered_dataframe_park=filter_dataframe(df_parques,"Commune", "Communes", selected_commune)
+                    isochrone_comunne=isochrone_mapping(filtered_dataframe_park,node_tag_name='nombre')
+                    kepler = KeplerGl(
+                    height=500, data={"data": kepler_df(isochrone_comunne.iloc[:,:])} , show_docs=False,config=config_n
+                    )
+                    keplergl_static(kepler)
+                    kepler.add_data(data=kepler_df(isochrone_comunne.iloc[:,:]))
                     
-                    
+                
+                
         if "Neighborhood" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
             neighborhood_options = df["Neighborhoods"].unique()
@@ -503,16 +647,170 @@ class PublicSpacesDashboard(Dashboard):
 
                 if st.button("Submit"):
                     filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    filtered_dataframe=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
+                    filtered_dataframe_av=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:])} , show_docs=False,config=config_n
+                    height=500, data={"data": kepler_df(filtered_dataframe_av.iloc[:,:])} , show_docs=False,config=config_n
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:]))
+                    kepler.add_data(data=kepler_df(filtered_dataframe_av.iloc[:,:]))
+
+                    filtered_dataframe_park=filter_dataframe(df_parques,"Neighborhood", "BARRIO", selected_neighborhood)
+                    isochrone_park=isochrone_mapping(filtered_dataframe_park,node_tag_name='nombre')
+                    config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                        "colorField"
+                    ]["name"] = "time"
+                    kepler = KeplerGl(
+                    height=500, data={"data": kepler_df(isochrone_park.iloc[:,:])} , show_docs=False,config=config_n
+                    )
+                    keplergl_static(kepler)
+                    kepler.add_data(data=kepler_df(isochrone_park.iloc[:,:]))
+
                     
-                        
+                # # Add the new point layer to your Kepler.gl map
+                # # kepler = KeplerGl(
+                # # height=500, data={"data": kepler_df(filtered_dataframe_park)}, show_docs=False,config=config_n )
+                # # keplergl_static(kepler)
+                # # kepler.add_data(data=kepler_df(filtered_dataframe_park))
+                
+
+                # # Convert the geometry column from WKT format to Shapely objects
+
+                # # Define a lambda function to extract the x and y coordinates of each Point and return them as a tuple
+                #     point_to_tuple = lambda point: (point.y,point.x)
+
+                #     # Apply the lambda function to the geometry column to create a new column of tuples
+                #     filtered_dataframe_park['point_tuple'] = filtered_dataframe_park['geometry'].apply(point_to_tuple)
+                #     referencia = filtered_dataframe_park.point_tuple.iloc[0]
+                
+
+                # # G4 = ox.graph_from_point(center_point=referencia, dist=500, dist_type='network', network_type='walk')
+                # # nodes, edges = ox.graph_to_gdfs(G4)
+                # # nodes=gpd.GeoDataFrame(nodes)
+                # # kepler = KeplerGl(
+                # # height=500, data={"data": kepler_df(nodes)}, show_docs=False,config=config_n )
+                # # keplergl_static(kepler)
+                # # kepler.add_data(data=kepler_df(nodes.iloc[:,:]))
+
+                    
+                    
+                # # st.write(filtered_dataframe_park)
+                # # st.write(type(filtered_dataframe_park["geometry"].iloc[0]))
+
+                # # # Create a Kepler.gl map and add layers for each dataframe
+                # # map_1 = KeplerGl(height=500, data={"data_p": kepler_df(filtered_dataframe_park),"data_av": kepler_df(filtered_dataframe_av),"data_nodes": kepler_df(nodes.iloc[:,:])})
+                # # keplergl_static(map_1)
+                # # # map_1.add_data(data=filtered_dataframe_av, name="Filtered Dataframe")
+                # # map_1.add_data(data=filtered_dataframe_park, name="Filtered Parks")
+                # # map_1.add_data(data=ox.graph_to_gdfs(ox.graph_from_point(center_point=referencia, dist=500, dist_type='network', network_type='walk'))[0], name="Graph Nodes")
+                # filtered_dataframe_park=filtered_dataframe_park.loc[:,['nombre','geometry']]
+                # filtered_dataframe_park['geometry'] = filtered_dataframe_park['geometry'].apply(wkt.loads)
+                # filtered_dataframe_park=gpd.GeoDataFrame(filtered_dataframe_park)
+
+
+                # WT = [5, 10, 15]
+                # isochrones = pd.concat(
+                #     [
+                #         gpd.GeoDataFrame(
+                #             get_isochrone(
+                #                 r["geometry"].x,
+                #                 r["geometry"].y,
+                #                 name=r["nombre"],
+                #                 point_index=i,
+                #                 walk_times=WT,
+                #             ),
+                #             crs=filtered_dataframe_park.crs,
+                #         )
+                #         for i, r in filtered_dataframe_park.iterrows()
+                #     ]
+                # )
+
+
+                # gdf = isochrones.set_index(["time", "point_index"]).copy().dropna()
+                # # remove shorter walk time from longer walk time polygon to make folium work better
+                # for idx in range(len(WT)-1,0,-1):
+                #     gdf.loc[WT[idx], "geometry"] = (
+                #         gdf.loc[WT[idx]]
+                #         .apply(
+                #             lambda r: r["geometry"].symmetric_difference(
+                #                 gdf.loc[(WT[idx-1], r.name), "geometry"]
+                #             ),
+                #             axis=1,
+                #         )
+                #         .values
+                #     )
+                # gdf=gdf.reset_index()
+
+                # # mergedpolys = gpd.GeoDataFrame(
+                # #                     geometry=gdf.groupby("time")["geometry"]
+                # #                     .agg(lambda g: g.unary_union)
+                # #                     .apply(lambda g: [g] if isinstance(g, shapely.geometry.Polygon) else g.geoms)
+                # #                     .explode(),
+                # #                     crs=gdf.crs,
+                # #                 )
+                
+                
+
+                # # Group the geometries based on the "time" column
+                # gdf_grouped = gdf.groupby("time")["geometry"]
+
+                # gdf_grouped_time_union=gdf.groupby("time")["geometry"].agg(lambda g: g.unary_union).reset_index().sort_values(by='time')
+
+                # # Get the unique time scopes in descending order
+                # time_scopes = sorted(gdf_grouped_time_union.time.unique())
+
+                # # Initialize the merged geometry list
+                # merged_geometries = {}
+
+                # # Iterate over the time scopes
+                # for i, time_scope in enumerate(time_scopes):
+                #     if i == 0:
+                #         # For the first time scope, append the geometry as is
+                #         merged_geometries[str(time_scope)]=(gdf_grouped.get_group(time_scope).unary_union)
+                #     else:
+                #         # Initialize the temporary geometry as the current time scope geometry
+                #         temp_geom = gdf_grouped.get_group(time_scope).unary_union
+
+                #         # Subtract the overlapping parts of the outer rings with the inner rings
+                #         for j in range(i):
+                #             temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
+
+                #         # Append the resulting geometry to the merged geometries list
+                #         merged_geometries[str(time_scope)]=(temp_geom)
+
+
+                # result_geometry = gpd.GeoSeries(merged_geometries).reset_index().rename(columns={"index": "time", 0: "geometry"})
+                # result_geometry.columns=['time','geometry']
+                # result_gdf = gpd.GeoDataFrame(result_geometry,geometry="geometry")
+                
+                
+                # map_2 = KeplerGl(height=500, data={"isochrones": kepler_df(result_gdf)},config=config_n)
+                # keplergl_static(map_2)
+                # map_2.add_data(data=result_gdf, name="Isochrones")
+                # # park_options = result_gdf["name"].unique()
+                # # selected_park = st.multiselect(
+                # #         "Select a park", park_options)
+                # # if st.button("Look for an specific park"):    
+                # #     filtered_dataframe_specific_park=filter_dataframe(result_gdf,"Neighborhood", "name", selected_park)
+                # #     map_sp = KeplerGl(height=500, data={"isochrones": kepler_df(filtered_dataframe_specific_park)})
+                # #     keplergl_static(map_sp)               
+                # #     map_sp.add_data(data=filtered_dataframe_specific_park, name="Isochrones")
+
+
+
+                # # map_3 = KeplerGl(height=500, data={"data_p": kepler_df(filtered_dataframe_park),"isochrones": kepler_df(gdf)})
+                # # keplergl_static(map_3)
+                # # # map_1.add_data(data=filtered_dataframe_av, name="Filtered Dataframe")
+                # # map_3.add_data(data=filtered_dataframe_park, name="Filtered Parks")
+                # # map_3.add_data(data=mergedpolys, name="Isochrones")
+
+                # # m = gdf.reset_index().explore(column="time", height=300, width=500, scheme="boxplot")
+                # # m
+
+                            
+                
                     
                 
+            
 
         if "Ratios" in selected_process:
             with open("config/config_ratio_av.json") as f:
@@ -636,3 +934,4 @@ if __name__ == "__main__":
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
     )
     dashboard.run_dashboard()
+ 
