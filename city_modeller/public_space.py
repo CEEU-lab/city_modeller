@@ -6,12 +6,14 @@ from typing import Any, Optional, Union
 
 import geojson
 import geopandas as gpd
+import networkx as nx
 import numpy as np
+import osmnx as ox
 import pandas as pd
 import streamlit as st
 from keplergl import KeplerGl
 from matplotlib import pyplot as plt
-from shapely.geometry import MultiPoint, MultiPolygon, shape
+from shapely.geometry import MultiPoint, MultiPolygon, Point, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 from shapely.wkt import dumps
@@ -19,13 +21,14 @@ from streamlit_keplergl import keplergl_static
 
 from city_modeller.base import Dashboard
 from city_modeller.datasources import (
-    filter_census_data,
-    get_bbox,
+    # filter_census_data,  # FIXME: Use somehow
+    # get_bbox,
     get_census_data,
+    get_neighborhoods,
     get_public_space,
 )
 from city_modeller.utils import (
-    bound_multipol_by_bbox,
+    # bound_multipol_by_bbox,
     distancia_mas_cercano,
     geometry_centroid,
     parse_config_json,
@@ -35,30 +38,7 @@ from city_modeller.utils import (
 from city_modeller.widgets import section_toggles, error_message
 
 
-import streamlit as st
-import pandas as pd
-import geopandas as gpd
-import numpy as np
-from shapely.ops import unary_union
-from keplergl import KeplerGl
-from streamlit_keplergl import keplergl_static
-from typing import Any, Optional, Union
-from shapely.wkt import dumps
-import json
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import networkx as nx
-import osmnx as ox
-import shapely.wkt
-import shapely.wkt as wkt
-print(ox.__version__)
 ox.config(log_file=True, log_console=True, use_cache=True)
-from shapely.geometry import Point
-
-
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
 
 
@@ -67,6 +47,7 @@ class PublicSpacesDashboard(Dashboard):
         self,
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
+        neighborhoods: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
         default_config_path: Optional[str] = None,
     ) -> None:
@@ -74,6 +55,7 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
+        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.park_types: np.ndarray[str] = np.hstack(
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
         )
@@ -261,34 +243,23 @@ class PublicSpacesDashboard(Dashboard):
         keplergl_static(kepler)
         kepler.add_data(data=data)
 
-    def availability(self) -> None:  # TODO: Cache
-        @st.cache_data 
+    def availability(self) -> None:
+        @st.cache_data
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
-            neighborhoods = gpd.read_file("data/neighbourhoods.geojson")
-            neighborhoods = gpd.GeoDataFrame(neighborhoods, geometry="geometry", crs="epsg:4326")
-            radios = gpd.read_file("data/radios.zip")
-            radios = gpd.GeoDataFrame(radios, geometry="geometry", crs="epsg:4326")
-            radios=radios[radios.nomprov=='Ciudad Autónoma de Buenos Aires']
-            radios = (
-            radios.reindex(columns=["ind01", "nomdepto", "geometry"])
-            .reset_index()
-            .iloc[:, 1:]
-            )
-            radios.columns = ["TOTAL_VIV", "COMUNA", "geometry"]
-            radios["TOTAL_VIV"] = radios.apply(lambda x: int(x["TOTAL_VIV"]), axis=1)
-            parques = gpd.read_file("data/public_space.geojson")
-            parques = gpd.GeoDataFrame(parques, geometry="geometry", crs="epsg:4326")
-            park_types_options= parques["clasificac"].unique()
             if selected_park_types:
-                parques = parques[parques["clasificac"].isin(selected_park_types)]
+                parques = self.public_spaces[
+                    self.public_spaces["clasificac"].isin(selected_park_types)
+                ]
             polygons = list(parques.iloc[:, -1])
             boundary = gpd.GeoSeries(unary_union(polygons))
-            boundary = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary), crs="epsg:4326")
+            boundary = gpd.GeoDataFrame(
+                geometry=gpd.GeoSeries(boundary), crs="epsg:4326"
+            )
             df = pd.merge(
-                radios.reset_index(),
+                self.radios.reset_index(),
                 gpd.overlay(
-                    radios.reset_index().iloc[
+                    self.radios.reset_index().iloc[
                         :,
                     ],
                     boundary,
@@ -297,46 +268,44 @@ class PublicSpacesDashboard(Dashboard):
                 on="index",
                 how="left",
             )
-            df_1 = df.loc[:, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]]
-            df_1.columns = ["index","TOTAL_VIV","Communes","geometry_radio","geometry_ps_rc"]
-            df_1["TOTAL_VIV"] = df_1["TOTAL_VIV"] + 1
-            df_1["area_ps_rc"] = df_1.geometry_ps_rc.area
-            df_1["area_ps_rc"].fillna(0, inplace=True)
-            df_1.TOTAL_VIV = df_1.TOTAL_VIV + 1
-            df_1["area_ps_rc"]=df_1["area_ps_rc"]#+ df_1.area_ps_rc.std()
-            df_1["ratio"] = df_1["area_ps_rc"] / df_1["TOTAL_VIV"]
-            df_1["geometry"] = df_1["geometry_radio"]
-            df_2=df_1.loc[:,["area_ps_rc",'TOTAL_VIV','Communes','ratio','geometry']]
-            radios=df_2
-            #radios = df_2[(df_2["ratio"] < 2 * 10 ** (-5)) & (df_2["ratio"] >= 0)]
-            radios["distance"] = np.log(radios["ratio"])
-            radios['geometry_centroid']=radios.geometry.centroid
-            radios['Neighborhoods']=neighborhoods.apply(lambda x: x['geometry'].contains(radios['geometry_centroid']),axis=1).T.dot(neighborhoods.BARRIO)
+            df = df.loc[
+                :, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]
+            ]
+            df.columns = [
+                "index",
+                "TOTAL_VIV",
+                "Communes",
+                "geometry_radio",
+                "geometry_ps_rc",
+            ]
+            df["TOTAL_VIV"] += 1
+            df["area_ps_rc"] = df.geometry_ps_rc.area
+            df["area_ps_rc"].fillna(0, inplace=True)
+            df["ratio"] = df["area_ps_rc"] / df["TOTAL_VIV"]
+            df["geometry"] = df["geometry_radio"]
+            df = df.loc[:, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
+            df["distance"] = np.log(df["ratio"])
+            df["geometry_centroid"] = df.geometry.centroid
+            df["Neighborhoods"] = self.neighborhoods.apply(
+                lambda x: x["geometry"].contains(df["geometry_centroid"]), axis=1
+            ).T.dot(self.neighborhoods.BARRIO)
 
-            # Other preprocessing steps...
-            return radios,park_types_options 
-
-        # Load the dataframe using the load_data function
-        df,park_types_options = load_data([]) # pass an empty list for selected_communes
+            return df
 
         # Use the commune_options variable to create the multiselect dropdown
-        selected_park_types = st.multiselect("park_types", park_types_options)
+        selected_park_types = st.multiselect("park_types", self.park_types)
 
         # Load the dataframe using the load_data function with the selected communes
-        df,park_types_options = load_data(selected_park_types) 
+        df = load_data(selected_park_types)
+
         parques = gpd.read_file("data/public_space.geojson")
         parques = gpd.GeoDataFrame(parques, geometry="geometry", crs="epsg:4326")
-        parques["Communes"]= parques.apply(lambda x: str('Comuna ') + str(int(x['COMUNA'])),axis=1)
+        parques["Communes"] = parques.apply(
+            lambda x: str("Comuna ") + str(int(x["COMUNA"])), axis=1
+        )
         df_parques = parques[parques["clasificac"].isin(selected_park_types)]
-        df_parques['geometry']=df_parques.geometry.centroid
-        df_parques=gpd.GeoDataFrame(df_parques)
-
-
-
-
-
-
-
+        df_parques["geometry"] = df_parques.geometry.centroid
+        df_parques = gpd.GeoDataFrame(df_parques)
 
         # Create a function to filter and display results based on user selections
         def filter_dataframe(df, process, filter_column, selected_values):
@@ -356,21 +325,24 @@ class PublicSpacesDashboard(Dashboard):
             return df.to_dict("split")
 
         def get_isochrone(
-        lon, lat, walk_times=[15, 30], speed=4.5, name=None, point_index=None
+            lon, lat, walk_times=[15, 30], speed=4.5, name=None, point_index=None
         ):
             loc = (lat, lon)
             G = ox.graph_from_point(loc, simplify=True, network_type="walk")
-            gdf_nodes = ox.graph_to_gdfs(G, edges=False)
+            # gdf_nodes = ox.graph_to_gdfs(G, edges=False)
             center_node = ox.distance.nearest_nodes(G, lon, lat)
 
-            meters_per_minute = speed * 1000 / 60  
+            meters_per_minute = speed * 1000 / 60
             for u, v, k, data in G.edges(data=True, keys=True):
                 data["time"] = data["length"] / meters_per_minute
             polys = []
             for walk_time in walk_times:
-                subgraph = nx.ego_graph(G, center_node, radius=walk_time, distance="time")
+                subgraph = nx.ego_graph(
+                    G, center_node, radius=walk_time, distance="time"
+                )
                 node_points = [
-                    Point(data["x"], data["y"]) for node, data in subgraph.nodes(data=True)
+                    Point(data["x"], data["y"])
+                    for node, data in subgraph.nodes(data=True)
                 ]
                 polys.append(gpd.GeoSeries(node_points).unary_union.convex_hull)
             info = {}
@@ -380,32 +352,34 @@ class PublicSpacesDashboard(Dashboard):
                 info["point_index"] = [point_index for t in walk_times]
             return {**{"geometry": polys, "time": walk_times}, **info}
 
-        def apply_isochrones_gdf(gdf_point, geometry_columns='geometry',node_tag_name='name', WT = [5, 10, 15]):
+        def apply_isochrones_gdf(
+            gdf_point, geometry_columns="geometry", node_tag_name="name", WT=[5, 10, 15]
+        ):
             isochrones = pd.concat(
-                        [
-                            gpd.GeoDataFrame(
-                                get_isochrone(
-                                    r[geometry_columns].x,
-                                    r[geometry_columns].y,
-                                    name=r[node_tag_name],
-                                    point_index=i,
-                                    walk_times=WT,
-                                ),
-                                crs=gdf_point.crs,
-                            )
-                            for i, r in gdf_point.iterrows()
-                        ]
+                [
+                    gpd.GeoDataFrame(
+                        get_isochrone(
+                            r[geometry_columns].x,
+                            r[geometry_columns].y,
+                            name=r[node_tag_name],
+                            point_index=i,
+                            walk_times=WT,
+                        ),
+                        crs=gdf_point.crs,
                     )
+                    for i, r in gdf_point.iterrows()
+                ]
+            )
             return isochrones
 
-        def decouple_overlapping_rings_intra(isochrones, WT = [5, 10, 15]):
+        def decouple_overlapping_rings_intra(isochrones, WT=[5, 10, 15]):
             gdf = isochrones.set_index(["time", "point_index"]).copy().dropna()
-            for idx in range(len(WT)-1,0,-1):
+            for idx in range(len(WT) - 1, 0, -1):
                 gdf.loc[WT[idx], "geometry"] = (
                     gdf.loc[WT[idx]]
                     .apply(
                         lambda r: r["geometry"].symmetric_difference(
-                            gdf.loc[(WT[idx-1], r.name), "geometry"]
+                            gdf.loc[(WT[idx - 1], r.name), "geometry"]
                         ),
                         axis=1,
                     )
@@ -413,11 +387,15 @@ class PublicSpacesDashboard(Dashboard):
                 )
             return gdf.reset_index()
 
-
         def merging_overlapping_rings_inter(gdf):
             # Group the geometries based on the "time" column
             gdf_grouped = gdf.groupby("time")["geometry"]
-            gdf_grouped_time_union=gdf.groupby("time")["geometry"].agg(lambda g: g.unary_union).reset_index().sort_values(by='time')
+            gdf_grouped_time_union = (
+                gdf.groupby("time")["geometry"]
+                .agg(lambda g: g.unary_union)
+                .reset_index()
+                .sort_values(by="time")
+            )
             # Get the unique time scopes in descending order
             time_scopes = sorted(gdf_grouped_time_union.time.unique())
             # Initialize the merged geometry list
@@ -426,32 +404,44 @@ class PublicSpacesDashboard(Dashboard):
             for i, time_scope in enumerate(time_scopes):
                 if i == 0:
                     # For the first time scope, append the geometry as is
-                    merged_geometries[str(time_scope)]=(gdf_grouped.get_group(time_scope).unary_union)
+                    merged_geometries[str(time_scope)] = gdf_grouped.get_group(
+                        time_scope
+                    ).unary_union
                 else:
-                    # Initialize the temporary geometry as the current time scope geometry
+                    # Initialize the tmp geometry as the current time scope geometry
                     temp_geom = gdf_grouped.get_group(time_scope).unary_union
-                    # Subtract the overlapping parts of the outer rings with the inner rings
+                    # Subtract overlapping parts of the outer rings with the inner rings
                     for j in range(i):
-                        temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
+                        temp_geom = temp_geom.difference(
+                            gdf_grouped.get_group(time_scopes[j]).unary_union
+                        )
                     # Append the resulting geometry to the merged geometries list
-                    merged_geometries[str(time_scope)]=(temp_geom)
+                    merged_geometries[str(time_scope)] = temp_geom
                     # Convert the merged geometries into a MultiPolygon
-                    result_geometry = gpd.GeoSeries(merged_geometries).reset_index().rename(columns={"index": "time", 0: "geometry"})
-                    result_geometry.columns=['time','geometry']
+                    result_geometry = (
+                        gpd.GeoSeries(merged_geometries)
+                        .reset_index()
+                        .rename(columns={"index": "time", 0: "geometry"})
+                    )
+                    result_geometry.columns = ["time", "geometry"]
                     # Convert the resulting geometry to a GeoDataFrame
-                    result_gdf = gpd.GeoDataFrame(result_geometry,geometry="geometry")
+                    result_gdf = gpd.GeoDataFrame(result_geometry, geometry="geometry")
             return result_gdf
 
-        def isochrone_mapping(gdf_point, wt =[5,10,15],node_tag_name='name',geometry_columns='geometry'):
+        def isochrone_mapping(
+            gdf_point, wt=[5, 10, 15], node_tag_name="name", geometry_columns="geometry"
+        ):
             return merging_overlapping_rings_inter(
-                                            decouple_overlapping_rings_intra(
-                                            apply_isochrones_gdf(gdf_point,
-                                                                    geometry_columns=geometry_columns,
-                                                                    node_tag_name=node_tag_name, 
-                                                                    WT = wt),
-                                            WT = wt))
-
-
+                decouple_overlapping_rings_intra(
+                    apply_isochrones_gdf(
+                        gdf_point,
+                        geometry_columns=geometry_columns,
+                        node_tag_name=node_tag_name,
+                        WT=wt,
+                    ),
+                    WT=wt,
+                )
+            )
 
         # Create a multiselect dropdown to select process
         process_options = ["Commune", "Neighborhood", "Ratios"]
@@ -459,8 +449,15 @@ class PublicSpacesDashboard(Dashboard):
 
         if "Commune" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
-            gdf = gpd.read_file('data/commune_geom.geojson')
-            gdf.columns=['Communes', 'area_ps_rc', 'TOTAL_VIV', 'COMUNA', 'ratio', 'geometry']
+            gdf = gpd.read_file("data/commune_geom.geojson")
+            gdf.columns = [
+                "Communes",
+                "area_ps_rc",
+                "TOTAL_VIV",
+                "COMUNA",
+                "ratio",
+                "geometry",
+            ]
             commune_options = gdf["Communes"].unique()
             selected_commune = st.multiselect("Select a commune", commune_options)
             with open("config/config_commune_av.json") as f:
@@ -476,7 +473,7 @@ class PublicSpacesDashboard(Dashboard):
                         gdf = df.drop("geometry_centroid", axis=1)
                     elif option21 == "Communes":
                         config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                        "colorField"
+                            "colorField"
                         ]["name"] = "ratio"
                 elif option1 == "m2":
                     option21 = st.radio("Aggregate by", ("Ratios", "Communes"))
@@ -487,30 +484,38 @@ class PublicSpacesDashboard(Dashboard):
                         gdf = df.drop("geometry_centroid", axis=1)
                     elif option21 == "Communes":
                         config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                        "colorField"
+                            "colorField"
                         ]["name"] = "area_ps_rc"
-                
 
                 if st.button("Submit"):
                     filter_dataframe(gdf, "Commune", "Communes", selected_commune)
-                    filtered_dataframe=filter_dataframe(gdf, "Commune", "Communes", selected_commune)
+                    filtered_dataframe = filter_dataframe(
+                        gdf, "Commune", "Communes", selected_commune
+                    )
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(filtered_dataframe.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": kepler_df(filtered_dataframe.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:,:]))
+                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:, :]))
 
-
-                    filtered_dataframe_park=filter_dataframe(df_parques,"Commune", "Communes", selected_commune)
-                    isochrone_comunne=isochrone_mapping(filtered_dataframe_park,node_tag_name='nombre')
+                    filtered_dataframe_park = filter_dataframe(
+                        df_parques, "Commune", "Communes", selected_commune
+                    )
+                    isochrone_comunne = isochrone_mapping(
+                        filtered_dataframe_park, node_tag_name="nombre"
+                    )
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(isochrone_comunne.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": kepler_df(isochrone_comunne.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(isochrone_comunne.iloc[:,:]))
-                    
-                
-                
+                    kepler.add_data(data=kepler_df(isochrone_comunne.iloc[:, :]))
+
         if "Neighborhood" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
             neighborhood_options = df["Neighborhoods"].unique()
@@ -555,7 +560,10 @@ class PublicSpacesDashboard(Dashboard):
                             .reset_index()
                         )
                         radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-                            lambda x: 0 if x["area_ps_rc"]==0 else x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                            lambda x: 0
+                            if x["area_ps_rc"] == 0
+                            else x["TOTAL_VIV"] / x["area_ps_rc"],
+                            axis=1,
                         )
                         radios_neigh_com_gb.columns = [
                             "Neighborhoods",
@@ -573,11 +581,11 @@ class PublicSpacesDashboard(Dashboard):
                             "ratio_neigh",
                             "geometry",
                         ]
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
-                            radios_neigh_com_gb_geom,
-                            geometry="geometry",
-                            crs="epsg:4326",
-                        )
+                        # neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                        #     radios_neigh_com_gb_geom,
+                        #     geometry="geometry",
+                        #     crs="epsg:4326",
+                        # )
                         df = radios_neigh_com_gb_geom
                         config_n["config"]["visState"]["layers"][0]["visualChannels"][
                             "colorField"
@@ -617,7 +625,10 @@ class PublicSpacesDashboard(Dashboard):
                             .reset_index()
                         )
                         radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-                            lambda x: 0 if x["area_ps_rc"]==0 else x["TOTAL_VIV"] / x["area_ps_rc"], axis=1
+                            lambda x: 0
+                            if x["area_ps_rc"] == 0
+                            else x["TOTAL_VIV"] / x["area_ps_rc"],
+                            axis=1,
                         )
                         radios_neigh_com_gb.columns = [
                             "Neighborhoods",
@@ -635,182 +646,49 @@ class PublicSpacesDashboard(Dashboard):
                             "ratio_neigh",
                             "geometry",
                         ]
-                        neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
-                            radios_neigh_com_gb_geom,
-                            geometry="geometry",
-                            crs="epsg:4326",
-                        )
+                        # neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
+                        #     radios_neigh_com_gb_geom,
+                        #     geometry="geometry",
+                        #     crs="epsg:4326",
+                        # )
                         df = radios_neigh_com_gb_geom
                         config_n["config"]["visState"]["layers"][0]["visualChannels"][
                             "colorField"
                         ]["name"] = "area_neigh"
 
                 if st.button("Submit"):
-                    filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
-                    filtered_dataframe_av=filter_dataframe(df, "Neighborhood", "Neighborhoods", selected_neighborhood)
+                    filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
+                    filtered_dataframe_av = filter_dataframe(
+                        df, "Neighborhood", "Neighborhoods", selected_neighborhood
+                    )
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(filtered_dataframe_av.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": kepler_df(filtered_dataframe_av.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe_av.iloc[:,:]))
+                    kepler.add_data(data=kepler_df(filtered_dataframe_av.iloc[:, :]))
 
-                    filtered_dataframe_park=filter_dataframe(df_parques,"Neighborhood", "BARRIO", selected_neighborhood)
-                    isochrone_park=isochrone_mapping(filtered_dataframe_park,node_tag_name='nombre')
+                    filtered_dataframe_park = filter_dataframe(
+                        df_parques, "Neighborhood", "BARRIO", selected_neighborhood
+                    )
+                    isochrone_park = isochrone_mapping(
+                        filtered_dataframe_park, node_tag_name="nombre"
+                    )
                     config_n["config"]["visState"]["layers"][0]["visualChannels"][
                         "colorField"
                     ]["name"] = "time"
                     kepler = KeplerGl(
-                    height=500, data={"data": kepler_df(isochrone_park.iloc[:,:])} , show_docs=False,config=config_n
+                        height=500,
+                        data={"data": kepler_df(isochrone_park.iloc[:, :])},
+                        show_docs=False,
+                        config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(isochrone_park.iloc[:,:]))
-
-                    
-                # # Add the new point layer to your Kepler.gl map
-                # # kepler = KeplerGl(
-                # # height=500, data={"data": kepler_df(filtered_dataframe_park)}, show_docs=False,config=config_n )
-                # # keplergl_static(kepler)
-                # # kepler.add_data(data=kepler_df(filtered_dataframe_park))
-                
-
-                # # Convert the geometry column from WKT format to Shapely objects
-
-                # # Define a lambda function to extract the x and y coordinates of each Point and return them as a tuple
-                #     point_to_tuple = lambda point: (point.y,point.x)
-
-                #     # Apply the lambda function to the geometry column to create a new column of tuples
-                #     filtered_dataframe_park['point_tuple'] = filtered_dataframe_park['geometry'].apply(point_to_tuple)
-                #     referencia = filtered_dataframe_park.point_tuple.iloc[0]
-                
-
-                # # G4 = ox.graph_from_point(center_point=referencia, dist=500, dist_type='network', network_type='walk')
-                # # nodes, edges = ox.graph_to_gdfs(G4)
-                # # nodes=gpd.GeoDataFrame(nodes)
-                # # kepler = KeplerGl(
-                # # height=500, data={"data": kepler_df(nodes)}, show_docs=False,config=config_n )
-                # # keplergl_static(kepler)
-                # # kepler.add_data(data=kepler_df(nodes.iloc[:,:]))
-
-                    
-                    
-                # # st.write(filtered_dataframe_park)
-                # # st.write(type(filtered_dataframe_park["geometry"].iloc[0]))
-
-                # # # Create a Kepler.gl map and add layers for each dataframe
-                # # map_1 = KeplerGl(height=500, data={"data_p": kepler_df(filtered_dataframe_park),"data_av": kepler_df(filtered_dataframe_av),"data_nodes": kepler_df(nodes.iloc[:,:])})
-                # # keplergl_static(map_1)
-                # # # map_1.add_data(data=filtered_dataframe_av, name="Filtered Dataframe")
-                # # map_1.add_data(data=filtered_dataframe_park, name="Filtered Parks")
-                # # map_1.add_data(data=ox.graph_to_gdfs(ox.graph_from_point(center_point=referencia, dist=500, dist_type='network', network_type='walk'))[0], name="Graph Nodes")
-                # filtered_dataframe_park=filtered_dataframe_park.loc[:,['nombre','geometry']]
-                # filtered_dataframe_park['geometry'] = filtered_dataframe_park['geometry'].apply(wkt.loads)
-                # filtered_dataframe_park=gpd.GeoDataFrame(filtered_dataframe_park)
-
-
-                # WT = [5, 10, 15]
-                # isochrones = pd.concat(
-                #     [
-                #         gpd.GeoDataFrame(
-                #             get_isochrone(
-                #                 r["geometry"].x,
-                #                 r["geometry"].y,
-                #                 name=r["nombre"],
-                #                 point_index=i,
-                #                 walk_times=WT,
-                #             ),
-                #             crs=filtered_dataframe_park.crs,
-                #         )
-                #         for i, r in filtered_dataframe_park.iterrows()
-                #     ]
-                # )
-
-
-                # gdf = isochrones.set_index(["time", "point_index"]).copy().dropna()
-                # # remove shorter walk time from longer walk time polygon to make folium work better
-                # for idx in range(len(WT)-1,0,-1):
-                #     gdf.loc[WT[idx], "geometry"] = (
-                #         gdf.loc[WT[idx]]
-                #         .apply(
-                #             lambda r: r["geometry"].symmetric_difference(
-                #                 gdf.loc[(WT[idx-1], r.name), "geometry"]
-                #             ),
-                #             axis=1,
-                #         )
-                #         .values
-                #     )
-                # gdf=gdf.reset_index()
-
-                # # mergedpolys = gpd.GeoDataFrame(
-                # #                     geometry=gdf.groupby("time")["geometry"]
-                # #                     .agg(lambda g: g.unary_union)
-                # #                     .apply(lambda g: [g] if isinstance(g, shapely.geometry.Polygon) else g.geoms)
-                # #                     .explode(),
-                # #                     crs=gdf.crs,
-                # #                 )
-                
-                
-
-                # # Group the geometries based on the "time" column
-                # gdf_grouped = gdf.groupby("time")["geometry"]
-
-                # gdf_grouped_time_union=gdf.groupby("time")["geometry"].agg(lambda g: g.unary_union).reset_index().sort_values(by='time')
-
-                # # Get the unique time scopes in descending order
-                # time_scopes = sorted(gdf_grouped_time_union.time.unique())
-
-                # # Initialize the merged geometry list
-                # merged_geometries = {}
-
-                # # Iterate over the time scopes
-                # for i, time_scope in enumerate(time_scopes):
-                #     if i == 0:
-                #         # For the first time scope, append the geometry as is
-                #         merged_geometries[str(time_scope)]=(gdf_grouped.get_group(time_scope).unary_union)
-                #     else:
-                #         # Initialize the temporary geometry as the current time scope geometry
-                #         temp_geom = gdf_grouped.get_group(time_scope).unary_union
-
-                #         # Subtract the overlapping parts of the outer rings with the inner rings
-                #         for j in range(i):
-                #             temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
-
-                #         # Append the resulting geometry to the merged geometries list
-                #         merged_geometries[str(time_scope)]=(temp_geom)
-
-
-                # result_geometry = gpd.GeoSeries(merged_geometries).reset_index().rename(columns={"index": "time", 0: "geometry"})
-                # result_geometry.columns=['time','geometry']
-                # result_gdf = gpd.GeoDataFrame(result_geometry,geometry="geometry")
-                
-                
-                # map_2 = KeplerGl(height=500, data={"isochrones": kepler_df(result_gdf)},config=config_n)
-                # keplergl_static(map_2)
-                # map_2.add_data(data=result_gdf, name="Isochrones")
-                # # park_options = result_gdf["name"].unique()
-                # # selected_park = st.multiselect(
-                # #         "Select a park", park_options)
-                # # if st.button("Look for an specific park"):    
-                # #     filtered_dataframe_specific_park=filter_dataframe(result_gdf,"Neighborhood", "name", selected_park)
-                # #     map_sp = KeplerGl(height=500, data={"isochrones": kepler_df(filtered_dataframe_specific_park)})
-                # #     keplergl_static(map_sp)               
-                # #     map_sp.add_data(data=filtered_dataframe_specific_park, name="Isochrones")
-
-
-
-                # # map_3 = KeplerGl(height=500, data={"data_p": kepler_df(filtered_dataframe_park),"isochrones": kepler_df(gdf)})
-                # # keplergl_static(map_3)
-                # # # map_1.add_data(data=filtered_dataframe_av, name="Filtered Dataframe")
-                # # map_3.add_data(data=filtered_dataframe_park, name="Filtered Parks")
-                # # map_3.add_data(data=mergedpolys, name="Isochrones")
-
-                # # m = gdf.reset_index().explore(column="time", height=300, width=500, scheme="boxplot")
-                # # m
-
-                            
-                
-                    
-                
-            
+                    kepler.add_data(data=kepler_df(isochrone_park.iloc[:, :]))
 
         if "Ratios" in selected_process:
             with open("config/config_ratio_av.json") as f:
@@ -818,9 +696,9 @@ class PublicSpacesDashboard(Dashboard):
             option1 = st.radio("Select an option", ("m2/inhabitant", "m2"))
             if option1 == "m2/inhabitant":
                 config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                        "colorField"
-                    ]["name"] = "ratio"
-                df = df.drop("geometry_centroid", axis=1) 
+                    "colorField"
+                ]["name"] = "ratio"
+                df = df.drop("geometry_centroid", axis=1)
             elif option1 == "m2":
                 config_n["config"]["visState"]["layers"][0]["visualChannels"][
                     "colorField"
@@ -830,10 +708,13 @@ class PublicSpacesDashboard(Dashboard):
             if st.button("Submit"):
                 # st.write(df)
                 kepler = KeplerGl(
-                height=500, data={"data": kepler_df(df.iloc[:,:])} , show_docs=False,config=config_n
+                    height=500,
+                    data={"data": kepler_df(df.iloc[:, :])},
+                    show_docs=False,
+                    config=config_n,
                 )
                 keplergl_static(kepler)
-                kepler.add_data(data=kepler_df(df.iloc[:,:]))
+                kepler.add_data(data=kepler_df(df.iloc[:, :]))
 
     def accessibility(self) -> None:
         green_spaces_container = st.container()
@@ -929,9 +810,9 @@ class PublicSpacesDashboard(Dashboard):
 if __name__ == "__main__":
     st.set_page_config(page_title="Public Spaces", layout="wide")
     dashboard = PublicSpacesDashboard(
-        radios=filter_census_data(get_census_data(), 8),
-        public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
+        radios=get_census_data(),
+        public_spaces=get_public_space(),
+        neighborhoods=get_neighborhoods(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
     )
     dashboard.run_dashboard()
- 

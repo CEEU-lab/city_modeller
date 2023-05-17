@@ -134,3 +134,13 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
     filtered_gdf["cons"] = 0
     box = filtered_gdf.dissolve(by="cons")
     return box.total_bounds
+
+
+@st.cache_data
+def get_neighborhoods():
+    """Load neighborhoods data."""
+    neighborhoods = gpd.read_file(f"{data_dir}/neighbourhoods.geojson")
+    neighborhoods = gpd.GeoDataFrame(
+        neighborhoods, geometry="geometry", crs="epsg:4326"
+    )
+    return neighborhoods
