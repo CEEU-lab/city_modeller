@@ -247,10 +247,9 @@ class PublicSpacesDashboard(Dashboard):
         @st.cache_data
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
-            if selected_park_types:
-                parques = self.public_spaces[
-                    self.public_spaces["clasificac"].isin(selected_park_types)
-                ]
+            parques = self.public_spaces[
+                self.public_spaces["clasificac"].isin(selected_park_types)
+            ]
             polygons = list(parques.iloc[:, -1])
             boundary = gpd.GeoSeries(unary_union(polygons))
             boundary = gpd.GeoDataFrame(
@@ -298,31 +297,18 @@ class PublicSpacesDashboard(Dashboard):
         # Load the dataframe using the load_data function with the selected communes
         df = load_data(selected_park_types)
 
-        parques = gpd.read_file("data/public_space.geojson")
-        parques = gpd.GeoDataFrame(parques, geometry="geometry", crs="epsg:4326")
-        parques["Communes"] = parques.apply(
+        parks = self.public_spaces.copy()
+        parks["Communes"] = parks.apply(
             lambda x: str("Comuna ") + str(int(x["COMUNA"])), axis=1
-        )
-        df_parques = parques[parques["clasificac"].isin(selected_park_types)]
-        df_parques["geometry"] = df_parques.geometry.centroid
-        df_parques = gpd.GeoDataFrame(df_parques)
+        )  # FIXME
+        parks = parks[parks["clasificac"].isin(selected_park_types)]
+        parks["geometry"] = parks.geometry.centroid
+        parks = gpd.GeoDataFrame(parks)
 
         # Create a function to filter and display results based on user selections
         def filter_dataframe(df, process, filter_column, selected_values):
-            if process == "Commune":
-                filtered_df = df[df[filter_column].isin(selected_values)]
-                return filtered_df
-            elif process == "Neighborhood":
-                filtered_df = df[df[filter_column].isin(selected_values)]
-                return filtered_df
-            else:
-                filtered_df = df[df[filter_column].isin(selected_values)]
-                return filtered_df
-
-        def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
-            df = gdf.copy()
-            df["geometry"] = df.geometry.apply(dumps)
-            return df.to_dict("split")
+            filtered_df = df[df[filter_column].isin(selected_values)]
+            return filtered_df
 
         def get_isochrone(
             lon, lat, walk_times=[15, 30], speed=4.5, name=None, point_index=None
@@ -494,27 +480,27 @@ class PublicSpacesDashboard(Dashboard):
                     )
                     kepler = KeplerGl(
                         height=500,
-                        data={"data": kepler_df(filtered_dataframe.iloc[:, :])},
+                        data={"data": self.kepler_df(filtered_dataframe.iloc[:, :])},
                         show_docs=False,
                         config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe.iloc[:, :]))
+                    kepler.add_data(data=self.kepler_df(filtered_dataframe.iloc[:, :]))
 
                     filtered_dataframe_park = filter_dataframe(
-                        df_parques, "Commune", "Communes", selected_commune
+                        parks, "Commune", "Communes", selected_commune
                     )
                     isochrone_comunne = isochrone_mapping(
                         filtered_dataframe_park, node_tag_name="nombre"
                     )
                     kepler = KeplerGl(
                         height=500,
-                        data={"data": kepler_df(isochrone_comunne.iloc[:, :])},
+                        data={"data": self.kepler_df(isochrone_comunne.iloc[:, :])},
                         show_docs=False,
                         config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(isochrone_comunne.iloc[:, :]))
+                    kepler.add_data(data=self.kepler_df(isochrone_comunne.iloc[:, :]))
 
         if "Neighborhood" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
@@ -665,15 +651,17 @@ class PublicSpacesDashboard(Dashboard):
                     )
                     kepler = KeplerGl(
                         height=500,
-                        data={"data": kepler_df(filtered_dataframe_av.iloc[:, :])},
+                        data={"data": self.kepler_df(filtered_dataframe_av.iloc[:, :])},
                         show_docs=False,
                         config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(filtered_dataframe_av.iloc[:, :]))
+                    kepler.add_data(
+                        data=self.kepler_df(filtered_dataframe_av.iloc[:, :])
+                    )
 
                     filtered_dataframe_park = filter_dataframe(
-                        df_parques, "Neighborhood", "BARRIO", selected_neighborhood
+                        parks, "Neighborhood", "BARRIO", selected_neighborhood
                     )
                     isochrone_park = isochrone_mapping(
                         filtered_dataframe_park, node_tag_name="nombre"
@@ -683,12 +671,12 @@ class PublicSpacesDashboard(Dashboard):
                     ]["name"] = "time"
                     kepler = KeplerGl(
                         height=500,
-                        data={"data": kepler_df(isochrone_park.iloc[:, :])},
+                        data={"data": self.kepler_df(isochrone_park.iloc[:, :])},
                         show_docs=False,
                         config=config_n,
                     )
                     keplergl_static(kepler)
-                    kepler.add_data(data=kepler_df(isochrone_park.iloc[:, :]))
+                    kepler.add_data(data=self.kepler_df(isochrone_park.iloc[:, :]))
 
         if "Ratios" in selected_process:
             with open("config/config_ratio_av.json") as f:
@@ -709,12 +697,12 @@ class PublicSpacesDashboard(Dashboard):
                 # st.write(df)
                 kepler = KeplerGl(
                     height=500,
-                    data={"data": kepler_df(df.iloc[:, :])},
+                    data={"data": self.kepler_df(df.iloc[:, :])},
                     show_docs=False,
                     config=config_n,
                 )
                 keplergl_static(kepler)
-                kepler.add_data(data=kepler_df(df.iloc[:, :]))
+                kepler.add_data(data=self.kepler_df(df.iloc[:, :]))
 
     def accessibility(self) -> None:
         green_spaces_container = st.container()
