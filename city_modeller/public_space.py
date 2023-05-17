@@ -61,15 +61,6 @@ class PublicSpacesDashboard(Dashboard):
         )
         self.mask_dict: dict = {}
         self.config = parse_config_json(default_config, default_config_path)
-        if default_config is None and default_config_path is None:
-            raise AttributeError(
-                "Either a Kepler config or the path to a config JSON must be passed."
-            )
-        elif default_config is not None:
-            self.config = default_config
-        else:
-            with open(default_config_path) as config_file:
-                self.config = json.load(config_file)
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -474,7 +465,6 @@ class PublicSpacesDashboard(Dashboard):
                         ]["name"] = "area_ps_rc"
 
                 if st.button("Submit"):
-                    filter_dataframe(gdf, "Commune", "Communes", selected_commune)
                     filtered_dataframe = filter_dataframe(
                         gdf, "Commune", "Communes", selected_commune
                     )
