@@ -282,10 +282,8 @@ class PublicSpacesDashboard(Dashboard):
 
             return df
 
-        # Use the commune_options variable to create the multiselect dropdown
+        # Load the dataframe using the load_data function with the selected types.
         selected_park_types = st.multiselect("park_types", self.park_types)
-
-        # Load the dataframe using the load_data function with the selected communes
         df = load_data(selected_park_types)
 
         parks = self.public_spaces.copy()
@@ -310,7 +308,7 @@ class PublicSpacesDashboard(Dashboard):
             center_node = ox.distance.nearest_nodes(G, lon, lat)
 
             meters_per_minute = speed * 1000 / 60
-            for u, v, k, data in G.edges(data=True, keys=True):
+            for _, _, _, data in G.edges(data=True, keys=True):
                 data["time"] = data["length"] / meters_per_minute
             polys = []
             for walk_time in walk_times:
@@ -318,8 +316,7 @@ class PublicSpacesDashboard(Dashboard):
                     G, center_node, radius=walk_time, distance="time"
                 )
                 node_points = [
-                    Point(data["x"], data["y"])
-                    for node, data in subgraph.nodes(data=True)
+                    Point(data["x"], data["y"]) for _, data in subgraph.nodes(data=True)
                 ]
                 polys.append(gpd.GeoSeries(node_points).unary_union.convex_hull)
             info = {}
@@ -421,8 +418,9 @@ class PublicSpacesDashboard(Dashboard):
             )
 
         # Create a multiselect dropdown to select process
-        process_options = ["Commune", "Neighborhood", "Ratios"]
-        selected_process = st.multiselect("Select a process", process_options)
+        selected_process = st.multiselect(
+            "Select a process", ["Commune", "Neighborhood", "Ratios"]
+        )
 
         if "Commune" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
@@ -435,8 +433,9 @@ class PublicSpacesDashboard(Dashboard):
                 "ratio",
                 "geometry",
             ]
-            commune_options = gdf["Communes"].unique()
-            selected_commune = st.multiselect("Select a commune", commune_options)
+            selected_commune = st.multiselect(
+                "Select a commune", gdf["Communes"].unique()
+            )
             with open("config/config_commune_av.json") as f:
                 config_n = json.load(f)
             if selected_commune:
@@ -700,7 +699,7 @@ class PublicSpacesDashboard(Dashboard):
 
         with user_table_container:
             user_input = self._accessibility_input()
-            parks = pd.concat([self.public_spaces, user_input])
+            parks = pd.concat([self.public_spaces.copy(), user_input])
 
         with green_spaces_container:
             col1, col2 = st.columns([1, 3])
