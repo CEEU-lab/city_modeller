@@ -6,6 +6,8 @@ from city_modeller.datasources import (
     filter_census_data,
     get_census_data,
     get_bbox,
+    get_communes,
+    get_neighborhoods,
     get_public_space,
     get_GVI_treepedia_BsAs,
     get_air_quality_stations_BsAs,
@@ -43,6 +45,8 @@ def main():
     ps = PublicSpacesDashboard(
         radios=filter_census_data(get_census_data(), 8),
         public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
+        neighborhoods=get_neighborhoods(),
+        communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
     )
     gvi = GreenViewIndexDashboard(

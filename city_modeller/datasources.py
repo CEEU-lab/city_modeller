@@ -146,3 +146,10 @@ def get_neighborhoods():
         neighborhoods, geometry="geometry", crs="epsg:4326"
     )
     return neighborhoods
+
+
+@st.cache_data
+def get_communes():
+    communes = gpd.read_file("data/commune_geom.geojson")
+    communes = gpd.GeoDataFrame(communes, geometry="geometry", crs="epsg:4326")
+    return communes

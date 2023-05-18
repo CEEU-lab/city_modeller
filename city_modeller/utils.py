@@ -177,3 +177,7 @@ def from_wkt(df, wkt_column, proj) -> gpd.GeoDataFrame:
         gdf = gdf.to_crs(user_crs)
 
     return gdf  # type: ignore
+
+
+def filter_dataframe(df, filter_column, selected_values):
+    return df[df[filter_column].isin(selected_values)]
