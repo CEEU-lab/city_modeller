@@ -49,7 +49,8 @@ def get_census_data() -> gpd.GeoDataFrame:
     radios = gpd.read_file(f"{data_dir}/radios.zip")
     # leemos la informacion censal de poblacion por radio
     radios = (
-        radios.reindex(columns=["ind01", "nomdepto", "geometry"])
+        radios.query("nomloc == 'Ciudad Autónoma de Buenos Aires'")  # HCAF
+        .reindex(columns=["ind01", "nomdepto", "geometry"])
         .reset_index()
         .iloc[:, 1:]
     )
@@ -79,7 +80,7 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
 
 @st.cache_data
 def get_public_space(
-    path: str = f"{PROJECT_DIR}/data/public_space.geojson",
+    path: str = f"{data_dir}/public_space.geojson",
 ) -> gpd.GeoDataFrame:
     """Obtiene un GeoDataFrame de Espacio Verde Público de un path dado, o lo descarga.
 
