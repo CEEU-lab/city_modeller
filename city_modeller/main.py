@@ -48,6 +48,9 @@ def main():
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
+        config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",
+        config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
+        config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
     )
     gvi = GreenViewIndexDashboard(
         streets_gdf=get_BsAs_streets(),
