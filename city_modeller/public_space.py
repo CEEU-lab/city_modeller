@@ -1,4 +1,3 @@
-import json
 from copy import deepcopy
 from functools import partial
 from collections.abc import Iterable
@@ -53,6 +52,12 @@ class PublicSpacesDashboard(Dashboard):
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
         default_config_path: Optional[str] = None,
+        config_radios: Optional[dict] = None,
+        config_radios_path: Optional[str] = None,
+        config_neighborhoods: Optional[dict] = None,
+        config_neighborhoods_path: Optional[str] = None,
+        config_communes: Optional[dict] = None,
+        config_communes_path: Optional[str] = None,
     ) -> None:
         self.radios: gpd.GeoDataFrame = radios.copy()
         public_spaces = public_spaces.copy()
@@ -65,6 +70,11 @@ class PublicSpacesDashboard(Dashboard):
         )
         self.mask_dict: dict = {}
         self.config = parse_config_json(default_config, default_config_path)
+        self.config_radios = parse_config_json(config_radios, config_radios_path)
+        self.config_neighborhoods = parse_config_json(
+            config_neighborhoods, config_neighborhoods_path
+        )
+        self.config_communes = parse_config_json(config_communes, config_communes_path)
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -231,12 +241,13 @@ class PublicSpacesDashboard(Dashboard):
     def plot_kepler(
         self, data: gpd.GeoDataFrame, config: Optional[dict] = None
     ) -> None:
+        data_ = self.kepler_df(data)
         _config = config or self.config
         kepler = KeplerGl(
-            height=500, data={"data": data}, config=_config, show_docs=False
+            height=500, data={"data": data_}, config=_config, show_docs=False
         )
         keplergl_static(kepler)
-        kepler.add_data(data=data)
+        kepler.add_data(data=data_)
 
     def availability(self) -> None:
         @st.cache_data
@@ -291,11 +302,9 @@ class PublicSpacesDashboard(Dashboard):
         df = load_data(selected_park_types)
 
         parks = self.public_spaces.copy()
-        parks["Communes"] = parks.apply(
-            lambda x: str("Comuna ") + str(int(x["COMUNA"])), axis=1
-        )  # FIXME
+        parks["Communes"] = "Comuna " + parks["COMUNA"].astype(str)
         parks = parks[parks["clasificac"].isin(selected_park_types)]
-        parks["geometry"] = parks.geometry.centroid
+        parks["geometry"] = geometry_centroid(parks)
         parks = gpd.GeoDataFrame(parks)
 
         # Create a multiselect dropdown to select process
@@ -317,8 +326,6 @@ class PublicSpacesDashboard(Dashboard):
             selected_commune = st.multiselect(
                 "Select a commune", communes["Communes"].unique()
             )
-            with open("config/config_commune_av.json") as f:  # HCAF
-                config_n = json.load(f)
             if selected_commune:
                 surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
                 if surface_metric == "m2/inhabitant":
@@ -326,40 +333,33 @@ class PublicSpacesDashboard(Dashboard):
                         "Aggregate by", ("Radios", "Communes")
                     )
                     if aggregate_dimension == "Radios":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "ratio"
+                        self.config_communes["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "ratio"
                         gdf = df.drop("geometry_centroid", axis=1)
                     elif aggregate_dimension == "Communes":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "ratio"
+                        self.config_communes["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "ratio"
                 elif surface_metric == "m2":
                     aggregate_dimension = st.radio(
                         "Aggregate by", ("Radios", "Communes")
                     )
                     if aggregate_dimension == "Radios":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "area_ps_rc"
+                        self.config_communes["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "area_ps_rc"
                         gdf = df.drop("geometry_centroid", axis=1)
                     elif aggregate_dimension == "Communes":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "area_ps_rc"
+                        self.config_communes["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "area_ps_rc"
 
                 if st.button("Submit"):
                     filtered_dataframe = filter_dataframe(
                         gdf, "Communes", selected_commune
                     )
-                    kepler = KeplerGl(
-                        height=500,
-                        data={"data": self.kepler_df(filtered_dataframe.iloc[:, :])},
-                        show_docs=False,
-                        config=config_n,
-                    )
-                    keplergl_static(kepler)
-                    kepler.add_data(data=self.kepler_df(filtered_dataframe.iloc[:, :]))
+                    self.plot_kepler(filtered_dataframe, self.config_communes)
 
                     filtered_dataframe_park = filter_dataframe(
                         parks, "Communes", selected_commune
@@ -367,23 +367,13 @@ class PublicSpacesDashboard(Dashboard):
                     isochrone_comunne = isochrone_mapping(
                         filtered_dataframe_park, node_tag_name="nombre"
                     )
-                    kepler = KeplerGl(
-                        height=500,
-                        data={"data": self.kepler_df(isochrone_comunne.iloc[:, :])},
-                        show_docs=False,
-                        config=config_n,
-                    )
-                    keplergl_static(kepler)
-                    kepler.add_data(data=self.kepler_df(isochrone_comunne.iloc[:, :]))
+                    self.plot_kepler(isochrone_comunne, self.config_communes)
 
         if "Neighborhood" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
-            neighborhood_options = df["Neighborhoods"].unique()
             selected_neighborhood = st.multiselect(
-                "Select a neighborhood", neighborhood_options
+                "Select a neighborhood", df["Neighborhoods"].unique()
             )
-            with open("config/config_neigh_av.json") as f:
-                config_n = json.load(f)
             if selected_neighborhood:
                 surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
                 if surface_metric == "m2/inhabitant":
@@ -391,9 +381,9 @@ class PublicSpacesDashboard(Dashboard):
                         "Aggregate by", ("Radios", "Neighborhoods")
                     )
                     if aggregate_dimension == "Radios":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "distance"
+                        self.config_neighborhoods["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "distance"
                         df = df.drop("geometry_centroid", axis=1)
                     elif aggregate_dimension == "Neighborhoods":
                         neighborhoods = self.neighborhoods.copy()
@@ -441,18 +431,18 @@ class PublicSpacesDashboard(Dashboard):
                             "geometry",
                         ]
                         df = radios_neigh_com_gb_geom
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "ratio_neigh"
+                        self.config_neighborhoods["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "ratio_neigh"
 
                 elif surface_metric == "m2":
                     aggregate_dimension = st.radio(
                         "Aggregate by", ("Radios", "Neighborhoods")
                     )
                     if aggregate_dimension == "Radios":
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "area_ps_rc"
+                        self.config_neighborhoods["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "area_ps_rc"
                         df = df.drop("geometry_centroid", axis=1)
                     elif aggregate_dimension == "Neighborhoods":
                         neighborhoods = self.neighborhoods.copy()
@@ -499,31 +489,16 @@ class PublicSpacesDashboard(Dashboard):
                             "ratio_neigh",
                             "geometry",
                         ]
-                        # neighradios_neigh_com_gb_geomborhoods = gpd.GeoDataFrame(
-                        #     radios_neigh_com_gb_geom,
-                        #     geometry="geometry",
-                        #     crs="epsg:4326",
-                        # )
                         df = radios_neigh_com_gb_geom
-                        config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                            "colorField"
-                        ]["name"] = "area_neigh"
+                        self.config_neighborhoods["config"]["visState"]["layers"][0][
+                            "visualChannels"
+                        ]["colorField"]["name"] = "area_neigh"
 
                 if st.button("Submit"):
-                    filter_dataframe(df, "Neighborhoods", selected_neighborhood)
                     filtered_dataframe_av = filter_dataframe(
                         df, "Neighborhoods", selected_neighborhood
                     )
-                    kepler = KeplerGl(
-                        height=500,
-                        data={"data": self.kepler_df(filtered_dataframe_av.iloc[:, :])},
-                        show_docs=False,
-                        config=config_n,
-                    )
-                    keplergl_static(kepler)
-                    kepler.add_data(
-                        data=self.kepler_df(filtered_dataframe_av.iloc[:, :])
-                    )
+                    self.plot_kepler(filtered_dataframe_av, self.config_neighborhoods)
 
                     filtered_dataframe_park = filter_dataframe(
                         parks, "BARRIO", selected_neighborhood
@@ -531,42 +506,26 @@ class PublicSpacesDashboard(Dashboard):
                     isochrone_park = isochrone_mapping(
                         filtered_dataframe_park, node_tag_name="nombre"
                     )
-                    config_n["config"]["visState"]["layers"][0]["visualChannels"][
-                        "colorField"
-                    ]["name"] = "time"
-                    kepler = KeplerGl(
-                        height=500,
-                        data={"data": self.kepler_df(isochrone_park.iloc[:, :])},
-                        show_docs=False,
-                        config=config_n,
-                    )
-                    keplergl_static(kepler)
-                    kepler.add_data(data=self.kepler_df(isochrone_park.iloc[:, :]))
+                    self.config_neighborhoods["config"]["visState"]["layers"][0][
+                        "visualChannels"
+                    ]["colorField"]["name"] = "time"
+                    self.plot_kepler(isochrone_park, self.config_neighborhoods)
 
         if "Radios" in selected_process:
-            with open("config/config_ratio_av.json") as f:
-                config_n = json.load(f)
             surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
             if surface_metric == "m2/inhabitant":
-                config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                self.config_radios["config"]["visState"]["layers"][0]["visualChannels"][
                     "colorField"
                 ]["name"] = "ratio"
                 df = df.drop("geometry_centroid", axis=1)
             elif surface_metric == "m2":
-                config_n["config"]["visState"]["layers"][0]["visualChannels"][
+                self.config_radios["config"]["visState"]["layers"][0]["visualChannels"][
                     "colorField"
                 ]["name"] = "area_ps_rc"
                 df = df.drop("geometry_centroid", axis=1)
             # Create a multiselect dropdown to select ratio column
             if st.button("Submit"):
-                kepler = KeplerGl(
-                    height=500,
-                    data={"data": self.kepler_df(df.iloc[:, :])},
-                    show_docs=False,
-                    config=config_n,
-                )
-                keplergl_static(kepler)
-                kepler.add_data(data=self.kepler_df(df.iloc[:, :]))
+                self.plot_kepler(df, self.config_radios)
 
     def accessibility(self) -> None:
         green_spaces_container = st.container()
@@ -605,7 +564,7 @@ class PublicSpacesDashboard(Dashboard):
                     "<h1 style='text-align: center'>Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(self.kepler_df(parks), config=self.parks_config)
+                self.plot_kepler(parks, config=self.parks_config)
 
         with st.container():
             col1, col2 = st.columns(2)
@@ -667,5 +626,8 @@ if __name__ == "__main__":
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
+        config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",
+        config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
+        config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
     )
     dashboard.run_dashboard()
