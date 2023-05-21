@@ -284,14 +284,17 @@ class PublicSpacesDashboard(Dashboard):
                 _ = MOVILITY_TYPES[movility_type]  # TODO: Add graphs in main_results.
 
         with simulation_comparison_container:
-            col1, col2 = st.columns([1, 3])
+            col1, col2 = st.columns(2)
 
             with col1:
+                current_parks = self.public_spaces.copy()
+                current_parks.loc["point_false", "visible"] = False
+                current_parks.loc["point_true", "visible"] = True
                 st.markdown(
                     "<h1 style='text-align: center'>Current Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(self.public_spaces, config=self.parks_config)
+                self.plot_kepler(current_parks, config=self.parks_config)
             with col2:
                 st.markdown(
                     "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
