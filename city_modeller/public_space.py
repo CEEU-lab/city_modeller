@@ -334,7 +334,7 @@ class PublicSpacesDashboard(Dashboard):
                 "geometry_ps_rc",
             ]
             df["TOTAL_VIV"] += 1
-            df["area_ps_rc"] = df.geometry_ps_rc.area
+            df["area_ps_rc"] = (df.geometry_ps_rc.area * 1e10).round(3)
             df["area_ps_rc"].fillna(0, inplace=True)
             df["ratio"] = df["area_ps_rc"] / df["TOTAL_VIV"]
             df["geometry"] = df["geometry_radio"]
