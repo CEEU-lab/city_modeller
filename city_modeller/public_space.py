@@ -249,6 +249,56 @@ class PublicSpacesDashboard(Dashboard):
         keplergl_static(kepler)
         kepler.add_data(data=data_)
 
+    def simulation(self) -> None:
+        simulation_comparison_container = st.container()
+        user_table_container = st.container()
+
+        with user_table_container:
+            col1, col2 = st.columns([1, 3])
+            with col2:
+                user_input = self._accessibility_input()
+                parks_simulation = pd.concat([self.public_spaces.copy(), user_input])
+            with col1:
+                st.markdown(
+                    "<h3 style='text-align: left'>Typology</h3>",
+                    unsafe_allow_html=True,
+                )
+                for park_type in self.park_types:
+                    self.mask_dict[park_type] = st.checkbox(
+                        park_type.replace("/", " / "), park_type != "USER INPUT"
+                    )
+                parks_simulation["visible"] = parks_simulation.clasificac.map(
+                    self.mask_dict
+                )
+                parks_simulation.loc["point_false", "visible"] = False
+                parks_simulation.loc["point_true", "visible"] = True
+                parks_simulation.visible = parks_simulation.visible.astype(bool)
+                st.markdown("----")
+                st.markdown(
+                    "<h3 style='text-align: left'>Mode</h3>",
+                    unsafe_allow_html=True,
+                )
+                movility_type = st.radio(
+                    "Mode", MOVILITY_TYPES.keys(), label_visibility="collapsed"
+                )
+                _ = MOVILITY_TYPES[movility_type]  # TODO: Add graphs in main_results.
+
+        with simulation_comparison_container:
+            col1, col2 = st.columns([1, 3])
+
+            with col1:
+                st.markdown(
+                    "<h1 style='text-align: center'>Current Public Spaces</h1>",
+                    unsafe_allow_html=True,
+                )
+                self.plot_kepler(self.public_spaces, config=self.parks_config)
+            with col2:
+                st.markdown(
+                    "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
+                    unsafe_allow_html=True,
+                )
+                self.plot_kepler(parks_simulation, config=self.parks_config)
+
     def availability(self) -> None:
         @st.cache_data
         def load_data(selected_park_types):
@@ -605,10 +655,20 @@ class PublicSpacesDashboard(Dashboard):
 
     def run_dashboard(self) -> None:
         (
+            simulation_toggle,
             a_and_a_toggle,
             programming_toggle,
             safety_toggle,
-        ) = section_toggles(["Availability & Accessibility", "Programming", "Safety"])
+        ) = section_toggles(
+            [
+                "Simulation Frame",
+                "Availability & Accessibility",
+                "Programming",
+                "Safety",
+            ]
+        )
+        if simulation_toggle:
+            self.simulation()
         if a_and_a_toggle:
             self.availability()
             self.accessibility()
