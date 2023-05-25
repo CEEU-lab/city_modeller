@@ -1,21 +1,22 @@
 import os
-from typing import List
+from typing import List, Optional
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
+from shapely.ops import unary_union
 
 from city_modeller.utils import PROJECT_DIR
 
 
-data_dir = os.path.join(PROJECT_DIR, "data")
+DATA_DIR = os.path.join(PROJECT_DIR, "data")
 
 
 @st.cache_data
 def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
-    path = f"{data_dir}/greenview_buenosaires.geojson"
+    path = f"{DATA_DIR}/greenview_buenosaires.geojson"
     gdf = gpd.read_file(path, driver="GeoJSON")
     gdf.rename(columns={"panoID": "panoId"}, inplace=True)
     return gdf
@@ -23,21 +24,21 @@ def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
 
 @st.cache_data
 def get_air_quality_stations_BsAs() -> gpd.GeoDataFrame:
-    path = f"{data_dir}/air_quality_stations.geojson"
+    path = f"{DATA_DIR}/air_quality_stations.geojson"
     gdf = gpd.read_file(path, driver="GeoJSON")
     return gdf
 
 
 @st.cache_data
 def get_air_quality_data_BsAs() -> pd.DataFrame:
-    path = f"{data_dir}/air_quality_data.csv"
+    path = f"{DATA_DIR}/air_quality_data.csv"
     df = pd.read_csv(path, index_col=0)
     return df
 
 
 @st.cache_data
 def get_BsAs_streets() -> gpd.GeoDataFrame:
-    path = f"{data_dir}/CabaStreet_wgs84.zip"
+    path = f"{DATA_DIR}/CabaStreet_wgs84.zip"
     gdf = gpd.read_file(path)
     return gdf
 
@@ -46,7 +47,7 @@ def get_BsAs_streets() -> gpd.GeoDataFrame:
 def get_census_data() -> gpd.GeoDataFrame:
     """Obtiene data de radios censales."""
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
-    radios = gpd.read_file(f"{data_dir}/radios.zip")
+    radios = gpd.read_file(f"{DATA_DIR}/radios.zip")
     # leemos la informacion censal de poblacion por radio
     radios = (
         radios.query("nomloc == 'Ciudad Autónoma de Buenos Aires'")  # HCAF
@@ -80,7 +81,7 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
 
 @st.cache_data
 def get_public_space(
-    path: str = f"{data_dir}/public_space.geojson",
+    path: str = f"{DATA_DIR}/public_space.geojson",
 ) -> gpd.GeoDataFrame:
     """Obtiene un GeoDataFrame de Espacio Verde Público de un path dado, o lo descarga.
 
@@ -142,7 +143,7 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
 @st.cache_data
 def get_neighborhoods():
     """Load neighborhoods data."""
-    neighborhoods = gpd.read_file(f"{data_dir}/neighbourhoods.geojson")
+    neighborhoods = gpd.read_file(f"{DATA_DIR}/neighbourhoods.geojson")
     neighborhoods = gpd.GeoDataFrame(
         neighborhoods, geometry="geometry", crs="epsg:4326"
     )
@@ -151,108 +152,110 @@ def get_neighborhoods():
 
 @st.cache_data
 def get_communes():
-    communes = gpd.read_file("data/commune_geom.geojson")
+    communes = gpd.read_file(f"{DATA_DIR}/commune_geom.geojson")
     communes = gpd.GeoDataFrame(communes, geometry="geometry", crs="epsg:4326")
     return communes
 
-radios=get_census_data(),
-public_spaces=get_public_space(),
-neighborhoods=get_neighborhoods(),
-communes=get_communes()
 
 @st.cache_data
-def load_data():
-    # Load and preprocess the dataframe here
-    parques = self.public_spaces[
-        self.public_spaces["clasificac"].isin(selected_park_types)
-    ]
-    
-    polygons = list(parques.geometry)
+def get_availability_ratio(
+    selected_typologies: Optional[List] = None,
+    radios: gpd.GeoDataFrame = get_census_data(),
+    public_spaces: gpd.GeoDataFrame = get_public_space(),
+    neighborhoods: gpd.GeoDataFrame = get_neighborhoods(),
+) -> gpd.GeoDataFrame:
+    if selected_typologies is not None:
+        public_spaces = public_spaces[
+            public_spaces["clasificac"].isin(selected_typologies)
+        ]
+    polygons = list(public_spaces.geometry)
     boundary = gpd.GeoSeries(unary_union(polygons))
-    boundary = gpd.GeoDataFrame(
-        geometry=gpd.GeoSeries(boundary), crs="epsg:4326"
-    )
-    df = pd.merge(
-        self.radios.reset_index(),
+    boundary = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary), crs="epsg:4326")
+    gdf = pd.merge(
+        radios.reset_index(),
         gpd.overlay(
-            self.radios.reset_index().iloc[
-                :,
-            ],
+            radios.reset_index().iloc[:,],
             boundary,
             how="intersection",
         ),
         on="index",
         how="left",
     )
-    df = df.loc[
-        :, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]
-    ]
-    df.columns = [
+    gdf = gdf.loc[:, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]]
+    gdf.columns = [
         "index",
         "TOTAL_VIV",
         "Communes",
         "geometry_radio",
         "geometry_ps_rc",
     ]
-    df["TOTAL_VIV"] += 1
-    df["area_ps_rc"] = (df.geometry_ps_rc.area * 1e10).round(3)
-    df["area_ps_rc"].fillna(0, inplace=True)
-    df["ratio"] = df["area_ps_rc"] / df["TOTAL_VIV"]
-    df["geometry"] = df["geometry_radio"]
-    df = df.loc[:, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
-    df["distance"] = np.log(df["ratio"])
-    df["geometry_centroid"] = df.geometry.centroid
-    df["Neighborhoods"] = self.neighborhoods.apply(
-        lambda x: x["geometry"].contains(df["geometry_centroid"]), axis=1
-    ).T.dot(self.neighborhoods.BARRIO)
-    return df
+    gdf["TOTAL_VIV"] += 1
+    gdf["area_ps_rc"] = (gdf.geometry_ps_rc.area * 1e10).round(3)
+    gdf["area_ps_rc"].fillna(0, inplace=True)
+    gdf["ratio"] = gdf["area_ps_rc"] / gdf["TOTAL_VIV"]
+    gdf["geometry"] = gdf["geometry_radio"]
+    gdf = gdf.loc[:, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
+    gdf["distance"] = np.log(gdf["ratio"])
+    gdf["geometry_centroid"] = gdf.geometry.centroid
+    gdf["Neighborhoods"] = neighborhoods.apply(
+        lambda x: x["geometry"].contains(gdf["geometry_centroid"]), axis=1
+    ).T.dot(neighborhoods.BARRIO)
+    return gdf
+
 
 @st.cache_data
-def neighborhoods_df():
-    df=load_data()
-    neighborhoods = neighborhoods.copy()
-    neighborhoods.columns = [
-        "Neighborhoods",
-        "Commune",
-        "PERIMETRO",
-        "AREA",
-        "OBJETO",
-        "geometry",
-    ]
-    radios_neigh_com = pd.merge(
-        df, neighborhoods, on="Neighborhoods"
-    )
-    barrio_geom = radios_neigh_com.loc[
-        :, ["Neighborhoods", "geometry_y"]
-    ].drop_duplicates()
-    radios_neigh_com_gb = (
-        radios_neigh_com.groupby("Neighborhoods")[
-            "TOTAL_VIV", "area_ps_rc"
+def filter_neighborhood(
+    radios: gpd.GeoDataFrame = get_census_data(),
+    public_spaces: gpd.GeoDataFrame = get_public_space(),
+    neighborhoods: gpd.GeoDataFrame = get_neighborhoods(),
+):
+    path = f"{DATA_DIR}/neighborhood_availability.geojson"
+    if os.path.exists(path):
+        gdf = gpd.read_file(path)
+    else:
+        availability_ratio = get_availability_ratio(
+            radios=radios, public_spaces=public_spaces, neighborhoods=neighborhoods
+        )
+        neighborhoods = neighborhoods.copy()
+        neighborhoods.columns = [
+            "Neighborhoods",
+            "Commune",
+            "PERIMETRO",
+            "AREA",
+            "OBJETO",
+            "geometry",
         ]
-        .sum()
-        .reset_index()
-    )
-    radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-        lambda x: 0
-        if x["area_ps_rc"] == 0
-        else x["TOTAL_VIV"] / x["area_ps_rc"],
-        axis=1,
-    )
-    radios_neigh_com_gb.columns = [
-        "Neighborhoods",
-        "TOTAL_VIV",
-        "area_neigh",
-        "ratio_neigh",
-    ]
-    radios_neigh_com_gb_geom = pd.merge(
-        radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
-    )
-    radios_neigh_com_gb_geom.columns = [
-        "Neighborhoods",
-        "TOTAL_VIV",
-        "area_neigh",
-        "ratio_neigh",
-        "geometry",
-    ]
-    df = radios_neigh_com_gb_geom
-    return df
+        radios_neigh_com = pd.merge(
+            availability_ratio, neighborhoods, on="Neighborhoods"
+        )
+        barrio_geom = radios_neigh_com.loc[
+            :, ["Neighborhoods", "geometry_y"]
+        ].drop_duplicates()
+        radios_neigh_com_gb = (
+            radios_neigh_com.groupby("Neighborhoods")[["TOTAL_VIV", "area_ps_rc"]]
+            .sum()
+            .reset_index()
+        )
+        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+            lambda x: 0 if x["area_ps_rc"] == 0 else x["TOTAL_VIV"] / x["area_ps_rc"],
+            axis=1,
+        )
+        radios_neigh_com_gb.columns = [
+            "Neighborhoods",
+            "TOTAL_VIV",
+            "area_neigh",
+            "ratio_neigh",
+        ]
+        radios_neigh_com_gb_geom = pd.merge(
+            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+        )
+        radios_neigh_com_gb_geom.columns = [
+            "Neighborhoods",
+            "TOTAL_VIV",
+            "area_neigh",
+            "ratio_neigh",
+            "geometry",
+        ]
+        gdf = radios_neigh_com_gb_geom
+        # gdf.to_json(path)
+    return gdf
