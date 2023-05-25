@@ -29,6 +29,7 @@ Or
 
 ``` shell
 > pip install .
+> pip install .[pymeanshift]
 ```
 
 ## Contributing
@@ -43,6 +44,7 @@ Or
 
 ``` shell
 > pip install -e .
+> pip install -e .[pymeanshift]
 ```
 
 To comply with the app's code style and linting configuration, it is extremely recommended to also install the development requirements:
