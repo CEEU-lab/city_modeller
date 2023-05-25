@@ -166,6 +166,7 @@ def load_data():
     parques = self.public_spaces[
         self.public_spaces["clasificac"].isin(selected_park_types)
     ]
+    
     polygons = list(parques.geometry)
     boundary = gpd.GeoSeries(unary_union(polygons))
     boundary = gpd.GeoDataFrame(
