@@ -24,6 +24,7 @@ from city_modeller.datasources import (
     get_communes,
     get_census_data,
     get_neighborhoods,
+    get_neighborhood_availability,
     get_public_space,
 )
 from city_modeller.streets_network.isochrones import isochrone_mapping
@@ -49,6 +50,7 @@ class PublicSpacesDashboard(Dashboard):
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
         neighborhoods: gpd.GeoDataFrame,
+        neighborhood_availability: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
         default_config_path: Optional[str] = None,
@@ -64,6 +66,9 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
+        self.neighborhood_availability: gpd.GeoDataFrame = (
+            neighborhood_availability.copy()
+        )
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.park_types: np.ndarray[str] = np.hstack(
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
@@ -317,9 +322,7 @@ class PublicSpacesDashboard(Dashboard):
             df = pd.merge(
                 self.radios.reset_index(),
                 gpd.overlay(
-                    self.radios.reset_index().iloc[
-                        :,
-                    ],
+                    self.radios.reset_index().iloc[:,],
                     boundary,
                     how="intersection",
                 ),
@@ -658,26 +661,30 @@ class PublicSpacesDashboard(Dashboard):
 
     def run_dashboard(self) -> None:
         (
-            simulation_toggle,
-            a_and_a_toggle,
-            programming_toggle,
-            safety_toggle,
+            self.simulation_toggle,
+            self.main_results_toggle,
+            self.a_and_a_toggle,
+            self.programming_toggle,
+            self.safety_toggle,
         ) = section_toggles(
             [
                 "Simulation Frame",
+                ""
                 "Availability & Accessibility",
                 "Programming",
                 "Safety",
             ]
         )
-        if simulation_toggle:
+        if self.simulation_toggle:
             self.simulation()
-        if a_and_a_toggle:
+        if self.main_results_toggle:
+            pass
+        if self.a_and_a_toggle:
             self.availability()
             self.accessibility()
-        if programming_toggle:
+        if self.programming_toggle:
             self.programming()
-        if safety_toggle:
+        if self.safety_toggle:
             self.safety()
 
 
@@ -687,6 +694,7 @@ if __name__ == "__main__":
         radios=get_census_data(),
         public_spaces=get_public_space(),
         neighborhoods=get_neighborhoods(),
+        neighborhood_availability=get_neighborhood_availability(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",

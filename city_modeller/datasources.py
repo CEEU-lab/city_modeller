@@ -204,11 +204,11 @@ def get_availability_ratio(
 
 
 @st.cache_data
-def filter_neighborhood(
+def get_neighborhood_availability(
     radios: gpd.GeoDataFrame = get_census_data(),
     public_spaces: gpd.GeoDataFrame = get_public_space(),
     neighborhoods: gpd.GeoDataFrame = get_neighborhoods(),
-):
+) -> gpd.GeoDataFrame:
     path = f"{DATA_DIR}/neighborhood_availability.geojson"
     if os.path.exists(path):
         gdf = gpd.read_file(path)
@@ -257,5 +257,7 @@ def filter_neighborhood(
             "geometry",
         ]
         gdf = radios_neigh_com_gb_geom
-        # gdf.to_json(path)
+        gdf = gpd.GeoDataFrame(gdf)
+        with open(path, "w") as f:
+            f.write(gdf.to_json(drop_id=True))
     return gdf
