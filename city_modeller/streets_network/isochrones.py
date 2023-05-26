@@ -125,7 +125,7 @@ def isochrone_mapping(
         )
     )
 
-def social_impact(comuna,neighborhood,public_space,availability_ratio,park_tipology):
+def social_impact(commune,neighborhood,public_space,availability_ratio,park_tipology):
     get_public_space=get_public_space()
     availability_ratio=get_availability_ratio()
     get_public_space["geometry_centroid"]=get_public_space.geometry.centroid
