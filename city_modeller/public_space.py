@@ -676,7 +676,7 @@ class PublicSpacesDashboard(Dashboard):
                 unsafe_allow_html=True,
             )
 
-    def dashboard_header(self):
+    def dashboard_header(self) -> None:
         section_header(
             "Green Surfaces 🏞️",
             "Welcome to the Green Surfaces section! "
@@ -686,7 +686,7 @@ class PublicSpacesDashboard(Dashboard):
             "select a small action zone, to be able to iterate quickly.",
         )
 
-    def dashboard_sections(self):
+    def dashboard_sections(self) -> None:
         (
             self.simulation_toggle,
             self.main_results_toggle,

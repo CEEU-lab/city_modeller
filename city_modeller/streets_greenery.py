@@ -968,14 +968,14 @@ class GreenViewIndexDashboard(Dashboard):
             )
             st.plotly_chart(fig)
 
-    def dashboard_header(self):
+    def dashboard_header(self) -> None:
         section_header(
             "Streets Network attributes - Green View level 🌳",
             "Street greenery provides a series of benefits to urban residents, such"
             " as air quality, provision of shade, and aesthetic values.",
         )
 
-    def dashboard_sections(self):
+    def dashboard_sections(self) -> None:
         (
             self.simulation_toggle,
             self.main_results_toggle,
