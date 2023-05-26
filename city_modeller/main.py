@@ -43,11 +43,17 @@ def main():
     page = page_group("page")
     # Instanciate Dashboard subclasses.
     lp = LandingPageDashboard()
+    # Public Spaces
+    radios = get_census_data()
+    public_spaces = get_public_space()
+    neighborhoods = get_neighborhoods()
     ps = PublicSpacesDashboard(
-        radios=get_census_data(),
-        public_spaces=get_public_space(),
-        neighborhoods=get_neighborhoods(),
-        neighborhood_availability=get_neighborhood_availability(),
+        radios=radios,
+        public_spaces=public_spaces,
+        neighborhoods=neighborhoods,
+        neighborhood_availability=get_neighborhood_availability(
+            radios, public_spaces, neighborhoods
+        ),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",

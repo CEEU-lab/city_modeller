@@ -1,3 +1,5 @@
+from typing import Optional
+
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
@@ -80,3 +82,10 @@ def download_gdf(gdf_points: gpd.GeoDataFrame) -> None:
         data=gdf_to_shz(gdf_points, name=ds_name),
         file_name=f"{ds_name}.shz",
     )
+
+
+def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> None:
+    kwargs = kwargs or {}
+    st.subheader(title)
+    if tooltip is not None:
+        st.write(tooltip, **kwargs)

@@ -37,7 +37,7 @@ from city_modeller.utils import (
     pob_a_distancia,
     PROJECT_DIR,
 )
-from city_modeller.widgets import section_toggles, error_message
+from city_modeller.widgets import error_message, section_header, section_toggles
 
 
 ox.config(log_file=True, log_console=True, use_cache=True)
@@ -162,6 +162,14 @@ class PublicSpacesDashboard(Dashboard):
         df["geometry"] = df.geometry.apply(dumps)
         return df.to_dict("split")
 
+    @staticmethod
+    def _edit_kepler_color(config: dict, column: str) -> dict:
+        config_ = deepcopy(config)
+        config_["config"]["visState"]["layers"][0]["visualChannels"]["colorField"][
+            "name"
+        ] = column
+        return config_
+
     @property
     def census_radio_points(self) -> gpd.GeoDataFrame:
         census_points = self.radios.copy().to_crs(4326)  # TODO: Still necessary?
@@ -194,6 +202,21 @@ class PublicSpacesDashboard(Dashboard):
             distancia_mas_cercano, target_points=public_spaces_multipoint
         )
         return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
+
+    def _reference_maps(
+        self,
+        gdfs: list[gpd.GeoDataFrame],
+        configs: Optional[list[dict]] = None,
+        column: Optional[str] = None,
+    ) -> None:
+        cols = st.columns(len(gdfs))
+        configs = configs or [self.config] * len(gdfs)  # default config
+        if column is not None:
+            configs = [self._edit_kepler_color(config, column) for config in configs]
+        for col, gdf, config in zip(cols, gdfs, configs):
+            print(config["config"]["visState"]["layers"][0]["visualChannels"])
+            with col:
+                self.plot_kepler(gdf, config=config)
 
     def _accessibility_input(self) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
@@ -255,8 +278,16 @@ class PublicSpacesDashboard(Dashboard):
         kepler.add_data(data=data_)
 
     def simulation(self) -> None:
+        reference_maps_container = st.container()
         simulation_comparison_container = st.container()
         user_table_container = st.container()
+
+        with reference_maps_container:
+            self._reference_maps(
+                [self.communes, self.neighborhood_availability],
+                configs=[self.config_communes, self.config_neighborhoods],
+                column="green_surface",
+            )
 
         with user_table_container:
             col1, col2 = st.columns([1, 3])
@@ -340,11 +371,13 @@ class PublicSpacesDashboard(Dashboard):
                 "geometry_ps_rc",
             ]
             df["TOTAL_VIV"] += 1
-            df["area_ps_rc"] = (df.geometry_ps_rc.area * 1e10).round(3)
-            df["area_ps_rc"].fillna(0, inplace=True)
-            df["ratio"] = df["area_ps_rc"] / df["TOTAL_VIV"]
+            df["green_surface"] = (df.geometry_ps_rc.area * 1e10).round(3)
+            df["green_surface"].fillna(0, inplace=True)
+            df["ratio"] = df["green_surface"] / df["TOTAL_VIV"]
             df["geometry"] = df["geometry_radio"]
-            df = df.loc[:, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
+            df = df.loc[
+                :, ["green_surface", "TOTAL_VIV", "Communes", "ratio", "geometry"]
+            ]
             df["distance"] = np.log(df["ratio"])
             df["geometry_centroid"] = df.geometry.centroid
             df["Neighborhoods"] = self.neighborhoods.apply(
@@ -364,23 +397,15 @@ class PublicSpacesDashboard(Dashboard):
         parks = gpd.GeoDataFrame(parks)
 
         # Create a multiselect dropdown to select process
-        selected_process = st.multiselect(
+        selected_process = st.selectbox(
             "Select a process", ["Commune", "Neighborhood", "Radios"]
         )
 
         if "Commune" in selected_process:
             # Create a multiselect dropdown to select neighborhood column
             communes = self.communes.copy()
-            communes.columns = [
-                "Communes",
-                "area_ps_rc",
-                "TOTAL_VIV",
-                "COMUNA",
-                "ratio",
-                "geometry",
-            ]
             selected_commune = st.multiselect(
-                "Select a commune", communes["Communes"].unique()
+                "Select a commune", communes["Commune"].unique()
             )
             if selected_commune:
                 surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
@@ -388,28 +413,20 @@ class PublicSpacesDashboard(Dashboard):
                     aggregate_dimension = st.radio(
                         "Aggregate by", ("Radios", "Communes")
                     )
+                    self.config_communes["config"]["visState"]["layers"][0][
+                        "visualChannels"
+                    ]["colorField"]["name"] = "ratio"
                     if aggregate_dimension == "Radios":
-                        self.config_communes["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "ratio"
                         gdf = df.drop("geometry_centroid", axis=1)
-                    elif aggregate_dimension == "Communes":
-                        self.config_communes["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "ratio"
                 elif surface_metric == "m2":
                     aggregate_dimension = st.radio(
                         "Aggregate by", ("Radios", "Communes")
                     )
+                    self.config_communes["config"]["visState"]["layers"][0][
+                        "visualChannels"
+                    ]["colorField"]["name"] = "green_surface"
                     if aggregate_dimension == "Radios":
-                        self.config_communes["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "area_ps_rc"
                         gdf = df.drop("geometry_centroid", axis=1)
-                    elif aggregate_dimension == "Communes":
-                        self.config_communes["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "area_ps_rc"
 
                 if st.button("Submit"):
                     filtered_dataframe = filter_dataframe(
@@ -459,15 +476,15 @@ class PublicSpacesDashboard(Dashboard):
                         ].drop_duplicates()
                         radios_neigh_com_gb = (
                             radios_neigh_com.groupby("Neighborhoods")[
-                                "TOTAL_VIV", "area_ps_rc"
+                                "TOTAL_VIV", "green_surface"
                             ]
                             .sum()
                             .reset_index()
                         )
                         radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
                             lambda x: 0
-                            if x["area_ps_rc"] == 0
-                            else x["TOTAL_VIV"] / x["area_ps_rc"],
+                            if x["green_surface"] == 0
+                            else x["TOTAL_VIV"] / x["green_surface"],
                             axis=1,
                         )
                         radios_neigh_com_gb.columns = [
@@ -498,7 +515,7 @@ class PublicSpacesDashboard(Dashboard):
                     if aggregate_dimension == "Radios":
                         self.config_neighborhoods["config"]["visState"]["layers"][0][
                             "visualChannels"
-                        ]["colorField"]["name"] = "area_ps_rc"
+                        ]["colorField"]["name"] = "green_surface"
                         df = df.drop("geometry_centroid", axis=1)
                     elif aggregate_dimension == "Neighborhoods":
                         neighborhoods = self.neighborhoods.copy()
@@ -518,15 +535,15 @@ class PublicSpacesDashboard(Dashboard):
                         ].drop_duplicates()
                         radios_neigh_com_gb = (
                             radios_neigh_com.groupby("Neighborhoods")[
-                                "TOTAL_VIV", "area_ps_rc"
+                                "TOTAL_VIV", "green_surface"
                             ]
                             .sum()
                             .reset_index()
                         )
                         radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
                             lambda x: 0
-                            if x["area_ps_rc"] == 0
-                            else x["TOTAL_VIV"] / x["area_ps_rc"],
+                            if x["green_surface"] == 0
+                            else x["TOTAL_VIV"] / x["green_surface"],
                             axis=1,
                         )
                         radios_neigh_com_gb.columns = [
@@ -577,7 +594,7 @@ class PublicSpacesDashboard(Dashboard):
             elif surface_metric == "m2":
                 self.config_radios["config"]["visState"]["layers"][0]["visualChannels"][
                     "colorField"
-                ]["name"] = "area_ps_rc"
+                ]["name"] = "green_surface"
                 df = df.drop("geometry_centroid", axis=1)
             # Create a multiselect dropdown to select ratio column
             if st.button("Submit"):
@@ -659,7 +676,17 @@ class PublicSpacesDashboard(Dashboard):
                 unsafe_allow_html=True,
             )
 
-    def run_dashboard(self) -> None:
+    def dashboard_header(self):
+        section_header(
+            "Green Surfaces 🏞️",
+            "Welcome to the Green Surfaces section! "
+            "Here, you will be able to simulate modifications to the public spaces "
+            "available, controlled against the current distribution, or against "
+            "reference zones. It is recommended to start in the Simulation Frame, and "
+            "select a small action zone, to be able to iterate quickly.",
+        )
+
+    def dashboard_sections(self):
         (
             self.simulation_toggle,
             self.main_results_toggle,
@@ -669,12 +696,16 @@ class PublicSpacesDashboard(Dashboard):
         ) = section_toggles(
             [
                 "Simulation Frame",
-                ""
+                "Explore Results",
                 "Availability & Accessibility",
                 "Programming",
                 "Safety",
             ]
         )
+
+    def run_dashboard(self) -> None:
+        self.dashboard_header()
+        self.dashboard_sections()
         if self.simulation_toggle:
             self.simulation()
         if self.main_results_toggle:
@@ -690,11 +721,16 @@ class PublicSpacesDashboard(Dashboard):
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Public Spaces", layout="wide")
+    radios = get_census_data()
+    public_spaces = get_public_space()
+    neighborhoods = get_neighborhoods()
     dashboard = PublicSpacesDashboard(
-        radios=get_census_data(),
-        public_spaces=get_public_space(),
-        neighborhoods=get_neighborhoods(),
-        neighborhood_availability=get_neighborhood_availability(),
+        radios=radios,
+        public_spaces=public_spaces,
+        neighborhoods=neighborhoods,
+        neighborhood_availability=get_neighborhood_availability(
+            radios, public_spaces, neighborhoods
+        ),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",

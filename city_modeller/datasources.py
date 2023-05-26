@@ -157,12 +157,11 @@ def get_communes():
     return communes
 
 
-@st.cache_data
 def get_availability_ratio(
+    radios: gpd.GeoDataFrame,
+    public_spaces: gpd.GeoDataFrame,
+    neighborhoods: gpd.GeoDataFrame,
     selected_typologies: Optional[List] = None,
-    radios: gpd.GeoDataFrame = get_census_data(),
-    public_spaces: gpd.GeoDataFrame = get_public_space(),
-    neighborhoods: gpd.GeoDataFrame = get_neighborhoods(),
 ) -> gpd.GeoDataFrame:
     if selected_typologies is not None:
         public_spaces = public_spaces[
@@ -190,24 +189,23 @@ def get_availability_ratio(
         "geometry_ps_rc",
     ]
     gdf["TOTAL_VIV"] += 1
-    gdf["area_ps_rc"] = (gdf.geometry_ps_rc.area * 1e10).round(3)
-    gdf["area_ps_rc"].fillna(0, inplace=True)
-    gdf["ratio"] = gdf["area_ps_rc"] / gdf["TOTAL_VIV"]
+    gdf["green_surface"] = (gdf.geometry_ps_rc.area * 1e10).round(3)
+    gdf["green_surface"].fillna(0, inplace=True)
+    gdf["ratio"] = gdf["green_surface"] / gdf["TOTAL_VIV"]
     gdf["geometry"] = gdf["geometry_radio"]
-    gdf = gdf.loc[:, ["area_ps_rc", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
+    gdf = gdf.loc[:, ["green_surface", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
     gdf["distance"] = np.log(gdf["ratio"])
     gdf["geometry_centroid"] = gdf.geometry.centroid
-    gdf["Neighborhoods"] = neighborhoods.apply(
+    gdf["Neighborhood"] = neighborhoods.apply(
         lambda x: x["geometry"].contains(gdf["geometry_centroid"]), axis=1
     ).T.dot(neighborhoods.BARRIO)
     return gdf
 
 
-@st.cache_data
 def get_neighborhood_availability(
-    radios: gpd.GeoDataFrame = get_census_data(),
-    public_spaces: gpd.GeoDataFrame = get_public_space(),
-    neighborhoods: gpd.GeoDataFrame = get_neighborhoods(),
+    radios: gpd.GeoDataFrame,
+    public_spaces: gpd.GeoDataFrame,
+    neighborhoods: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
     path = f"{DATA_DIR}/neighborhood_availability.geojson"
     if os.path.exists(path):
@@ -218,7 +216,7 @@ def get_neighborhood_availability(
         )
         neighborhoods = neighborhoods.copy()
         neighborhoods.columns = [
-            "Neighborhoods",
+            "Neighborhood",
             "Commune",
             "PERIMETRO",
             "AREA",
@@ -226,34 +224,33 @@ def get_neighborhood_availability(
             "geometry",
         ]
         radios_neigh_com = pd.merge(
-            availability_ratio, neighborhoods, on="Neighborhoods"
+            availability_ratio, neighborhoods, on="Neighborhood"
         )
         barrio_geom = radios_neigh_com.loc[
-            :, ["Neighborhoods", "geometry_y"]
+            :, ["Neighborhood", "geometry_y"]
         ].drop_duplicates()
         radios_neigh_com_gb = (
-            radios_neigh_com.groupby("Neighborhoods")[["TOTAL_VIV", "area_ps_rc"]]
+            radios_neigh_com.groupby("Neighborhood")[["TOTAL_VIV", "green_surface"]]
             .sum()
             .reset_index()
         )
-        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-            lambda x: 0 if x["area_ps_rc"] == 0 else x["TOTAL_VIV"] / x["area_ps_rc"],
-            axis=1,
-        )
+        radios_neigh_com_gb["ratio"] = radios_neigh_com_gb.eval(
+            "green_surface / TOTAL_VIV"
+        ).replace(np.inf, 0).round(3)
         radios_neigh_com_gb.columns = [
-            "Neighborhoods",
+            "Neighborhood",
             "TOTAL_VIV",
-            "area_neigh",
-            "ratio_neigh",
+            "green_surface",
+            "ratio",
         ]
         radios_neigh_com_gb_geom = pd.merge(
-            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+            radios_neigh_com_gb, barrio_geom, on="Neighborhood"
         )
         radios_neigh_com_gb_geom.columns = [
-            "Neighborhoods",
+            "Neighborhood",
             "TOTAL_VIV",
-            "area_neigh",
-            "ratio_neigh",
+            "green_surface",
+            "ratio",
             "geometry",
         ]
         gdf = radios_neigh_com_gb_geom
