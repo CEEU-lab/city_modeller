@@ -124,3 +124,32 @@ def isochrone_mapping(
             WT=wt,
         )
     )
+
+def social_impact(comuna,neighborhood,public_space,availability_ratio,park_tipology):
+    get_public_space=get_public_space()
+    availability_ratio=get_availability_ratio()
+    get_public_space["geometry_centroid"]=get_public_space.geometry.centroid
+    list_park_tipology=list(park_tipology)
+    get_public_space_sel=get_public_space[(get_public_space.COMUNA==str(comuna))&(get_public_space.clasificac.isin(list_park_tipology))]
+    isochrone_get_public_space=isochrone_mapping(
+    get_public_space_sel, wt=[5, 10, 15], node_tag_name="nombre", geometry_columns="geometry_centroid")
+    get_public_space_sel_unary=unary_union(get_public_space_sel.geometry)
+    availability_ratio["geometry_wo_ps"]=availability_ratio.apply(lambda x: ((x["geometry"]).difference(get_public_space_sel_unary)),axis=1) 
+    availability_ratio["geometry_wo_ps_int_iso_5"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[0,1])).area*(10**10),axis=1))
+    availability_ratio["geometry_wo_ps_int_iso_10"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[1,1])).area*(10**10),axis=1))
+    availability_ratio["geometry_wo_ps_int_iso_15"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[2,1])).area*(10**10),axis=1))   
+    list_surrounding_nb=availability_ratio[availability_ratio.geometry_wo_ps_int_iso_5!=0].Neighborhoods.unique()
+    isochrone_surrounding_nb=isochrone_mapping(
+    get_public_space_sel[(get_public_space_sel.BARRIO.isin(list_surrounding_nb))], wt=[5, 10, 15], node_tag_name="nombre", geometry_columns="geometry_centroid"
+    )
+    availability_ratio["geometry_wo_ps_int_iso_5"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_surrounding_nb.iloc[0,1])).area*(10**10),axis=1))
+    availability_ratio["geometry_wo_ps_int_iso_10"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_surrounding_nb.iloc[1,1])).area*(10**10),axis=1))
+    availability_ratio["geometry_wo_ps_int_iso_15"]=(availability_ratio.apply(lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_surrounding_nb.iloc[2,1])).area*(10**10),axis=1))
+    availability_ratio["geometry_wo_ps_area"]=availability_ratio["geometry_wo_ps"].area*(10**10)
+    availability_ratio['ratio_geometry_wo_ps_int_iso_5']=availability_ratio['geometry_wo_ps_int_iso_5']/availability_ratio["geometry_wo_ps_area"]
+    availability_ratio['ratio_geometry_wo_ps_int_iso_10']=availability_ratio['geometry_wo_ps_int_iso_10']/availability_ratio["geometry_wo_ps_area"]
+    availability_ratio['ratio_geometry_wo_ps_int_iso_15']=availability_ratio['geometry_wo_ps_int_iso_15']/availability_ratio["geometry_wo_ps_area"]
+    availability_ratio['cant_hab_afect_iso_5']=availability_ratio['ratio_geometry_wo_ps_int_iso_5']*availability_ratio['TOTAL_VIV']
+    availability_ratio['cant_hab_afect_iso_10']=availability_ratio['ratio_geometry_wo_ps_int_iso_10']*availability_ratio['TOTAL_VIV']
+    availability_ratio['cant_hab_afect_iso_15']=availability_ratio['ratio_geometry_wo_ps_int_iso_15']*availability_ratio['TOTAL_VIV']
+    return availability_ratio
