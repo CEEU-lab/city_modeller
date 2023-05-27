@@ -43,7 +43,27 @@ from city_modeller.widgets import error_message, section_header, section_toggles
 
 
 ox.config(log_file=True, log_console=True, use_cache=True)
-MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
+EXAMPLE_INPUT = pd.DataFrame(
+    [
+        {
+            "Public Space Name": "example_park",
+            "Public Space Type": "USER INPUT",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        }
+    ]
+)
 
 
 class MovilityType(Enum):
@@ -54,6 +74,7 @@ class MovilityType(Enum):
 
 
 class GreenSurfacesSimulationParameters(BaseModel):
+    typologies: dict[str, bool]
     movility_type: MovilityType
     process: Literal["Commune", "Neighborhood"]
     action_zone: list[str]
@@ -95,14 +116,12 @@ class PublicSpacesDashboard(Dashboard):
         self.park_types: np.ndarray[str] = np.hstack(
             (self.public_spaces.clasificac.unique(), ["USER INPUT"])
         )
-        self.mask_dict: dict = {}
         self.config = parse_config_json(default_config, default_config_path)
         self.config_radios = parse_config_json(config_radios, config_radios_path)
         self.config_neighborhoods = parse_config_json(
             config_neighborhoods, config_neighborhoods_path
         )
         self.config_communes = parse_config_json(config_communes, config_communes_path)
-        self.simulated_params: Optional[GreenSurfacesSimulationParameters] = None
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -237,39 +256,16 @@ class PublicSpacesDashboard(Dashboard):
         if column is not None:
             configs = [self._edit_kepler_color(config, column) for config in configs]
         for col, gdf, config in zip(cols, gdfs, configs):
-            print(config["config"]["visState"]["layers"][0]["visualChannels"])
             with col:
                 self.plot_kepler(gdf, config=config)
 
-    def _accessibility_input(self) -> gpd.GeoDataFrame:
+    def _accessibility_input(self, data=EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
-        schema_row = pd.DataFrame(
-            [
-                {
-                    "Public Space Name": "example_park",
-                    "Public Space Type": "USER INPUT",
-                    "Copied Geometry": geojson.dumps(
-                        {
-                            "type": "Polygon",
-                            "coordinates": [
-                                [
-                                    [0.000, 0.000],
-                                    [0.000, 0.000],
-                                    [0.000, 0.000],
-                                    [0.000, 0.000],
-                                ]
-                            ],
-                        }
-                    ),
-                }
-            ]
-        )
-        schema_row["Public Space Type"] = schema_row["Public Space Type"].astype(
-            park_cat_type
-        )
+
+        data["Public Space Type"] = data["Public Space Type"].astype(park_cat_type)
         user_input = st.experimental_data_editor(
-            schema_row, num_rows="dynamic", use_container_width=True
+            data, num_rows="dynamic", use_container_width=True
         )
         user_input["Public Space Type"] = user_input["Public Space Type"].fillna(
             "USER INPUT"
@@ -305,6 +301,7 @@ class PublicSpacesDashboard(Dashboard):
         simulation_comparison_container = st.container()
         user_table_container = st.container()
         submit_container = st.container()
+        simulated_params = dict(st.session_state.get("simulated_params", {}))
 
         with reference_maps_container:
             self._reference_maps(
@@ -319,7 +316,11 @@ class PublicSpacesDashboard(Dashboard):
                 user_input = self._accessibility_input()
                 parks_simulation = pd.concat([self.public_spaces.copy(), user_input])
                 selected_process = st.selectbox(
-                    "Select a process", ["Commune", "Neighborhood"]
+                    "Select a process",
+                    ["Commune", "Neighborhood"],
+                    index=int(
+                        simulated_params.get("process") == "Neighborhood"
+                    ),
                 )
                 df = (
                     self.communes
@@ -329,27 +330,32 @@ class PublicSpacesDashboard(Dashboard):
                 action_zone = st.multiselect(
                     f"Select {selected_process.lower()}s for your Action Zone:",
                     df[selected_process].unique(),
+                    default=simulated_params.get("action_zone", [])
                 )
                 aggregation_level = st.radio(
                     "Choose an Aggregation level:",
                     [selected_process, "Radios"],
                     horizontal=True,
+                    index=int(simulated_params.get("aggregation_level") == "Radios"),
                 )
                 surface_metric = st.radio(
-                    "Select a Metric", ("m2/inhabitant", "m2"), horizontal=True
+                    "Select a Metric",
+                    ("m2/inhabitant", "m2"),
+                    horizontal=True,
+                    index=int(simulated_params.get("surface_metric") == "m2"),
                 )
             with col1:
+                mask_dict = simulated_params.get("typologies", {})
                 st.markdown(
                     "<h3 style='text-align: left'>Typology</h3>",
                     unsafe_allow_html=True,
                 )
                 for park_type in self.park_types:
-                    self.mask_dict[park_type] = st.checkbox(
-                        park_type.replace("/", " / "), park_type != "USER INPUT"
+                    mask_dict[park_type] = st.checkbox(
+                        park_type.replace("/", " / "),
+                        mask_dict.get(park_type, park_type != "USER INPUT"),
                     )
-                parks_simulation["visible"] = parks_simulation.clasificac.map(
-                    self.mask_dict
-                )
+                parks_simulation["visible"] = parks_simulation.clasificac.map(mask_dict)
                 parks_simulation.loc["point_false", "visible"] = False
                 parks_simulation.loc["point_true", "visible"] = True
                 parks_simulation.visible = parks_simulation.visible.astype(bool)
@@ -395,19 +401,24 @@ class PublicSpacesDashboard(Dashboard):
                             "No action zone selected. Select one and submit again."
                         )
                     else:
-                        self.simulated_params = GreenSurfacesSimulationParameters(
-                            movility_type=MovilityType[
-                                movility_type.replace(" ", "_").upper()
-                            ].value,
-                            process=selected_process,
-                            action_zone=action_zone,
-                            simulated_surfaces=user_input,
-                            surface_metric=surface_metric,
-                            aggregation_level=aggregation_level,
+                        st.session_state.simulated_params = (
+                            GreenSurfacesSimulationParameters(
+                                typologies=mask_dict,
+                                movility_type=MovilityType[
+                                    movility_type.replace(" ", "_").upper()
+                                ].value,
+                                process=selected_process,
+                                action_zone=action_zone,
+                                simulated_surfaces=user_input,
+                                surface_metric=surface_metric,
+                                aggregation_level=aggregation_level,
+                            )
                         )
 
     def main_results(self) -> None:
-        if self.simulated_params is None:
+        if "simulated_params" in st.session_state:
+            st.write(st.session_state.simulated_params)
+        else:
             error_message(
                 "No simulation parameters submitted. No results can be observed."
             )
@@ -703,9 +714,14 @@ class PublicSpacesDashboard(Dashboard):
                     unsafe_allow_html=True,
                 )
                 movility_type = st.radio(
-                    "Mode", MOVILITY_TYPES.keys(), label_visibility="collapsed"
+                    "Mode",
+                    [
+                        k.replace("_", " ").title()
+                        for k in MovilityType.__members__.keys()
+                    ],
+                    label_visibility="collapsed",
                 )
-                speed = MOVILITY_TYPES[movility_type]
+                speed = MovilityType[movility_type.replace(" ", "_").upper()].value
             with col2:
                 st.markdown(
                     "<h1 style='text-align: center'>Public Spaces</h1>",

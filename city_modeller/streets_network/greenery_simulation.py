@@ -4,7 +4,6 @@ import time
 import numpy as np
 import pymeanshift as pms
 import requests
-import streamlit as st
 from PIL import Image
 
 from city_modeller.widgets import error_message
@@ -135,7 +134,7 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
 
         # if the GSV images are not download successfully or failed to run, then return
         # a null value
-        except:  # FIXME
+        except Exception:  # FIXME
             greenPercent = -1000
             captions.append(0)
             continue
