@@ -3,9 +3,7 @@ import warnings
 import streamlit as st
 
 from city_modeller.datasources import (
-    # filter_census_data,
     get_census_data,
-    # get_bbox,
     get_communes,
     get_neighborhoods,
     get_neighborhood_availability,
