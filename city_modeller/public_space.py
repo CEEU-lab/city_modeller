@@ -13,7 +13,7 @@ import streamlit as st
 from keplergl import KeplerGl
 from matplotlib import pyplot as plt
 from pydantic import BaseModel
-from shapely.geometry import MultiPoint, MultiPolygon, shape
+from shapely.geometry import MultiPoint, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 from shapely.wkt import dumps
@@ -188,8 +188,8 @@ class PublicSpacesDashboard(Dashboard):
         if len(gjson["coordinates"][0]) < 4:
             error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
             return
-        multipoly = MultiPolygon([shape(gjson)])
-        return multipoly if not multipoly.is_empty else None
+        poly = Polygon(shape(gjson))
+        return poly if not poly.is_empty else None
 
     @staticmethod
     def multipoint_gdf(public_spaces: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -203,6 +203,16 @@ class PublicSpacesDashboard(Dashboard):
         df = gdf.copy()
         df["geometry"] = df.geometry.apply(dumps)
         return df.to_dict("split")
+
+    @staticmethod
+    def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "Public Space Name": gdf.nombre,
+                "Public Space Type": gdf.clasificac,
+                "Copied Geometry": gdf.geometry.apply(geojson.dumps),
+            }
+        )
 
     @staticmethod
     def _edit_kepler_color(config: dict, column: str) -> dict:
@@ -259,7 +269,9 @@ class PublicSpacesDashboard(Dashboard):
             with col:
                 self.plot_kepler(gdf, config=config)
 
-    def _accessibility_input(self, data=EXAMPLE_INPUT) -> gpd.GeoDataFrame:
+    def _accessibility_input(
+        self, data: pd.DataFrame = EXAMPLE_INPUT
+    ) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
 
@@ -284,6 +296,21 @@ class PublicSpacesDashboard(Dashboard):
         gdf = gpd.GeoDataFrame(user_input)
         gdf["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf.dropna(subset="geometry")
+
+    def _zone_selector(
+        self, selected_process: str, default_value: list[str], action_zone: bool = True
+    ) -> list[str]:
+        df = (
+            self.communes
+            if selected_process == "Commune"
+            else self.neighborhood_availability
+        )
+        zone = "Action" if action_zone else "Reference"
+        return st.multiselect(
+            f"Select {selected_process.lower()}s for your {zone} Zone:",
+            df[selected_process].unique(),
+            default=default_value,
+        )
 
     def plot_kepler(
         self, data: gpd.GeoDataFrame, config: Optional[dict] = None
@@ -313,24 +340,22 @@ class PublicSpacesDashboard(Dashboard):
         with user_table_container:
             col1, col2 = st.columns([1, 3])
             with col2:
-                user_input = self._accessibility_input()
+                table_values = (
+                    self._format_gdf_for_table(
+                        simulated_params.get("simulated_surfaces")
+                    )
+                    if simulated_params.get("simulated_surfaces") is not None
+                    else EXAMPLE_INPUT
+                )
+                user_input = self._accessibility_input(table_values)
                 parks_simulation = pd.concat([self.public_spaces.copy(), user_input])
                 selected_process = st.selectbox(
                     "Select a process",
                     ["Commune", "Neighborhood"],
-                    index=int(
-                        simulated_params.get("process") == "Neighborhood"
-                    ),
+                    index=int(simulated_params.get("process") == "Neighborhood"),
                 )
-                df = (
-                    self.communes
-                    if selected_process == "Commune"
-                    else self.neighborhood_availability
-                )
-                action_zone = st.multiselect(
-                    f"Select {selected_process.lower()}s for your Action Zone:",
-                    df[selected_process].unique(),
-                    default=simulated_params.get("action_zone", [])
+                action_zone = self._zone_selector(
+                    selected_process, simulated_params.get("action_zone", [])
                 )
                 aggregation_level = st.radio(
                     "Choose an Aggregation level:",
@@ -416,12 +441,30 @@ class PublicSpacesDashboard(Dashboard):
                         )
 
     def main_results(self) -> None:
-        if "simulated_params" in st.session_state:
-            st.write(st.session_state.simulated_params)
-        else:
-            error_message(
-                "No simulation parameters submitted. No results can be observed."
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
             )
+            return
+
+        st.write(st.session_state.simulated_params)
+
+    def zones(self) -> None:
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No action zone can be compared.",
+                icon="⚠️",
+            )
+            return
+
+        simulated_params = st.session_state.simulated_params
+        reference_zone = self._zone_selector(
+            simulated_params.process,
+            simulated_params.reference_zone,
+            False,
+        )
+        st.session_state.simulated_params.reference_zone = reference_zone
 
     def availability(self) -> None:
         @st.cache_data
@@ -752,20 +795,6 @@ class PublicSpacesDashboard(Dashboard):
             self.radios["distance"] = self.distances(parks)
             self.plot_kepler(self.radios)
 
-    def programming(self) -> None:
-        with st.container():
-            st.markdown(
-                "<h1 style='text-align: center'>COMING SOON!!!</h1>",
-                unsafe_allow_html=True,
-            )
-
-    def safety(self) -> None:
-        with st.container():
-            st.markdown(
-                "<h1 style='text-align: center'>COMING SOON!!!</h1>",
-                unsafe_allow_html=True,
-            )
-
     def dashboard_header(self) -> None:
         section_header(
             "Green Surfaces 🏞️",
@@ -805,7 +834,7 @@ class PublicSpacesDashboard(Dashboard):
             self.availability()
             # self.accessibility()
         if self.zone_toggle:
-            self.programming()
+            self.zones()
         if self.impact_toggle:
             self.safety()
 
