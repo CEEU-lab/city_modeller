@@ -982,7 +982,8 @@ class GreenViewIndexDashboard(Dashboard):
             self.zone_toggle,
             self.impact_toggle,
         ) = section_toggles(
-            ["Simulation frame", "Explore results", "Explore zones", "Explore impact"]
+            "streets_greenery",
+            ["Simulation Frame", "Explore Results", "Explore Zones", "Explore Impact"],
         )
 
     def run_dashboard(self) -> None:

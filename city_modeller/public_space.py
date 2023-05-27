@@ -1,7 +1,8 @@
 from copy import deepcopy
+from enum import Enum
 from functools import partial
 from collections.abc import Iterable
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import geojson
 import geopandas as gpd
@@ -11,6 +12,7 @@ import pandas as pd
 import streamlit as st
 from keplergl import KeplerGl
 from matplotlib import pyplot as plt
+from pydantic import BaseModel
 from shapely.geometry import MultiPoint, MultiPolygon, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
@@ -42,6 +44,26 @@ from city_modeller.widgets import error_message, section_header, section_toggles
 
 ox.config(log_file=True, log_console=True, use_cache=True)
 MOVILITY_TYPES = {"Walk": 5, "Car": 25, "Bike": 10, "Public Transport": 15}
+
+
+class MovilityType(Enum):
+    WALK = 5
+    CAR = 25
+    BIKE = 10
+    PUBLIC_TRANSPORT = 15
+
+
+class GreenSurfacesSimulationParameters(BaseModel):
+    movility_type: MovilityType
+    process: Literal["Commune", "Neighborhood"]
+    action_zone: list[str]
+    reference_zone: Optional[list[str]]
+    simulated_surfaces: pd.DataFrame
+    surface_metric: str
+    aggregation_level: str
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class PublicSpacesDashboard(Dashboard):
@@ -80,6 +102,7 @@ class PublicSpacesDashboard(Dashboard):
             config_neighborhoods, config_neighborhoods_path
         )
         self.config_communes = parse_config_json(config_communes, config_communes_path)
+        self.simulated_params: Optional[GreenSurfacesSimulationParameters] = None
 
     @staticmethod
     def plot_curva_pob_min_cam(
@@ -281,12 +304,13 @@ class PublicSpacesDashboard(Dashboard):
         reference_maps_container = st.container()
         simulation_comparison_container = st.container()
         user_table_container = st.container()
+        submit_container = st.container()
 
         with reference_maps_container:
             self._reference_maps(
                 [self.communes, self.neighborhood_availability],
                 configs=[self.config_communes, self.config_neighborhoods],
-                column="green_surface",
+                column="ratio",
             )
 
         with user_table_container:
@@ -294,6 +318,26 @@ class PublicSpacesDashboard(Dashboard):
             with col2:
                 user_input = self._accessibility_input()
                 parks_simulation = pd.concat([self.public_spaces.copy(), user_input])
+                selected_process = st.selectbox(
+                    "Select a process", ["Commune", "Neighborhood"]
+                )
+                df = (
+                    self.communes
+                    if selected_process == "Commune"
+                    else self.neighborhood_availability
+                )
+                action_zone = st.multiselect(
+                    f"Select {selected_process.lower()}s for your Action Zone:",
+                    df[selected_process].unique(),
+                )
+                aggregation_level = st.radio(
+                    "Choose an Aggregation level:",
+                    [selected_process, "Radios"],
+                    horizontal=True,
+                )
+                surface_metric = st.radio(
+                    "Select a Metric", ("m2/inhabitant", "m2"), horizontal=True
+                )
             with col1:
                 st.markdown(
                     "<h3 style='text-align: left'>Typology</h3>",
@@ -315,9 +359,13 @@ class PublicSpacesDashboard(Dashboard):
                     unsafe_allow_html=True,
                 )
                 movility_type = st.radio(
-                    "Mode", MOVILITY_TYPES.keys(), label_visibility="collapsed"
+                    "Mode",
+                    [
+                        k.replace("_", " ").title()
+                        for k in MovilityType.__members__.keys()
+                    ],
+                    label_visibility="collapsed",
                 )
-                _ = MOVILITY_TYPES[movility_type]  # TODO: Add graphs in main_results.
 
         with simulation_comparison_container:
             col1, col2 = st.columns(2)
@@ -337,6 +385,32 @@ class PublicSpacesDashboard(Dashboard):
                     unsafe_allow_html=True,
                 )
                 self.plot_kepler(parks_simulation, config=self.parks_config)
+
+        with submit_container:
+            _, button_col = st.columns([3, 1])
+            with button_col:
+                if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
+                    if action_zone == []:
+                        error_message(
+                            "No action zone selected. Select one and submit again."
+                        )
+                    else:
+                        self.simulated_params = GreenSurfacesSimulationParameters(
+                            movility_type=MovilityType[
+                                movility_type.replace(" ", "_").upper()
+                            ].value,
+                            process=selected_process,
+                            action_zone=action_zone,
+                            simulated_surfaces=user_input,
+                            surface_metric=surface_metric,
+                            aggregation_level=aggregation_level,
+                        )
+
+    def main_results(self) -> None:
+        if self.simulated_params is None:
+            error_message(
+                "No simulation parameters submitted. No results can be observed."
+            )
 
     def availability(self) -> None:
         @st.cache_data
@@ -387,7 +461,7 @@ class PublicSpacesDashboard(Dashboard):
             return df
 
         # Load the dataframe using the load_data function with the selected types.
-        selected_park_types = st.multiselect("park_types", self.park_types)
+        selected_park_types = st.multiselect("park_types", self.park_types, key="fff")
         df = load_data(selected_park_types)
 
         parks = self.public_spaces.copy()
@@ -398,7 +472,7 @@ class PublicSpacesDashboard(Dashboard):
 
         # Create a multiselect dropdown to select process
         selected_process = st.selectbox(
-            "Select a process", ["Commune", "Neighborhood", "Radios"]
+            "Select a process", ["Commune", "Neighborhood", "Radios"], key="legacy_proc"
         )
 
         if "Commune" in selected_process:
@@ -691,16 +765,17 @@ class PublicSpacesDashboard(Dashboard):
             self.simulation_toggle,
             self.main_results_toggle,
             self.a_and_a_toggle,
-            self.programming_toggle,
-            self.safety_toggle,
+            self.zone_toggle,
+            self.impact_toggle,
         ) = section_toggles(
+            "green_surfaces",
             [
                 "Simulation Frame",
                 "Explore Results",
                 "Availability & Accessibility",
-                "Programming",
-                "Safety",
-            ]
+                "Explore Zones",
+                "Explore Impact",
+            ],
         )
 
     def run_dashboard(self) -> None:
@@ -709,13 +784,13 @@ class PublicSpacesDashboard(Dashboard):
         if self.simulation_toggle:
             self.simulation()
         if self.main_results_toggle:
-            pass
+            self.main_results()
         if self.a_and_a_toggle:
             self.availability()
-            self.accessibility()
-        if self.programming_toggle:
+            # self.accessibility()
+        if self.zone_toggle:
             self.programming()
-        if self.safety_toggle:
+        if self.impact_toggle:
             self.safety()
 
 

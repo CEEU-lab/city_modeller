@@ -234,9 +234,11 @@ def get_neighborhood_availability(
             .sum()
             .reset_index()
         )
-        radios_neigh_com_gb["ratio"] = radios_neigh_com_gb.eval(
-            "green_surface / TOTAL_VIV"
-        ).replace(np.inf, 0).round(3)
+        radios_neigh_com_gb["ratio"] = (
+            radios_neigh_com_gb.eval("green_surface / TOTAL_VIV")
+            .replace(np.inf, 0)
+            .round(3)
+        )
         radios_neigh_com_gb.columns = [
             "Neighborhood",
             "TOTAL_VIV",

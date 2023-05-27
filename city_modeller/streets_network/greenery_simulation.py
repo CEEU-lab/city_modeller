@@ -77,7 +77,6 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 
 
 def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
-
     """
     Calls the endpoint associated to the collected Panoramas and calculates
     Green View Index by calculating the green pixels average between all the
