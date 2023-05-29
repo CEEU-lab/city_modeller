@@ -1,7 +1,6 @@
 from copy import deepcopy
-from enum import Enum
 from functools import partial
-from typing import Any, Literal, Optional, Union
+from typing import Any, Optional, Union
 
 import geojson
 import geopandas as gpd
@@ -11,7 +10,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from keplergl import KeplerGl
-from pydantic import BaseModel
 from shapely.geometry import MultiPoint, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
@@ -26,6 +24,12 @@ from city_modeller.datasources import (
     get_neighborhood_availability,
     get_public_space,
 )
+from city_modeller.schemas.public_spaces import (
+    EXAMPLE_INPUT,
+    GreenSurfacesSimulationParameters,
+    MovilityType,
+    ResultsColumnPlots,
+)
 from city_modeller.streets_network.isochrones import isochrone_mapping
 from city_modeller.utils import (
     distancia_mas_cercano,
@@ -39,48 +43,6 @@ from city_modeller.widgets import error_message, section_header, section_toggles
 
 
 ox.config(log_file=True, log_console=True, use_cache=True)
-EXAMPLE_INPUT = pd.DataFrame(
-    [
-        {
-            "Public Space Name": "example_park",
-            "Public Space Type": "USER INPUT",
-            "Copied Geometry": geojson.dumps(
-                {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [0.000, 0.000],
-                            [0.000, 0.000],
-                            [0.000, 0.000],
-                            [0.000, 0.000],
-                        ]
-                    ],
-                }
-            ),
-        }
-    ]
-)
-
-
-class MovilityType(Enum):
-    WALK = 5
-    CAR = 25
-    BIKE = 10
-    PUBLIC_TRANSPORT = 15
-
-
-class GreenSurfacesSimulationParameters(BaseModel):
-    typologies: dict[str, bool]
-    movility_type: MovilityType
-    process: Literal["Commune", "Neighborhood"]
-    action_zone: list[str]
-    reference_zone: Optional[list[str]]
-    simulated_surfaces: pd.DataFrame
-    surface_metric: str
-    aggregation_level: str
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class PublicSpacesDashboard(Dashboard):
@@ -88,7 +50,7 @@ class PublicSpacesDashboard(Dashboard):
         self,
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
-        neighborhoods: gpd.GeoDataFrame,
+        neighborhoods: gpd.GeoDataFrame,  # DELETE
         neighborhood_availability: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
@@ -104,7 +66,7 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
-        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
+        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()  # DELETE
         self.neighborhood_availability: gpd.GeoDataFrame = (
             neighborhood_availability.copy()
         )
@@ -125,7 +87,7 @@ class PublicSpacesDashboard(Dashboard):
         minutos: np.ndarray[int] = np.arange(1, 21),
         speed: int = 5,
     ) -> tuple:
-        """Generate populationn vs travel time to public spaces."""
+        """Generate population vs travel time to public spaces."""
         prop = [pob_a_distancia(distancias, minuto, speed) for minuto in minutos]
         fig = go.Figure()
         fig.add_trace(
@@ -137,8 +99,8 @@ class PublicSpacesDashboard(Dashboard):
             )
         )
         fig.update_layout(
-            title="Percentage of population by walking minutes to the nearest park",
-            xaxis_title="Walking minutes",
+            title="Percentage of population by travel minutes to the nearest park",
+            xaxis_title="Travel minutes",
             yaxis_title="Population (%)",
             title_x=0.5,
             title_xanchor="center",
@@ -233,6 +195,16 @@ class PublicSpacesDashboard(Dashboard):
         ] = column
         return config_
 
+    @staticmethod
+    def _visible_column(
+        gdf: gpd.GeoDataFrame, mask_dict: dict[str, bool]
+    ) -> gpd.GeoDataFrame:
+        gdf_ = gdf.copy()
+        gdf_["visible"] = gdf_.clasificac.map(mask_dict)
+        gdf_.loc["point_false", "visible"] = False
+        gdf_.loc["point_true", "visible"] = True
+        return gdf_
+
     @property
     def census_radio_points(self) -> gpd.GeoDataFrame:
         census_points = self.radios.copy().to_crs(4326)  # TODO: Still necessary?
@@ -257,7 +229,7 @@ class PublicSpacesDashboard(Dashboard):
 
         return config
 
-    def distances(self, public_spaces: gpd.GeoDataFrame) -> gpd.GeoSeries:
+    def _distances(self, public_spaces: gpd.GeoDataFrame) -> gpd.GeoSeries:
         public_spaces_multipoint = MultiPoint(
             self.multipoint_gdf(public_spaces).geometry.tolist()
         )
@@ -308,6 +280,45 @@ class PublicSpacesDashboard(Dashboard):
         gdf["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf.dropna(subset="geometry")
 
+    def _get_plot_column_data(
+        self, public_spaces: gpd.GeoDataFrame, speed: float, key: Optional[str] = None
+    ) -> ResultsColumnPlots:
+        session_results = key is not None
+        graph_outputs = st.session_state.graph_outputs or {}
+
+        if session_results and key in graph_outputs:
+            return graph_outputs[key]
+
+        percentage_vs_travel = self.plot_curva_pob_min_cam(
+            self._distances(public_spaces),
+            speed=speed,
+        )
+        percentage_vs_area = self.plot_curva_caminata_area(
+            self.census_radio_points.geometry,
+            self.multipoint_gdf(public_spaces),
+            speed=speed,
+        )
+
+        results = ResultsColumnPlots(
+            percentage_vs_travel=percentage_vs_travel,
+            percentage_vs_area=percentage_vs_area,
+            isochrone_mapping=gpd.GeoDataFrame(),  # FIXME
+        )
+
+        if session_results:
+            graph_outputs[key] = results
+            st.session_state.graph_outputs = graph_outputs
+
+        return results
+
+    def _plot_graph_outputs(self, title: str, results: ResultsColumnPlots) -> None:
+        st.markdown(
+            f"<h1 style='text-align: center'>{title}</h1>",
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(results.percentage_vs_travel)
+        st.plotly_chart(results.percentage_vs_area)
+
     def _zone_selector(
         self, selected_process: str, default_value: list[str], action_zone: bool = True
     ) -> list[str]:
@@ -323,6 +334,22 @@ class PublicSpacesDashboard(Dashboard):
             default=default_value,
         )
 
+    def current_parks(
+        self,
+        mask_dict: dict[str, bool],
+        filter_column: Optional[str] = None,
+        action_zone: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
+        current_parks = self.public_spaces.copy()
+        current_parks["Commune"] = "Comuna " + current_parks.COMUNA.astype(int).astype(
+            str
+        )
+        if filter_column is not None and action_zone is not None:
+            current_parks = current_parks[
+                current_parks[filter_column].isin(action_zone)
+            ]
+        return self._visible_column(current_parks, mask_dict)
+
     def _simulated_parks(
         self,
         user_input: gpd.GeoDataFrame,
@@ -333,11 +360,7 @@ class PublicSpacesDashboard(Dashboard):
             public_spaces if public_spaces is not None else self.public_spaces.copy()
         )
         parks_simulation = pd.concat([public_spaces, user_input])
-        parks_simulation["visible"] = parks_simulation.clasificac.map(mask_dict)
-        parks_simulation.loc["point_false", "visible"] = False
-        parks_simulation.loc["point_true", "visible"] = True
-        parks_simulation.visible = parks_simulation.visible.astype(bool)
-        return parks_simulation
+        return self._visible_column(parks_simulation, mask_dict)
 
     def plot_kepler(
         self, data: gpd.GeoDataFrame, config: Optional[dict] = None
@@ -425,10 +448,7 @@ class PublicSpacesDashboard(Dashboard):
             col1, col2 = st.columns(2)
 
             with col1:
-                current_parks = self.public_spaces.copy()
-                current_parks["visible"] = current_parks.clasificac.map(mask_dict)
-                current_parks.loc["point_false", "visible"] = False
-                current_parks.loc["point_true", "visible"] = True
+                current_parks = self.current_parks(mask_dict)
                 st.markdown(
                     "<h1 style='text-align: center'>Current Public Spaces</h1>",
                     unsafe_allow_html=True,
@@ -450,6 +470,7 @@ class PublicSpacesDashboard(Dashboard):
                             "No action zone selected. Select one and submit again."
                         )
                     else:
+                        st.session_state.graph_outputs = None
                         st.session_state.simulated_params = (
                             GreenSurfacesSimulationParameters(
                                 typologies=mask_dict,
@@ -474,58 +495,31 @@ class PublicSpacesDashboard(Dashboard):
         simulated_params = st.session_state.simulated_params
         current_col, simulation_col = st.columns(2)
         filter_column = "Commune" if simulated_params.process == "Commune" else "BARRIO"
-        current_parks = self.public_spaces.copy()
-        current_parks["Commune"] = "Comuna " + current_parks.COMUNA.astype(int).astype(
-            str
+        current_parks = self.current_parks(
+            simulated_params.typologies, filter_column, simulated_params.action_zone
         )
-        current_parks = current_parks[
-            current_parks[filter_column].isin(simulated_params.action_zone)
-        ]
         parks_simulation = self._simulated_parks(
             simulated_params.simulated_surfaces,
             simulated_params.typologies,
             public_spaces=current_parks,
         )
-        current_parks["visible"] = current_parks.clasificac.map(
-            simulated_params.typologies
-        )
-        current_parks.loc["point_false", "visible"] = False
-        current_parks.loc["point_true", "visible"] = True
+        speed = simulated_params.movility_type.value
 
-        with current_col:
-            st.markdown(
-                "<h1 style='text-align: center'>Current Results</h1>",
-                unsafe_allow_html=True,
-            )
-            fig = self.plot_curva_pob_min_cam(
-                self.distances(current_parks),
-                speed=simulated_params.movility_type.value,
-            )
-            st.plotly_chart(fig)
-            fig = self.plot_curva_caminata_area(
-                self.census_radio_points.geometry,
-                self.multipoint_gdf(current_parks),
-                speed=simulated_params.movility_type.value,
-            )
-            st.plotly_chart(fig)
+        with st.container():
+            current_col, simulation_col = st.columns(2)
+            with current_col:
+                current_results = self._get_plot_column_data(
+                    current_parks, speed, key="action_zone_t0"
+                )
+                self._plot_graph_outputs("Current Results", current_results)
 
-        with simulation_col:
-            st.markdown(
-                "<h1 style='text-align: center'>Simulated Results</h1>",
-                unsafe_allow_html=True,
-            )
-            fig = self.plot_curva_pob_min_cam(
-                self.distances(parks_simulation),
-                speed=simulated_params.movility_type.value,
-            )
-            st.plotly_chart(fig)
-            fig = self.plot_curva_caminata_area(
-                self.census_radio_points.geometry,
-                self.multipoint_gdf(parks_simulation),
-                speed=simulated_params.movility_type.value,
-            )
-            st.plotly_chart(fig)
-        st.write(simulated_params)
+            with simulation_col:
+                simulation_results = self._get_plot_column_data(
+                    parks_simulation, speed, key="action_zone_t1"
+                )
+                self._plot_graph_outputs("Simulated Results", simulation_results)
+
+        st.write(simulated_params)  # DELETE
 
     def zones(self) -> None:
         if "simulated_params" not in st.session_state:
@@ -542,14 +536,40 @@ class PublicSpacesDashboard(Dashboard):
             False,
         )
         st.session_state.simulated_params.reference_zone = reference_zone
-        reference_zone_col, action_zone_col = st.columns(2)
-        with reference_zone_col:
-            pass
-        with action_zone_col:
-            pass
+        if reference_zone != []:
+            filter_column = (
+                "Commune" if simulated_params.process == "Commune" else "BARRIO"
+            )
+            current_parks = self.current_parks(
+                simulated_params.typologies, filter_column, simulated_params.action_zone
+            )
+            parks_simulation = self._simulated_parks(
+                simulated_params.simulated_surfaces,
+                simulated_params.typologies,
+                public_spaces=current_parks,
+            )
+            speed = simulated_params.movility_type.value
+
+            reference_zone_col, action_zone_col = st.columns(2)
+            with reference_zone_col:
+                reference_parks = self.current_parks(
+                    simulated_params.typologies,
+                    filter_column,
+                    simulated_params.reference_zone,
+                )
+                reference_zone_results = self._get_plot_column_data(
+                    reference_parks, speed
+                )
+                self._plot_graph_outputs(
+                    "Reference Zone Results", reference_zone_results
+                )
+            with action_zone_col:
+                action_zone_results = self._get_plot_column_data(
+                    parks_simulation, speed, key="action_zone_t1"
+                )
+                self._plot_graph_outputs("Action Zone Results", action_zone_results)
 
     def availability(self) -> None:
-        @st.cache_data
         def load_data(selected_park_types):
             # Load and preprocess the dataframe here
             parques = self.public_spaces[
@@ -810,7 +830,7 @@ class PublicSpacesDashboard(Dashboard):
             if st.button("Submit"):
                 self.plot_kepler(df, self.config_radios)
 
-    def accessibility(self) -> None:
+    def accessibility(self) -> None:  # DELETE
         green_spaces_container = st.container()
         user_table_container = st.container()
 
@@ -858,7 +878,9 @@ class PublicSpacesDashboard(Dashboard):
             col1, col2 = st.columns(2)
             # Curva de población según minutos de caminata
             with col1:
-                fig, _ = self.plot_curva_pob_min_cam(self.distances(parks), speed=speed)
+                fig, _ = self.plot_curva_pob_min_cam(
+                    self._distances(parks), speed=speed
+                )
                 st.pyplot(fig)
             # Curva de poblacion segun area del espacio
             with col2:
@@ -874,7 +896,7 @@ class PublicSpacesDashboard(Dashboard):
                 "<h1 style='text-align: center'>Radios Censales</h1>",
                 unsafe_allow_html=True,
             )
-            self.radios["distance"] = self.distances(parks)
+            self.radios["distance"] = self._distances(parks)
             self.plot_kepler(self.radios)
 
     def dashboard_header(self) -> None:
@@ -891,7 +913,6 @@ class PublicSpacesDashboard(Dashboard):
         (
             self.simulation_toggle,
             self.main_results_toggle,
-            self.a_and_a_toggle,
             self.zone_toggle,
             self.impact_toggle,
         ) = section_toggles(
@@ -899,7 +920,6 @@ class PublicSpacesDashboard(Dashboard):
             [
                 "Simulation Frame",
                 "Explore Results",
-                "Availability & Accessibility",
                 "Explore Zones",
                 "Explore Impact",
             ],
@@ -912,9 +932,6 @@ class PublicSpacesDashboard(Dashboard):
             self.simulation()
         if self.main_results_toggle:
             self.main_results()
-        if self.a_and_a_toggle:
-            self.availability()
-            # self.accessibility()
         if self.zone_toggle:
             self.zones()
         if self.impact_toggle:
@@ -929,7 +946,7 @@ if __name__ == "__main__":
     dashboard = PublicSpacesDashboard(
         radios=radios,
         public_spaces=public_spaces,
-        neighborhoods=neighborhoods,
+        neighborhoods=neighborhoods,  # DELETE
         neighborhood_availability=get_neighborhood_availability(
             radios, public_spaces, neighborhoods
         ),
