@@ -24,7 +24,7 @@ from city_modeller.datasources import (
     get_neighborhood_availability,
     get_public_space,
 )
-from city_modeller.schemas.public_spaces import (
+from city_modeller.schemas.public_space import (
     EXAMPLE_INPUT,
     GreenSurfacesSimulationParameters,
     MovilityType,
