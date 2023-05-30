@@ -23,6 +23,7 @@ from city_modeller.datasources import (
     get_neighborhoods,
     get_neighborhood_availability,
     get_public_space,
+    # get_radio_availability,
 )
 from city_modeller.schemas.public_space import (
     EXAMPLE_INPUT,
@@ -51,7 +52,6 @@ class PublicSpacesDashboard(Dashboard):
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
         neighborhoods: gpd.GeoDataFrame,
-        neighborhood_availability: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
         default_config_path: Optional[str] = None,
@@ -68,7 +68,7 @@ class PublicSpacesDashboard(Dashboard):
         self.public_spaces: gpd.GeoDataFrame = public_spaces
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.neighborhood_availability: gpd.GeoDataFrame = (
-            neighborhood_availability.copy()
+            get_neighborhood_availability(radios, public_spaces, neighborhoods)
         )
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.park_types: np.ndarray[str] = np.hstack(
@@ -280,8 +280,12 @@ class PublicSpacesDashboard(Dashboard):
         return gdf.dropna(subset="geometry")
 
     def _get_plot_column_data(
-        self, public_spaces: gpd.GeoDataFrame, speed: float, key: Optional[str] = None
+        self,
+        public_spaces: gpd.GeoDataFrame,
+        simulated_params: GreenSurfacesSimulationParameters,
+        key: Optional[str] = None,
     ) -> ResultsColumnPlots:
+        speed = simulated_params.movility_type.value
         session_results = key is not None
         graph_outputs = st.session_state.graph_outputs or {}
 
@@ -297,10 +301,17 @@ class PublicSpacesDashboard(Dashboard):
             self.multipoint_gdf(public_spaces),
             speed=speed,
         )
+        # availability_function = (
+        #     get_radio_availability
+        #     if simulated_params.aggregation_level == "Radios"
+        #     else get_neighborhood_availability
+        # )
+        # availability_function()
 
         results = ResultsColumnPlots(
             percentage_vs_travel=percentage_vs_travel,
             percentage_vs_area=percentage_vs_area,
+            availability_mapping=gpd.GeoDataFrame(),  # FIXME
             isochrone_mapping=gpd.GeoDataFrame(),  # FIXME
         )
 
@@ -502,19 +513,18 @@ class PublicSpacesDashboard(Dashboard):
             simulated_params.typologies,
             public_spaces=current_parks,
         )
-        speed = simulated_params.movility_type.value
 
         with st.container():
             current_col, simulation_col = st.columns(2)
             with current_col:
                 current_results = self._get_plot_column_data(
-                    current_parks, speed, key="action_zone_t0"
+                    current_parks, simulated_params, key="action_zone_t0"
                 )
                 self._plot_graph_outputs("Current Results", current_results)
 
             with simulation_col:
                 simulation_results = self._get_plot_column_data(
-                    parks_simulation, speed, key="action_zone_t1"
+                    parks_simulation, simulated_params, key="action_zone_t1"
                 )
                 self._plot_graph_outputs("Simulated Results", simulation_results)
 
@@ -547,7 +557,6 @@ class PublicSpacesDashboard(Dashboard):
                 simulated_params.typologies,
                 public_spaces=current_parks,
             )
-            speed = simulated_params.movility_type.value
 
             reference_zone_col, action_zone_col = st.columns(2)
             with reference_zone_col:
@@ -557,14 +566,14 @@ class PublicSpacesDashboard(Dashboard):
                     simulated_params.reference_zone,
                 )
                 reference_zone_results = self._get_plot_column_data(
-                    reference_parks, speed
+                    reference_parks, simulated_params
                 )
                 self._plot_graph_outputs(
                     "Reference Zone Results", reference_zone_results
                 )
             with action_zone_col:
                 action_zone_results = self._get_plot_column_data(
-                    parks_simulation, speed, key="action_zone_t1"
+                    parks_simulation, simulated_params, key="action_zone_t1"
                 )
                 self._plot_graph_outputs("Action Zone Results", action_zone_results)
 
@@ -939,16 +948,10 @@ class PublicSpacesDashboard(Dashboard):
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Public Spaces", layout="wide")
-    radios = get_census_data()
-    public_spaces = get_public_space()
-    neighborhoods = get_neighborhoods()
     dashboard = PublicSpacesDashboard(
-        radios=radios,
-        public_spaces=public_spaces,
-        neighborhoods=neighborhoods,
-        neighborhood_availability=get_neighborhood_availability(
-            radios, public_spaces, neighborhoods
-        ),
+        radios=get_census_data(),
+        public_spaces=get_public_space(),
+        neighborhoods=get_neighborhoods(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",

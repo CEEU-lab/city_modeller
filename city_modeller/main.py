@@ -6,7 +6,6 @@ from city_modeller.datasources import (
     get_census_data,
     get_communes,
     get_neighborhoods,
-    get_neighborhood_availability,
     get_public_space,
     get_GVI_treepedia_BsAs,
     get_air_quality_stations_BsAs,
@@ -42,16 +41,10 @@ def main():
     # Instanciate Dashboard subclasses.
     lp = LandingPageDashboard()
     # Public Spaces
-    radios = get_census_data()
-    public_spaces = get_public_space()
-    neighborhoods = get_neighborhoods()
     ps = PublicSpacesDashboard(
-        radios=radios,
-        public_spaces=public_spaces,
-        neighborhoods=neighborhoods,
-        neighborhood_availability=get_neighborhood_availability(
-            radios, public_spaces, neighborhoods
-        ),
+        radios=get_census_data(),
+        public_spaces=get_public_space(),
+        neighborhoods=get_neighborhoods(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",

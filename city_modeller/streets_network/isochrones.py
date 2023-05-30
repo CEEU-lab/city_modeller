@@ -1,5 +1,5 @@
 from typing import Optional
-from city_modeller.datasources import get_availability_ratio
+from city_modeller.datasources import get_radio_availability
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
@@ -136,48 +136,47 @@ def social_impact(
     neighborhood: Optional[list] = None,
     commune: Optional[list] = None,
 ) -> gpd.GeoDataFrame:
-    get_public_space = get_public_space()
-    availability_ratio = get_availability_ratio()
-    get_public_space["geometry_centroid"] = get_public_space.geometry.centroid
+    availability_ratio = get_radio_availability()
+    public_spaces["geometry_centroid"] = public_spaces.geometry.centroid
     list_park_tipology = list(park_tipology)
     if commune is not None:
-        get_public_space_sel = get_public_space[
-            (get_public_space.COMUNA == str(commune))
-            & (get_public_space.clasificac.isin(list_park_tipology))
+        public_space_sel = public_spaces[
+            (public_spaces.COMUNA == str(commune))
+            & (public_spaces.clasificac.isin(list_park_tipology))
         ]
     elif neighborhood is not None:
-        get_public_space_sel = get_public_space[
-            (get_public_space.BARRIO == str(neighborhood))
-            & (get_public_space.clasificac.isin(list_park_tipology))
+        public_space_sel = public_spaces[
+            (public_spaces.BARRIO == str(neighborhood))
+            & (public_spaces.clasificac.isin(list_park_tipology))
         ]
 
-    isochrone_get_public_space = isochrone_mapping(
-        get_public_space_sel,
+    isochrone_public_space = isochrone_mapping(
+        public_space_sel,
         wt=[5, 10, 15],
         node_tag_name="nombre",
         geometry_columns="geometry_centroid",
     )
-    get_public_space_sel_unary = unary_union(get_public_space_sel.geometry)
+    public_space_sel_unary = unary_union(public_space_sel.geometry)
     availability_ratio["geometry_wo_ps"] = availability_ratio.apply(
-        lambda x: ((x["geometry"]).difference(get_public_space_sel_unary)), axis=1
+        lambda x: ((x["geometry"]).difference(public_space_sel_unary)), axis=1
     )
     availability_ratio["geometry_wo_ps_int_iso_5"] = availability_ratio.apply(
         lambda x: (
-            (x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[0, 1])
+            (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[0, 1])
         ).area
         * (10**10),
         axis=1,
     )
     availability_ratio["geometry_wo_ps_int_iso_10"] = availability_ratio.apply(
         lambda x: (
-            (x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[1, 1])
+            (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[1, 1])
         ).area
         * (10**10),
         axis=1,
     )
     availability_ratio["geometry_wo_ps_int_iso_15"] = availability_ratio.apply(
         lambda x: (
-            (x["geometry_wo_ps"]).intersection(isochrone_get_public_space.iloc[2, 1])
+            (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[2, 1])
         ).area
         * (10**10),
         axis=1,
@@ -186,7 +185,7 @@ def social_impact(
         availability_ratio.geometry_wo_ps_int_iso_5 != 0
     ].Neighborhoods.unique()
     isochrone_surrounding_nb = isochrone_mapping(
-        get_public_space_sel[(get_public_space_sel.BARRIO.isin(list_surrounding_nb))],
+        public_space_sel[(public_space_sel.BARRIO.isin(list_surrounding_nb))],
         wt=[5, 10, 15],
         node_tag_name="nombre",
         geometry_columns="geometry_centroid",

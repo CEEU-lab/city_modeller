@@ -46,7 +46,7 @@ class GreenSurfacesSimulationParameters(BaseModel):
     reference_zone: Optional[list[str]]
     simulated_surfaces: pd.DataFrame
     surface_metric: str
-    aggregation_level: str
+    aggregation_level: Literal["Commune", "Neighborhood", "Radios"]
 
     class Config:
         arbitrary_types_allowed = True
@@ -56,6 +56,7 @@ class GreenSurfacesSimulationParameters(BaseModel):
 class ResultsColumnPlots(BaseModel):
     percentage_vs_travel: go.Figure
     percentage_vs_area: go.Figure
+    availability_mapping: gpd.GeoDataFrame
     isochrone_mapping: gpd.GeoDataFrame
 
     class Config:

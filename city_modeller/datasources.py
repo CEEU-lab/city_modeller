@@ -157,7 +157,7 @@ def get_communes():
     return communes
 
 
-def get_availability_ratio(
+def get_radio_availability(
     radios: gpd.GeoDataFrame,
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
@@ -210,7 +210,7 @@ def get_neighborhood_availability(
     if path is not None and os.path.exists(path):
         gdf = gpd.read_file(path)
     else:
-        availability_ratio = get_availability_ratio(
+        availability_ratio = get_radio_availability(
             radios=radios,
             public_spaces=public_spaces,
             neighborhoods=neighborhoods,
