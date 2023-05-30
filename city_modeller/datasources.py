@@ -210,7 +210,7 @@ def get_neighborhood_availability(
     if path is not None and os.path.exists(path):
         gdf = gpd.read_file(path)
     else:
-        availability_ratio = get_radio_availability(
+        radio_availability = get_radio_availability(
             radios=radios,
             public_spaces=public_spaces,
             neighborhoods=neighborhoods,
@@ -226,7 +226,7 @@ def get_neighborhood_availability(
             "geometry",
         ]
         radios_neigh_com = pd.merge(
-            availability_ratio, neighborhoods, on="Neighborhood"
+            radio_availability, neighborhoods, on="Neighborhood"
         )
         barrio_geom = radios_neigh_com.loc[
             :, ["Neighborhood", "geometry_y"]
