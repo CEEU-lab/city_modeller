@@ -184,20 +184,18 @@ def get_availability_ratio(
     gdf.columns = [
         "index",
         "TOTAL_VIV",
-        "Communes",
+        "Commune",
         "geometry_radio",
         "geometry_ps_rc",
     ]
-    gdf["TOTAL_VIV"] += 1
+    gdf["TOTAL_VIV"] += 1  # Safe division
     gdf["green_surface"] = (gdf.geometry_ps_rc.area * 1e10).round(3)
     gdf["green_surface"].fillna(0, inplace=True)
     gdf["ratio"] = gdf["green_surface"] / gdf["TOTAL_VIV"]
     gdf["geometry"] = gdf["geometry_radio"]
-    gdf = gdf.loc[:, ["green_surface", "TOTAL_VIV", "Communes", "ratio", "geometry"]]
-    gdf["distance"] = np.log(gdf["ratio"])
-    gdf["geometry_centroid"] = gdf.geometry.centroid
+    gdf = gdf.loc[:, ["green_surface", "TOTAL_VIV", "Commune", "ratio", "geometry"]]
     gdf["Neighborhood"] = neighborhoods.apply(
-        lambda x: x["geometry"].contains(gdf["geometry_centroid"]), axis=1
+        lambda x: x["geometry"].contains(gdf.geometry.centroid), axis=1
     ).T.dot(neighborhoods.BARRIO)
     return gdf
 
@@ -206,13 +204,17 @@ def get_neighborhood_availability(
     radios: gpd.GeoDataFrame,
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
+    selected_typologies: Optional[List] = None,
+    path: Optional[str] = f"{DATA_DIR}/neighborhood_availability.geojson",
 ) -> gpd.GeoDataFrame:
-    path = f"{DATA_DIR}/neighborhood_availability.geojson"
-    if os.path.exists(path):
+    if path is not None and os.path.exists(path):
         gdf = gpd.read_file(path)
     else:
         availability_ratio = get_availability_ratio(
-            radios=radios, public_spaces=public_spaces, neighborhoods=neighborhoods
+            radios=radios,
+            public_spaces=public_spaces,
+            neighborhoods=neighborhoods,
+            selected_typologies=selected_typologies,
         )
         neighborhoods = neighborhoods.copy()
         neighborhoods.columns = [

@@ -50,7 +50,7 @@ class PublicSpacesDashboard(Dashboard):
         self,
         radios: gpd.GeoDataFrame,
         public_spaces: gpd.GeoDataFrame,
-        neighborhoods: gpd.GeoDataFrame,  # DELETE
+        neighborhoods: gpd.GeoDataFrame,
         neighborhood_availability: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict] = None,
@@ -66,7 +66,7 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
-        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()  # DELETE
+        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.neighborhood_availability: gpd.GeoDataFrame = (
             neighborhood_availability.copy()
         )
@@ -166,7 +166,6 @@ class PublicSpacesDashboard(Dashboard):
 
     @staticmethod
     def multipoint_gdf(public_spaces: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        # TODO: Add mode for entrances here?
         public_space_points = public_spaces.copy().dropna(subset="geometry")
         public_space_points["geometry"] = geometry_centroid(public_space_points)
         return public_space_points.query("visible")
@@ -946,7 +945,7 @@ if __name__ == "__main__":
     dashboard = PublicSpacesDashboard(
         radios=radios,
         public_spaces=public_spaces,
-        neighborhoods=neighborhoods,  # DELETE
+        neighborhoods=neighborhoods,
         neighborhood_availability=get_neighborhood_availability(
             radios, public_spaces, neighborhoods
         ),
