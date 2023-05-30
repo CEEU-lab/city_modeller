@@ -647,24 +647,14 @@ class PublicSpacesDashboard(Dashboard):
             )
             if selected_commune:
                 surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
-                if surface_metric == "m2/inhabitant":
-                    aggregate_dimension = st.radio(
-                        "Aggregate by", ("Radios", "Communes")
-                    )
-                    self.config_communes["config"]["visState"]["layers"][0][
-                        "visualChannels"
-                    ]["colorField"]["name"] = "ratio"
-                    if aggregate_dimension == "Radios":
-                        gdf = df.drop("geometry_centroid", axis=1)
-                elif surface_metric == "m2":
-                    aggregate_dimension = st.radio(
-                        "Aggregate by", ("Radios", "Communes")
-                    )
-                    self.config_communes["config"]["visState"]["layers"][0][
-                        "visualChannels"
-                    ]["colorField"]["name"] = "green_surface"
-                    if aggregate_dimension == "Radios":
-                        gdf = df.drop("geometry_centroid", axis=1)
+                aggregate_dimension = st.radio("Aggregate by", ("Radios", "Communes"))
+                if aggregate_dimension == "Radios":
+                    gdf = df.drop("geometry_centroid", axis=1)
+                self.config_communes["config"]["visState"]["layers"][0][
+                    "visualChannels"
+                ]["colorField"]["name"] = (
+                    "ratio" if surface_metric == "m2/inhabitant" else "green_surface"
+                )
 
                 if st.button("Submit"):
                     filtered_dataframe = filter_dataframe(
@@ -687,123 +677,67 @@ class PublicSpacesDashboard(Dashboard):
             )
             if selected_neighborhood:
                 surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
-                if surface_metric == "m2/inhabitant":
-                    aggregate_dimension = st.radio(
-                        "Aggregate by", ("Radios", "Neighborhoods")
+                aggregate_dimension = st.radio(
+                    "Aggregate by", ("Radios", "Neighborhoods")
+                )
+                self.config_neighborhoods["config"]["visState"]["layers"][0][
+                    "visualChannels"
+                ]["colorField"]["name"] = (
+                    "distance" if surface_metric == "m2/inhabitant" else "green_surface"
+                )
+                if aggregate_dimension == "Radios":
+                    df = df.drop("geometry_centroid", axis=1)
+                if aggregate_dimension == "Neighborhoods":
+                    neighborhoods = self.neighborhoods.copy()
+                    neighborhoods.columns = [
+                        "Neighborhoods",
+                        "Commune",
+                        "PERIMETRO",
+                        "AREA",
+                        "OBJETO",
+                        "geometry",
+                    ]
+                    radios_neigh_com = pd.merge(df, neighborhoods, on="Neighborhoods")
+                    barrio_geom = radios_neigh_com.loc[
+                        :, ["Neighborhoods", "geometry_y"]
+                    ].drop_duplicates()
+                    radios_neigh_com_gb = (
+                        radios_neigh_com.groupby("Neighborhoods")[
+                            "TOTAL_VIV", "green_surface"
+                        ]
+                        .sum()
+                        .reset_index()
                     )
-                    if aggregate_dimension == "Radios":
-                        self.config_neighborhoods["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "distance"
-                        df = df.drop("geometry_centroid", axis=1)
-                    elif aggregate_dimension == "Neighborhoods":
-                        neighborhoods = self.neighborhoods.copy()
-                        neighborhoods.columns = [
-                            "Neighborhoods",
-                            "Commune",
-                            "PERIMETRO",
-                            "AREA",
-                            "OBJETO",
-                            "geometry",
-                        ]
-                        radios_neigh_com = pd.merge(
-                            df, neighborhoods, on="Neighborhoods"
-                        )
-                        barrio_geom = radios_neigh_com.loc[
-                            :, ["Neighborhoods", "geometry_y"]
-                        ].drop_duplicates()
-                        radios_neigh_com_gb = (
-                            radios_neigh_com.groupby("Neighborhoods")[
-                                "TOTAL_VIV", "green_surface"
-                            ]
-                            .sum()
-                            .reset_index()
-                        )
-                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-                            lambda x: 0
-                            if x["green_surface"] == 0
-                            else x["TOTAL_VIV"] / x["green_surface"],
-                            axis=1,
-                        )
-                        radios_neigh_com_gb.columns = [
-                            "Neighborhoods",
-                            "TOTAL_VIV",
-                            "area_neigh",
-                            "ratio_neigh",
-                        ]
-                        radios_neigh_com_gb_geom = pd.merge(
-                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
-                        )
-                        radios_neigh_com_gb_geom.columns = [
-                            "Neighborhoods",
-                            "TOTAL_VIV",
-                            "area_neigh",
-                            "ratio_neigh",
-                            "geometry",
-                        ]
-                        df = radios_neigh_com_gb_geom
-                        self.config_neighborhoods["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "ratio_neigh"
-
-                elif surface_metric == "m2":
-                    aggregate_dimension = st.radio(
-                        "Aggregate by", ("Radios", "Neighborhoods")
+                    radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
+                        lambda x: 0
+                        if x["green_surface"] == 0
+                        else x["TOTAL_VIV"] / x["green_surface"],
+                        axis=1,
                     )
-                    if aggregate_dimension == "Radios":
-                        self.config_neighborhoods["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "green_surface"
-                        df = df.drop("geometry_centroid", axis=1)
-                    elif aggregate_dimension == "Neighborhoods":
-                        neighborhoods = self.neighborhoods.copy()
-                        neighborhoods.columns = [
-                            "Neighborhoods",
-                            "Commune",
-                            "PERIMETRO",
-                            "AREA",
-                            "OBJETO",
-                            "geometry",
-                        ]
-                        radios_neigh_com = pd.merge(
-                            df, neighborhoods, on="Neighborhoods"
-                        )
-                        barrio_geom = radios_neigh_com.loc[
-                            :, ["Neighborhoods", "geometry_y"]
-                        ].drop_duplicates()
-                        radios_neigh_com_gb = (
-                            radios_neigh_com.groupby("Neighborhoods")[
-                                "TOTAL_VIV", "green_surface"
-                            ]
-                            .sum()
-                            .reset_index()
-                        )
-                        radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-                            lambda x: 0
-                            if x["green_surface"] == 0
-                            else x["TOTAL_VIV"] / x["green_surface"],
-                            axis=1,
-                        )
-                        radios_neigh_com_gb.columns = [
-                            "Neighborhoods",
-                            "TOTAL_VIV",
-                            "area_neigh",
-                            "ratio_neigh",
-                        ]
-                        radios_neigh_com_gb_geom = pd.merge(
-                            radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
-                        )
-                        radios_neigh_com_gb_geom.columns = [
-                            "Neighborhoods",
-                            "TOTAL_VIV",
-                            "area_neigh",
-                            "ratio_neigh",
-                            "geometry",
-                        ]
-                        df = radios_neigh_com_gb_geom
-                        self.config_neighborhoods["config"]["visState"]["layers"][0][
-                            "visualChannels"
-                        ]["colorField"]["name"] = "area_neigh"
+                    radios_neigh_com_gb.columns = [
+                        "Neighborhoods",
+                        "TOTAL_VIV",
+                        "area_neigh",
+                        "ratio_neigh",
+                    ]
+                    radios_neigh_com_gb_geom = pd.merge(
+                        radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
+                    )
+                    radios_neigh_com_gb_geom.columns = [
+                        "Neighborhoods",
+                        "TOTAL_VIV",
+                        "area_neigh",
+                        "ratio_neigh",
+                        "geometry",
+                    ]
+                    df = radios_neigh_com_gb_geom
+                self.config_neighborhoods["config"]["visState"]["layers"][0][
+                    "visualChannels"
+                ]["colorField"]["name"] = (
+                    "ratio_neigh"
+                    if surface_metric == "m2/inhabitant"
+                    else "area_neigh"
+                )
 
                 if st.button("Submit"):
                     filtered_dataframe_av = filter_dataframe(
@@ -821,91 +755,6 @@ class PublicSpacesDashboard(Dashboard):
                         "visualChannels"
                     ]["colorField"]["name"] = "time"
                     self.plot_kepler(isochrone_park, self.config_neighborhoods)
-
-        if "Radios" in selected_process:
-            surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
-            if surface_metric == "m2/inhabitant":
-                self.config_radios["config"]["visState"]["layers"][0]["visualChannels"][
-                    "colorField"
-                ]["name"] = "ratio"
-                df = df.drop("geometry_centroid", axis=1)
-            elif surface_metric == "m2":
-                self.config_radios["config"]["visState"]["layers"][0]["visualChannels"][
-                    "colorField"
-                ]["name"] = "green_surface"
-                df = df.drop("geometry_centroid", axis=1)
-            # Create a multiselect dropdown to select ratio column
-            if st.button("Submit"):
-                self.plot_kepler(df, self.config_radios)
-
-    def accessibility(self) -> None:  # DELETE
-        green_spaces_container = st.container()
-        user_table_container = st.container()
-
-        with user_table_container:
-            user_input = self._accessibility_input()
-            parks = pd.concat([self.public_spaces.copy(), user_input])
-
-        with green_spaces_container:
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                st.markdown(
-                    "<h3 style='text-align: left'>Typology</h3>",
-                    unsafe_allow_html=True,
-                )
-                for park_type in self.park_types:
-                    self.mask_dict[park_type] = st.checkbox(
-                        park_type.replace("/", " / "), park_type != "USER INPUT"
-                    )
-                parks["visible"] = parks.clasificac.map(self.mask_dict)
-                parks.loc["point_false", "visible"] = False
-                parks.loc["point_true", "visible"] = True
-                parks.visible = parks.visible.astype(bool)
-                st.markdown("----")
-                st.markdown(
-                    "<h3 style='text-align: left'>Mode</h3>",
-                    unsafe_allow_html=True,
-                )
-                movility_type = st.radio(
-                    "Mode",
-                    [
-                        k.replace("_", " ").title()
-                        for k in MovilityType.__members__.keys()
-                    ],
-                    label_visibility="collapsed",
-                )
-                speed = MovilityType[movility_type.replace(" ", "_").upper()].value
-            with col2:
-                st.markdown(
-                    "<h1 style='text-align: center'>Public Spaces</h1>",
-                    unsafe_allow_html=True,
-                )
-                self.plot_kepler(parks, config=self.parks_config)
-
-        with st.container():
-            col1, col2 = st.columns(2)
-            # Curva de población según minutos de caminata
-            with col1:
-                fig, _ = self.plot_curva_pob_min_cam(
-                    self._distances(parks), speed=speed
-                )
-                st.pyplot(fig)
-            # Curva de poblacion segun area del espacio
-            with col2:
-                fig, _ = self.plot_curva_caminata_area(
-                    self.census_radio_points.geometry,
-                    self.multipoint_gdf(parks),
-                    speed=speed,
-                )
-                st.pyplot(fig)
-
-        with st.container():
-            st.markdown(
-                "<h1 style='text-align: center'>Radios Censales</h1>",
-                unsafe_allow_html=True,
-            )
-            self.radios["distance"] = self._distances(parks)
-            self.plot_kepler(self.radios)
 
     def dashboard_header(self) -> None:
         section_header(
