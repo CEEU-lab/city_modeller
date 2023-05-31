@@ -82,7 +82,7 @@ class PublicSpacesDashboard(Dashboard):
         self.config_communes = parse_config_json(config_communes, config_communes_path)
 
     @staticmethod
-    def plot_curva_pob_min_cam(
+    def plot_pop_travel_time(
         distancias: gpd.GeoSeries,
         minutos: np.ndarray[int] = np.arange(1, 21),
         speed: int = 5,
@@ -109,8 +109,8 @@ class PublicSpacesDashboard(Dashboard):
         return fig
 
     @staticmethod
-    def plot_curva_caminata_area(
-        gdf_source: gpd.GeoSeries,
+    def plot_area_travel_time(
+        geom_source: gpd.GeoSeries,
         gdf_target: gpd.GeoDataFrame,
         areas: np.ndarray[int] = np.arange(100, 10000, 100),
         minutes: int = 5,
@@ -126,10 +126,13 @@ class PublicSpacesDashboard(Dashboard):
                     ]
                 ]
             )
-            distancia_area = partial(
-                distancia_mas_cercano, target_points=parques_mp_area
-            )
-            distancias = gdf_source.map(distancia_area) * 100000
+            if not parques_mp_area.is_empty:
+                distancia_area = partial(
+                    distancia_mas_cercano, target_points=parques_mp_area
+                )
+                distancias = geom_source.map(distancia_area) * 100000
+            else:
+                distancias = np.ones_like(geom_source) * np.inf
 
             prop.append(pob_a_distancia(distancias, minutes, speed))
 
@@ -292,11 +295,11 @@ class PublicSpacesDashboard(Dashboard):
         if session_results and key in graph_outputs:
             return graph_outputs[key]
 
-        percentage_vs_travel = self.plot_curva_pob_min_cam(
+        percentage_vs_travel = self.plot_pop_travel_time(
             self._distances(public_spaces),
             speed=speed,
         )
-        percentage_vs_area = self.plot_curva_caminata_area(
+        percentage_vs_area = self.plot_area_travel_time(
             self.census_radio_points.geometry,
             self.multipoint_gdf(public_spaces),
             speed=speed,
@@ -412,6 +415,7 @@ class PublicSpacesDashboard(Dashboard):
                     "Select a process",
                     ["Commune", "Neighborhood"],
                     index=int(simulated_params.get("process") == "Neighborhood"),
+                    on_change=lambda: simulated_params.pop("action_zone", None),
                 )
                 action_zone = self._zone_selector(
                     selected_process, simulated_params.get("action_zone", [])
@@ -566,7 +570,9 @@ class PublicSpacesDashboard(Dashboard):
                     simulated_params.reference_zone,
                 )
                 reference_zone_results = self._get_plot_column_data(
-                    reference_parks, simulated_params
+                    reference_parks,
+                    simulated_params,
+                    key=f"reference_{hash(tuple(reference_zone))}",
                 )
                 self._plot_graph_outputs(
                     "Reference Zone Results", reference_zone_results
@@ -734,9 +740,7 @@ class PublicSpacesDashboard(Dashboard):
                 self.config_neighborhoods["config"]["visState"]["layers"][0][
                     "visualChannels"
                 ]["colorField"]["name"] = (
-                    "ratio_neigh"
-                    if surface_metric == "m2/inhabitant"
-                    else "area_neigh"
+                    "ratio_neigh" if surface_metric == "m2/inhabitant" else "area_neigh"
                 )
 
                 if st.button("Submit"):

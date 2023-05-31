@@ -114,8 +114,11 @@ def merging_overlapping_rings_inter(gdf):
 
 
 def isochrone_mapping(
-    gdf_point, wt=[5, 10, 15], node_tag_name="name", geometry_columns="geometry"
-):
+    gdf_point: gpd.GeoDataFrame,
+    wt: list = [5, 10, 15],
+    node_tag_name: str = "name",
+    geometry_columns: str = "geometry",
+) -> gpd.GeoDataFrame:
     return merging_overlapping_rings_inter(
         decouple_overlapping_rings_intra(
             apply_isochrones_gdf(

@@ -104,7 +104,7 @@
                             "name": "green_surface",
                             "type": "string"
                         },
-                        "colorScale": "ordinal",
+                        "colorScale": "quantile",
                         "strokeColorField": null,
                         "strokeColorScale": "quantile",
                         "sizeField": null,
