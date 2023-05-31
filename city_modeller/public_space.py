@@ -19,11 +19,12 @@ from streamlit_keplergl import keplergl_static
 from city_modeller.base import Dashboard
 from city_modeller.datasources import (
     get_communes,
+    get_commune_availability,
     get_census_data,
     get_neighborhoods,
     get_neighborhood_availability,
     get_public_space,
-    # get_radio_availability,
+    get_radio_availability,
 )
 from city_modeller.schemas.public_space import (
     EXAMPLE_INPUT,
@@ -67,8 +68,23 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
+        radio_availability = st.cache_data(get_radio_availability)(
+            radios, public_spaces, neighborhoods
+        )
         self.neighborhood_availability: gpd.GeoDataFrame = (
-            get_neighborhood_availability(radios, public_spaces, neighborhoods)
+            get_neighborhood_availability(
+                radios,
+                public_spaces,
+                neighborhoods,
+                radio_availability=radio_availability,
+            )
+        )
+        self.commune_availability: gpd.GeoDataFrame = get_commune_availability(
+            radios,
+            public_spaces,
+            neighborhoods,
+            communes,
+            radio_availability=radio_availability,
         )
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.park_types: np.ndarray[str] = np.hstack(
@@ -304,17 +320,22 @@ class PublicSpacesDashboard(Dashboard):
             self.multipoint_gdf(public_spaces),
             speed=speed,
         )
-        # availability_function = (
-        #     get_radio_availability
-        #     if simulated_params.aggregation_level == "Radios"
-        #     else get_neighborhood_availability
-        # )
-        # availability_function()
+        availability_function = {
+            "Radios": get_radio_availability,
+            "Neighborhood": get_neighborhood_availability,
+            "Commune": get_neighborhood_availability,
+        }.pop(simulated_params.aggregation_level)
+        args = [self.radios, self.public_spaces, self.neighborhoods]
+        if simulated_params.aggregation_level == "Commune":
+            args.append(self.communes)
+        availability_mapping = availability_function(
+            *args, selected_typologies=simulated_params.typologies
+        )
 
         results = ResultsColumnPlots(
             percentage_vs_travel=percentage_vs_travel,
             percentage_vs_area=percentage_vs_area,
-            availability_mapping=gpd.GeoDataFrame(),  # FIXME
+            availability_mapping=availability_mapping,
             isochrone_mapping=gpd.GeoDataFrame(),  # FIXME
         )
 
@@ -329,14 +350,16 @@ class PublicSpacesDashboard(Dashboard):
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
         )
+        # aggregation_level
         st.plotly_chart(results.percentage_vs_travel)
         st.plotly_chart(results.percentage_vs_area)
+        self.plot_kepler(results.availability_mapping, self.config)
 
     def _zone_selector(
         self, selected_process: str, default_value: list[str], action_zone: bool = True
     ) -> list[str]:
         df = (
-            self.communes
+            self.commune_availability
             if selected_process == "Commune"
             else self.neighborhood_availability
         )
@@ -395,7 +418,7 @@ class PublicSpacesDashboard(Dashboard):
 
         with reference_maps_container:
             self._reference_maps(
-                [self.communes, self.neighborhood_availability],
+                [self.commune_availability, self.neighborhood_availability],
                 configs=[self.config_communes, self.config_neighborhoods],
                 column="ratio",
             )

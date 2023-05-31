@@ -141,7 +141,7 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
 
 
 @st.cache_data
-def get_neighborhoods():
+def get_neighborhoods() -> gpd.GeoDataFrame:
     """Load neighborhoods data."""
     neighborhoods = gpd.read_file(f"{DATA_DIR}/neighbourhoods.geojson")
     neighborhoods = gpd.GeoDataFrame(
@@ -151,29 +151,41 @@ def get_neighborhoods():
 
 
 @st.cache_data
-def get_communes():
-    communes = gpd.read_file(f"{DATA_DIR}/commune_geom.geojson")
+def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame:
+    if not os.path.exists(path):
+        url_home = "https://cdn.buenosaires.gob.ar/"
+        print(f"{path} no contiene un geojson, descargando de {url_home}...")
+        url = (
+            f"{url_home}datosabiertos/datasets/"
+            "ministerio-de-educacion/comunas/comunas.geojson"
+        )
+        resp = requests.get(url)
+        with open(path, "w") as f:
+            f.write(resp.text)
+    communes = gpd.read_file(path).loc[:, ["COMUNAS", "PERIMETRO", "AREA", "geometry"]]
+    communes.columns = ["Commune", "Perimeter", "Area", "geometry"]
+    communes.Commune = "Comuna " + communes.Commune.astype(int).astype(str)
     communes = gpd.GeoDataFrame(communes, geometry="geometry", crs="epsg:4326")
     return communes
 
 
 def get_radio_availability(
-    radios: gpd.GeoDataFrame,
-    public_spaces: gpd.GeoDataFrame,
-    neighborhoods: gpd.GeoDataFrame,
+    _radios: gpd.GeoDataFrame,
+    _public_spaces: gpd.GeoDataFrame,
+    _neighborhoods: gpd.GeoDataFrame,
     selected_typologies: Optional[List] = None,
 ) -> gpd.GeoDataFrame:
     if selected_typologies is not None:
-        public_spaces = public_spaces[
-            public_spaces["clasificac"].isin(selected_typologies)
+        _public_spaces = _public_spaces[
+            _public_spaces["clasificac"].isin(selected_typologies)
         ]
-    polygons = list(public_spaces.geometry)
+    polygons = list(_public_spaces.geometry)
     boundary = gpd.GeoSeries(unary_union(polygons))
     boundary = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary), crs="epsg:4326")
     gdf = pd.merge(
-        radios.reset_index(),
+        _radios.reset_index(),
         gpd.overlay(
-            radios.reset_index().iloc[:,],
+            _radios.reset_index().iloc[:,],
             boundary,
             how="intersection",
         ),
@@ -194,9 +206,9 @@ def get_radio_availability(
     gdf["ratio"] = gdf["green_surface"] / gdf["TOTAL_VIV"]
     gdf["geometry"] = gdf["geometry_radio"]
     gdf = gdf.loc[:, ["green_surface", "TOTAL_VIV", "Commune", "ratio", "geometry"]]
-    gdf["Neighborhood"] = neighborhoods.apply(
+    gdf["Neighborhood"] = _neighborhoods.apply(
         lambda x: x["geometry"].contains(gdf.geometry.centroid), axis=1
-    ).T.dot(neighborhoods.BARRIO)
+    ).T.dot(_neighborhoods.BARRIO)
     return gdf
 
 
@@ -205,102 +217,103 @@ def get_neighborhood_availability(
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
     selected_typologies: Optional[List] = None,
-    path: Optional[str] = f"{DATA_DIR}/neighborhood_availability.geojson",
+    radio_availability: Optional[gpd.GeoDataFrame] = None,
 ) -> gpd.GeoDataFrame:
-    if path is not None and os.path.exists(path):
-        gdf = gpd.read_file(path)
-    else:
+    if radio_availability is None:
         radio_availability = get_radio_availability(
             radios=radios,
             public_spaces=public_spaces,
             neighborhoods=neighborhoods,
             selected_typologies=selected_typologies,
         )
-        neighborhoods = neighborhoods.copy()
-        neighborhoods.columns = [
-            "Neighborhood",
-            "Commune",
-            "PERIMETRO",
-            "AREA",
-            "OBJETO",
-            "geometry",
-        ]
-        radios_neigh_com = pd.merge(
-            radio_availability, neighborhoods, on="Neighborhood"
-        )
-        barrio_geom = radios_neigh_com.loc[
-            :, ["Neighborhood", "geometry_y"]
-        ].drop_duplicates()
-        radios_neigh_com_gb = (
-            radios_neigh_com.groupby("Neighborhood")[["TOTAL_VIV", "green_surface"]]
-            .sum()
-            .reset_index()
-        )
-        radios_neigh_com_gb["ratio"] = (
-            radios_neigh_com_gb.eval("green_surface / TOTAL_VIV")
-            .replace(np.inf, 0)
-            .round(3)
-        )
-        radios_neigh_com_gb.columns = [
-            "Neighborhood",
-            "TOTAL_VIV",
-            "green_surface",
-            "ratio",
-        ]
-        radios_neigh_com_gb_geom = pd.merge(
-            radios_neigh_com_gb, barrio_geom, on="Neighborhood"
-        )
-        radios_neigh_com_gb_geom.columns = [
-            "Neighborhood",
-            "TOTAL_VIV",
-            "green_surface",
-            "ratio",
-            "geometry",
-        ]
-        gdf = radios_neigh_com_gb_geom
-        gdf = gpd.GeoDataFrame(gdf)
-        with open(path, "w") as f:
-            f.write(gdf.to_json(drop_id=True))
+    neighborhoods = neighborhoods.copy()
+    neighborhoods.columns = [
+        "Neighborhood",
+        "Commune",
+        "PERIMETRO",
+        "AREA",
+        "OBJETO",
+        "geometry",
+    ]
+    radios_neigh_com = pd.merge(radio_availability, neighborhoods, on="Neighborhood")
+    barrio_geom = radios_neigh_com.loc[
+        :, ["Neighborhood", "geometry_y"]
+    ].drop_duplicates()
+    radios_neigh_com_gb = (
+        radios_neigh_com.groupby("Neighborhood")[["TOTAL_VIV", "green_surface"]]
+        .sum()
+        .reset_index()
+    )
+    radios_neigh_com_gb["ratio"] = (
+        radios_neigh_com_gb.eval("green_surface / TOTAL_VIV")
+        .replace(np.inf, 0)
+        .round(3)
+    )
+    radios_neigh_com_gb.columns = [
+        "Neighborhood",
+        "TOTAL_VIV",
+        "green_surface",
+        "ratio",
+    ]
+    radios_neigh_com_gb_geom = pd.merge(
+        radios_neigh_com_gb, barrio_geom, on="Neighborhood"
+    )
+    radios_neigh_com_gb_geom.columns = [
+        "Neighborhood",
+        "TOTAL_VIV",
+        "green_surface",
+        "ratio",
+        "geometry",
+    ]
+    gdf = gpd.GeoDataFrame(radios_neigh_com_gb_geom)
     return gdf
-
 
 
 def get_commune_availability(
     radios: gpd.GeoDataFrame,
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
+    communes: gpd.GeoDataFrame,
     selected_typologies: Optional[List] = None,
-    path: Optional[str] = f"{DATA_DIR}/commune_availability.geojson",
+    radio_availability: Optional[gpd.GeoDataFrame] = None,
 ) -> gpd.GeoDataFrame:
-    if path is not None and os.path.exists(path):
-        commune_compl_gb_geom = gpd.read_file(path)
-    else:
-        neighborhood_availability=get_neighborhood_availability(
-                    radios=radios,
-                    public_spaces=public_spaces,
-                    neighborhoods=neighborhoods,
-                    selected_typologies=selected_typologies)
-        
-        neighborhood_availability.columns=['BARRIO', 'TOTAL_VIV', 'green_surface', 'ratio', 'geometry']
+    if radio_availability is None:
+        radio_availability = get_radio_availability(
+            radios=radios,
+            public_spaces=public_spaces,
+            neighborhoods=neighborhoods,
+            selected_typologies=selected_typologies,
+        )
 
-        radios_neigh_com=pd.merge(neighborhood_availability,neighborhoods,on='BARRIO')
-        barrio_geom=radios_neigh_com.loc[:,['BARRIO','COMUNA','geometry_y']].drop_duplicates()
-        barrio_geom.columns=['BARRIO', 'COMUNA', 'geometry']
-
-        barrio_geom = barrio_geom.set_geometry('geometry')
-
-        # Group the census radius polygons by commune number.
-        grouped = barrio_geom.groupby('COMUNA')
-
-        # Aggregate the polygons into multi-polygons representing each commune
-        commune_gdf = grouped['geometry'].agg(lambda x: gpd.GeoSeries(x).unary_union)
-        commune_gdf = gpd.GeoDataFrame(commune_gdf, crs=barrio_geom.crs)
-        commune_gdf = commune_gdf.reset_index().rename(columns={'geometry': 'commune_geometry'})
-        commune_gdf = commune_gdf.set_geometry('commune_geometry')
-        commune_gdf['Commune']=commune_gdf['COMUNA'].apply(lambda x: str('Comuna ' )+str(int(x)) )
-        commune_compl=pd.merge(radios_neigh_com,commune_gdf, on='COMUNA')
-        commune_compl_gb=commune_compl.groupby('Commune')[['green_surface','TOTAL_VIV']].sum().reset_index()
-        commune_compl_gb_geom=pd.merge(commune_compl_gb,commune_gdf,on='Commune')
-        commune_compl_gb_geom = gpd.GeoDataFrame(commune_compl_gb_geom,geometry='commune_geometry', crs="epsg:4326")
-        commune_compl_gb_geom['ratio']=commune_compl_gb_geom['green_surface']/commune_compl_gb_geom['TOTAL_VIV']
-    return commune_compl_gb_geom
+    radios_comm_com = pd.merge(radio_availability, communes, on="Commune")
+    barrio_geom = radios_comm_com.loc[
+        :, ["Commune", "geometry_y"]
+    ].drop_duplicates()
+    radios_comm_com_gb = (
+        radios_comm_com.groupby("Commune")[["TOTAL_VIV", "green_surface"]]
+        .sum()
+        .reset_index()
+    )
+    radios_comm_com_gb["ratio"] = (
+        radios_comm_com_gb.eval("green_surface / TOTAL_VIV")
+        .replace(np.inf, 0)
+        .round(3)
+    )
+    radios_comm_com_gb.columns = [
+        "Commune",
+        "TOTAL_VIV",
+        "green_surface",
+        "ratio",
+    ]
+    radios_comm_com_gb_geom = pd.merge(
+        radios_comm_com_gb, barrio_geom, on="Commune"
+    )
+    radios_comm_com_gb_geom.columns = [
+        "Commune",
+        "TOTAL_VIV",
+        "green_surface",
+        "ratio",
+        "geometry",
+    ]
+    gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
+    return gdf
