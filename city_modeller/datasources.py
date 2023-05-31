@@ -292,7 +292,7 @@ def get_commune_availability(
         # Group the census radius polygons by commune number.
         grouped = barrio_geom.groupby('COMUNA')
 
-        # # Aggregate the polygons into multi-polygons representing each commune
+        # Aggregate the polygons into multi-polygons representing each commune
         commune_gdf = grouped['geometry'].agg(lambda x: gpd.GeoSeries(x).unary_union)
         commune_gdf = gpd.GeoDataFrame(commune_gdf, crs=barrio_geom.crs)
         commune_gdf = commune_gdf.reset_index().rename(columns={'geometry': 'commune_geometry'})
