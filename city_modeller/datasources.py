@@ -263,29 +263,44 @@ def get_neighborhood_availability(
             f.write(gdf.to_json(drop_id=True))
     return gdf
 
-def commune_availability():
-    radios=get_neighborhood_availability()
-    neighborhoods=get_neighborhoods()
-    radios.columns=['BARRIO', 'TOTAL_VIV', 'green_surface', 'ratio', 'geometry']
 
-    radios_neigh_com=pd.merge(radios,neighborhoods,on='BARRIO')
-    barrio_geom=radios_neigh_com.loc[:,['BARRIO','COMUNA','geometry_y']].drop_duplicates()
-    barrio_geom.columns=['BARRIO', 'COMUNA', 'geometry']
 
-    barrio_geom = barrio_geom.set_geometry('geometry')
+def get_commune_availability(
+    radios: gpd.GeoDataFrame,
+    public_spaces: gpd.GeoDataFrame,
+    neighborhoods: gpd.GeoDataFrame,
+    selected_typologies: Optional[List] = None,
+    path: Optional[str] = f"{DATA_DIR}/commune_availability.geojson",
+) -> gpd.GeoDataFrame:
+    if path is not None and os.path.exists(path):
+        commune_compl_gb_geom = gpd.read_file(path)
+    else:
+        neighborhood_availability=get_neighborhood_availability(
+                    radios=radios,
+                    public_spaces=public_spaces,
+                    neighborhoods=neighborhoods,
+                    selected_typologies=selected_typologies)
+        
+        neighborhood_availability.columns=['BARRIO', 'TOTAL_VIV', 'green_surface', 'ratio', 'geometry']
 
-    # Group the census radius polygons by commune number.
-    grouped = barrio_geom.groupby('COMUNA')
+        radios_neigh_com=pd.merge(neighborhood_availability,neighborhoods,on='BARRIO')
+        barrio_geom=radios_neigh_com.loc[:,['BARRIO','COMUNA','geometry_y']].drop_duplicates()
+        barrio_geom.columns=['BARRIO', 'COMUNA', 'geometry']
 
-    # # Aggregate the polygons into multi-polygons representing each commune
-    commune_gdf = grouped['geometry'].agg(lambda x: gpd.GeoSeries(x).unary_union)
-    commune_gdf = gpd.GeoDataFrame(commune_gdf, crs=barrio_geom.crs)
-    commune_gdf = commune_gdf.reset_index().rename(columns={'geometry': 'commune_geometry'})
-    commune_gdf = commune_gdf.set_geometry('commune_geometry')
-    commune_gdf['Commune']=commune_gdf['COMUNA'].apply(lambda x: str('Comuna ' )+str(int(x)) )
-    commune_compl=pd.merge(radios_neigh_com,commune_gdf, on='COMUNA')
-    commune_compl_gb=commune_compl.groupby('Commune')[['green_surface','TOTAL_VIV']].sum().reset_index()
-    commune_compl_gb_geom=pd.merge(commune_compl_gb,commune_gdf,on='Commune')
-    commune_compl_gb_geom = gpd.GeoDataFrame(commune_compl_gb_geom,geometry='commune_geometry', crs="epsg:4326")
-    commune_compl_gb_geom['ratio']=commune_compl_gb_geom['green_surface']/commune_compl_gb_geom['TOTAL_VIV']
+        barrio_geom = barrio_geom.set_geometry('geometry')
+
+        # Group the census radius polygons by commune number.
+        grouped = barrio_geom.groupby('COMUNA')
+
+        # # Aggregate the polygons into multi-polygons representing each commune
+        commune_gdf = grouped['geometry'].agg(lambda x: gpd.GeoSeries(x).unary_union)
+        commune_gdf = gpd.GeoDataFrame(commune_gdf, crs=barrio_geom.crs)
+        commune_gdf = commune_gdf.reset_index().rename(columns={'geometry': 'commune_geometry'})
+        commune_gdf = commune_gdf.set_geometry('commune_geometry')
+        commune_gdf['Commune']=commune_gdf['COMUNA'].apply(lambda x: str('Comuna ' )+str(int(x)) )
+        commune_compl=pd.merge(radios_neigh_com,commune_gdf, on='COMUNA')
+        commune_compl_gb=commune_compl.groupby('Commune')[['green_surface','TOTAL_VIV']].sum().reset_index()
+        commune_compl_gb_geom=pd.merge(commune_compl_gb,commune_gdf,on='Commune')
+        commune_compl_gb_geom = gpd.GeoDataFrame(commune_compl_gb_geom,geometry='commune_geometry', crs="epsg:4326")
+        commune_compl_gb_geom['ratio']=commune_compl_gb_geom['green_surface']/commune_compl_gb_geom['TOTAL_VIV']
     return commune_compl_gb_geom
