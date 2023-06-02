@@ -144,12 +144,12 @@ def social_impact(
     list_park_tipology = list(park_tipology)
     if commune is not None:
         public_space_sel = public_spaces[
-            (public_spaces.COMUNA == str(commune))
+            (public_spaces.Commune == str(commune))
             & (public_spaces.clasificac.isin(list_park_tipology))
         ]
     elif neighborhood is not None:
         public_space_sel = public_spaces[
-            (public_spaces.BARRIO == str(neighborhood))
+            (public_spaces.Neighborhood == str(neighborhood))
             & (public_spaces.clasificac.isin(list_park_tipology))
         ]
 
@@ -188,7 +188,7 @@ def social_impact(
         availability_ratio.geometry_wo_ps_int_iso_5 != 0
     ].Neighborhoods.unique()
     isochrone_surrounding_nb = isochrone_mapping(
-        public_space_sel[(public_space_sel.BARRIO.isin(list_surrounding_nb))],
+        public_space_sel[(public_space_sel.Neighborhood.isin(list_surrounding_nb))],
         wt=[5, 10, 15],
         node_tag_name="nombre",
         geometry_columns="geometry_centroid",

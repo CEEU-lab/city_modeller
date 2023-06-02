@@ -68,7 +68,7 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces["visible"] = True
         self.public_spaces: gpd.GeoDataFrame = public_spaces
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
-        radio_availability = st.cache_data(get_radio_availability)(
+        self.radio_availability = st.cache_data(get_radio_availability)(
             radios, public_spaces, neighborhoods
         )
         self.neighborhood_availability: gpd.GeoDataFrame = (
@@ -76,7 +76,7 @@ class PublicSpacesDashboard(Dashboard):
                 radios,
                 public_spaces,
                 neighborhoods,
-                radio_availability=radio_availability,
+                radio_availability=self.radio_availability,
             )
         )
         self.commune_availability: gpd.GeoDataFrame = get_commune_availability(
@@ -84,7 +84,7 @@ class PublicSpacesDashboard(Dashboard):
             public_spaces,
             neighborhoods,
             communes,
-            radio_availability=radio_availability,
+            radio_availability=self.radio_availability,
         )
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.park_types: np.ndarray[str] = np.hstack(
@@ -224,12 +224,6 @@ class PublicSpacesDashboard(Dashboard):
         return gdf_
 
     @property
-    def census_radio_points(self) -> gpd.GeoDataFrame:
-        census_points = self.radios.copy().to_crs(4326)  # TODO: Still necessary?
-        census_points["geometry"] = geometry_centroid(census_points)
-        return census_points
-
-    @property
     def parks_config(self) -> dict[str, dict]:
         config = deepcopy(self.config)
         config["config"]["visState"]["layers"][0]["config"]["visConfig"]["colorRange"][
@@ -247,14 +241,26 @@ class PublicSpacesDashboard(Dashboard):
 
         return config
 
-    def _distances(self, public_spaces: gpd.GeoDataFrame) -> gpd.GeoSeries:
+    def _census_radio_points(
+        self, radios: Optional[gpd.GeoDataFrame] = None
+    ) -> gpd.GeoDataFrame:
+        radios = radios if radios is not None else self.radios.copy()
+        census_points = radios.copy().to_crs(4326)  # TODO: Still necessary?
+        census_points["geometry"] = geometry_centroid(census_points)
+        return census_points
+
+    def _distances(
+        self, public_spaces: gpd.GeoDataFrame, radios: Optional[gpd.GeoDataFrame] = None
+    ) -> gpd.GeoSeries:
         public_spaces_multipoint = MultiPoint(
             self.multipoint_gdf(public_spaces).geometry.tolist()
         )
         parks_distances = partial(
             distancia_mas_cercano, target_points=public_spaces_multipoint
         )
-        return (self.census_radio_points.geometry.map(parks_distances) * 1e5).round(3)
+        return (
+            self._census_radio_points(radios=radios).geometry.map(parks_distances) * 1e5
+        ).round(3)
 
     def _reference_maps(
         self,
@@ -303,6 +309,8 @@ class PublicSpacesDashboard(Dashboard):
         public_spaces: gpd.GeoDataFrame,
         simulated_params: GreenSurfacesSimulationParameters,
         key: Optional[str] = None,
+        filter_column: Optional[str] = None,
+        zone: Optional[list[str]] = None,
     ) -> ResultsColumnPlots:
         speed = simulated_params.movility_type.value
         session_results = key is not None
@@ -311,32 +319,42 @@ class PublicSpacesDashboard(Dashboard):
         if session_results and key in graph_outputs:
             return graph_outputs[key]
 
+        radios = self.radios.copy()
+        if filter_column is not None and zone is not None:
+            # NOTE: Use availability just for the neighborhood column.
+            radios = filter_dataframe(self.radio_availability, filter_column, zone)
         percentage_vs_travel = self.plot_pop_travel_time(
-            self._distances(public_spaces),
+            self._distances(public_spaces, radios),
             speed=speed,
         )
         percentage_vs_area = self.plot_area_travel_time(
-            self.census_radio_points.geometry,
+            self._census_radio_points(radios=radios).geometry,
             self.multipoint_gdf(public_spaces),
             speed=speed,
         )
         availability_function = {
             "Radios": get_radio_availability,
             "Neighborhood": get_neighborhood_availability,
-            "Commune": get_neighborhood_availability,
+            "Commune": get_commune_availability,
         }.pop(simulated_params.aggregation_level)
-        args = [self.radios, self.public_spaces, self.neighborhoods]
+        args = [radios, public_spaces, self.neighborhoods]
         if simulated_params.aggregation_level == "Commune":
             args.append(self.communes)
         availability_mapping = availability_function(
             *args, selected_typologies=simulated_params.typologies
+        )
+        public_spaces_points = public_spaces.copy()
+        public_spaces_points.geometry = geometry_centroid(public_spaces_points)
+        isochrone_gdf = isochrone_mapping(
+            filter_dataframe(public_spaces_points, filter_column, zone),
+            node_tag_name="nombre",
         )
 
         results = ResultsColumnPlots(
             percentage_vs_travel=percentage_vs_travel,
             percentage_vs_area=percentage_vs_area,
             availability_mapping=availability_mapping,
-            isochrone_mapping=gpd.GeoDataFrame(),  # FIXME
+            isochrone_mapping=isochrone_gdf,
         )
 
         if session_results:
@@ -345,7 +363,13 @@ class PublicSpacesDashboard(Dashboard):
 
         return results
 
-    def _plot_graph_outputs(self, title: str, results: ResultsColumnPlots) -> None:
+    def _plot_graph_outputs(
+        self,
+        title: str,
+        results: ResultsColumnPlots,
+        config: Optional[dict[str, str]] = None,
+    ) -> None:
+        config = config or self.config
         st.markdown(
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
@@ -353,7 +377,10 @@ class PublicSpacesDashboard(Dashboard):
         # aggregation_level
         st.plotly_chart(results.percentage_vs_travel)
         st.plotly_chart(results.percentage_vs_area)
-        self.plot_kepler(results.availability_mapping, self.config)
+        self.plot_kepler(results.availability_mapping, config)
+        self.plot_kepler(
+            results.isochrone_mapping, self._edit_kepler_color(config, "time")
+        )
 
     def _zone_selector(
         self, selected_process: str, default_value: list[str], action_zone: bool = True
@@ -377,7 +404,7 @@ class PublicSpacesDashboard(Dashboard):
         action_zone: Optional[str] = None,
     ) -> gpd.GeoDataFrame:
         current_parks = self.public_spaces.copy()
-        current_parks["Commune"] = "Comuna " + current_parks.COMUNA.astype(int).astype(
+        current_parks["Commune"] = "Comuna " + current_parks.Commune.astype(int).astype(
             str
         )
         if filter_column is not None and action_zone is not None:
@@ -438,11 +465,16 @@ class PublicSpacesDashboard(Dashboard):
                     "Select a process",
                     ["Commune", "Neighborhood"],
                     index=int(simulated_params.get("process") == "Neighborhood"),
-                    on_change=lambda: simulated_params.pop("action_zone", None),
                 )
-                action_zone = self._zone_selector(
-                    selected_process, simulated_params.get("action_zone", [])
-                )
+                try:
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
+                except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                    simulated_params["action_zone"] = []
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
                 aggregation_level = st.radio(
                     "Choose an Aggregation level:",
                     [selected_process, "Radios"],
@@ -510,7 +542,7 @@ class PublicSpacesDashboard(Dashboard):
                         st.session_state.graph_outputs = None
                         st.session_state.simulated_params = (
                             GreenSurfacesSimulationParameters(
-                                typologies=mask_dict,
+                                typologies=deepcopy(mask_dict),
                                 movility_type=MovilityType[
                                     movility_type.replace(" ", "_").upper()
                                 ].value,
@@ -531,29 +563,49 @@ class PublicSpacesDashboard(Dashboard):
             return
         simulated_params = st.session_state.simulated_params
         current_col, simulation_col = st.columns(2)
-        filter_column = "Commune" if simulated_params.process == "Commune" else "BARRIO"
         current_parks = self.current_parks(
-            simulated_params.typologies, filter_column, simulated_params.action_zone
+            simulated_params.typologies,
+            simulated_params.process,
+            simulated_params.action_zone,
         )
         parks_simulation = self._simulated_parks(
             simulated_params.simulated_surfaces,
             simulated_params.typologies,
             public_spaces=current_parks,
         )
+        config = {
+            "Radios": self.config_radios,
+            "Neighborhood": self.config_neighborhoods,
+            "Commune": self.config_communes,
+        }.pop(simulated_params.aggregation_level)
+        config = self._edit_kepler_color(
+            config,
+            "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
+        )
 
         with st.container():
             current_col, simulation_col = st.columns(2)
             with current_col:
                 current_results = self._get_plot_column_data(
-                    current_parks, simulated_params, key="action_zone_t0"
+                    current_parks,
+                    simulated_params,
+                    key="action_zone_t0",
+                    filter_column=simulated_params.process,
+                    zone=simulated_params.action_zone,
                 )
-                self._plot_graph_outputs("Current Results", current_results)
+                self._plot_graph_outputs("Current Results", current_results, config)
 
             with simulation_col:
                 simulation_results = self._get_plot_column_data(
-                    parks_simulation, simulated_params, key="action_zone_t1"
+                    parks_simulation,
+                    simulated_params,
+                    key="action_zone_t1",
+                    filter_column=simulated_params.process,
+                    zone=simulated_params.action_zone,
                 )
-                self._plot_graph_outputs("Simulated Results", simulation_results)
+                self._plot_graph_outputs(
+                    "Simulated Results", simulation_results, config
+                )
 
         st.write(simulated_params)  # DELETE
 
@@ -573,11 +625,11 @@ class PublicSpacesDashboard(Dashboard):
         )
         st.session_state.simulated_params.reference_zone = reference_zone
         if reference_zone != []:
-            filter_column = (
-                "Commune" if simulated_params.process == "Commune" else "BARRIO"
-            )
+            reference_zone_col, action_zone_col = st.columns(2)
             current_parks = self.current_parks(
-                simulated_params.typologies, filter_column, simulated_params.action_zone
+                simulated_params.typologies,
+                simulated_params.process,
+                simulated_params.action_zone,
             )
             parks_simulation = self._simulated_parks(
                 simulated_params.simulated_surfaces,
@@ -585,26 +637,51 @@ class PublicSpacesDashboard(Dashboard):
                 public_spaces=current_parks,
             )
 
-            reference_zone_col, action_zone_col = st.columns(2)
+            config = {
+                "Radios": self.config_radios,
+                "Neighborhood": self.config_neighborhoods,
+                "Commune": self.config_communes,
+            }.pop(simulated_params.aggregation_level)
+            config = self._edit_kepler_color(
+                config,
+                "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
+            )
+
             with reference_zone_col:
                 reference_parks = self.current_parks(
                     simulated_params.typologies,
-                    filter_column,
+                    simulated_params.process,
                     simulated_params.reference_zone,
                 )
                 reference_zone_results = self._get_plot_column_data(
                     reference_parks,
                     simulated_params,
                     key=f"reference_{hash(tuple(reference_zone))}",
+                    filter_column=simulated_params.process,
+                    zone=simulated_params.reference_zone,
                 )
                 self._plot_graph_outputs(
-                    "Reference Zone Results", reference_zone_results
+                    "Reference Zone Results", reference_zone_results, config
                 )
             with action_zone_col:
                 action_zone_results = self._get_plot_column_data(
-                    parks_simulation, simulated_params, key="action_zone_t1"
+                    parks_simulation,
+                    simulated_params,
+                    key="action_zone_t1",
+                    filter_column=simulated_params.process,
+                    zone=simulated_params.action_zone,
                 )
-                self._plot_graph_outputs("Action Zone Results", action_zone_results)
+                self._plot_graph_outputs(
+                    "Action Zone Results", action_zone_results, config
+                )
+
+    def impact(self) -> None:
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
+            )
+            return
 
     def availability(self) -> None:
         def load_data(selected_park_types):
@@ -628,7 +705,7 @@ class PublicSpacesDashboard(Dashboard):
                 how="left",
             )
             df = df.loc[
-                :, ["index", "TOTAL_VIV_x", "COMUNA_x", "geometry_x", "geometry_y"]
+                :, ["index", "TOTAL_VIV_x", "Commune_x", "geometry_x", "geometry_y"]
             ]
             df.columns = [
                 "index",
@@ -649,7 +726,7 @@ class PublicSpacesDashboard(Dashboard):
             df["geometry_centroid"] = df.geometry.centroid
             df["Neighborhoods"] = self.neighborhoods.apply(
                 lambda x: x["geometry"].contains(df["geometry_centroid"]), axis=1
-            ).T.dot(self.neighborhoods.BARRIO)
+            ).T.dot(self.neighborhoods.Neighborhood)
 
             return df
 
@@ -658,7 +735,7 @@ class PublicSpacesDashboard(Dashboard):
         df = load_data(selected_park_types)
 
         parks = self.public_spaces.copy()
-        parks["Communes"] = "Comuna " + parks["COMUNA"].astype(str)
+        parks["Communes"] = "Comuna " + parks["Commune"].astype(str)
         parks = parks[parks["clasificac"].isin(selected_park_types)]
         parks["geometry"] = geometry_centroid(parks)
         parks = gpd.GeoDataFrame(parks)
@@ -773,7 +850,7 @@ class PublicSpacesDashboard(Dashboard):
                     self.plot_kepler(filtered_dataframe_av, self.config_neighborhoods)
 
                     filtered_dataframe_park = filter_dataframe(
-                        parks, "BARRIO", selected_neighborhood
+                        parks, "Neighborhood", selected_neighborhood
                     )
                     isochrone_park = isochrone_mapping(
                         filtered_dataframe_park, node_tag_name="nombre"
@@ -819,7 +896,7 @@ class PublicSpacesDashboard(Dashboard):
         if self.zone_toggle:
             self.zones()
         if self.impact_toggle:
-            self.safety()
+            self.impact()
 
 
 if __name__ == "__main__":
@@ -830,7 +907,7 @@ if __name__ == "__main__":
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
-        config_radios_path=f"{PROJECT_DIR}/config/config_ratio_av.json",
+        config_radios_path=f"{PROJECT_DIR}/config/config_radio_av.json",
         config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
         config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
     )

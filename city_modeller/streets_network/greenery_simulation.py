@@ -56,7 +56,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 
     # in case there is not panorama in the site, therefore, continue
     if data["status"] != "OK":
-        if allow_prints:  # TODO: Make widget with red text.
+        if allow_prints:
             error_message("Reference Point not available")
     else:
         # get the meta data of the panorama
@@ -65,7 +65,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
         panoLat = data["location"]["lat"]
         panoLon = data["location"]["lng"]
 
-        if allow_prints:  # TODO: Make widget with red text.
+        if allow_prints:
             error_message(
                 "The coordinate ({},{}), panoId is: {}, panoDate is: {}".format(
                     panoLon, panoLat, panoId, panoDate

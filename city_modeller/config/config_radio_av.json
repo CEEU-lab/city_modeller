@@ -5,15 +5,15 @@
             "filters": [],
             "layers": [
                 {
-                    "id": "3eczkr",
+                    "id": "r9mrfac",
                     "type": "geojson",
                     "config": {
                         "dataId": "data",
                         "label": "data",
                         "color": [
                             255,
-                            153,
-                            31
+                            203,
+                            153
                         ],
                         "highlightColor": [
                             252,
@@ -35,11 +35,11 @@
                                 44
                             ],
                             "colorRange": {
-                                "name": "Ocean Green 6",
+                                "name": "ColorBrewer YlGn-6",
                                 "type": "sequential",
-                                "category": "Uber",
+                                "category": "ColorBrewer",
                                 "colors": [
-                                    "#ffffff",
+                                    "#ffffcc",
                                     "#d9f0a3",
                                     "#addd8e",
                                     "#78c679",
@@ -52,12 +52,7 @@
                                 "type": "sequential",
                                 "category": "Uber",
                                 "colors": [
-                                    "#5A1846",
-                                    "#900C3F",
-                                    "#C70039",
-                                    "#E3611C",
-                                    "#F1920E",
-                                    "#FFC300"
+                                    "#000000"
                                 ]
                             },
                             "radius": 10,
@@ -121,19 +116,11 @@
                     "fieldsToShow": {
                         "data": [
                             {
-                                "name": "Neighborhood",
+                                "name": "nomdepto",
                                 "format": null
                             },
                             {
-                                "name": "green_surface",
-                                "format": null
-                            },
-                            {
-                                "name": "TOTAL_VIV",
-                                "format": null
-                            },
-                            {
-                                "name": "ratio",
+                                "name": "distance",
                                 "format": null
                             }
                         ]
@@ -163,10 +150,10 @@
         "mapState": {
             "bearing": 0,
             "dragRotate": false,
-            "latitude": -34.60848293163495,
-            "longitude": -58.38473588056435,
+            "latitude": -34.61924837118219,
+            "longitude": -58.405545747237376,
             "pitch": 0,
-            "zoom": 10.434602963386086,
+            "zoom": 10.71463444979278,
             "isSplit": false
         },
         "mapStyle": {
