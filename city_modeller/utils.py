@@ -4,16 +4,19 @@ import tempfile
 import yaml
 from numbers import Number
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import geopandas as gpd
 import pandas as pd
+from keplergl import KeplerGl
 import pyproj
 import streamlit as st
 from numpy import ndarray
 from shapely import wkt
 from shapely.ops import nearest_points
+from shapely.wkt import dumps
 from shapely.geometry import Point, Polygon, MultiPoint
+from streamlit_keplergl import keplergl_static
 
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -181,3 +184,16 @@ def from_wkt(df, wkt_column, proj) -> gpd.GeoDataFrame:
 
 def filter_dataframe(df, filter_column, selected_values):
     return df[df[filter_column].isin(selected_values)]
+
+
+def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
+    df = gdf.copy()
+    df["geometry"] = df.geometry.apply(dumps)
+    return df.to_dict("split")
+
+
+def plot_kepler(data: gpd.GeoDataFrame, config: dict) -> None:
+    data_ = kepler_df(data)
+    kepler = KeplerGl(height=500, data={"data": data_}, config=config, show_docs=False)
+    keplergl_static(kepler)
+    kepler.add_data(data=data_)

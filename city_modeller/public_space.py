@@ -1,6 +1,6 @@
 from copy import deepcopy
 from functools import partial
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import geojson
 import geopandas as gpd
@@ -9,12 +9,8 @@ import osmnx as ox
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from keplergl import KeplerGl
 from shapely.geometry import MultiPoint, Polygon, shape
 from shapely.geometry.base import BaseGeometry
-from shapely.ops import unary_union
-from shapely.wkt import dumps
-from streamlit_keplergl import keplergl_static
 
 from city_modeller.base import Dashboard
 from city_modeller.datasources import (
@@ -38,6 +34,7 @@ from city_modeller.utils import (
     filter_dataframe,
     geometry_centroid,
     parse_config_json,
+    plot_kepler,
     pob_a_distancia,
     PROJECT_DIR,
 )
@@ -190,12 +187,6 @@ class PublicSpacesDashboard(Dashboard):
         return public_space_points.query("visible")
 
     @staticmethod
-    def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
-        df = gdf.copy()
-        df["geometry"] = df.geometry.apply(dumps)
-        return df.to_dict("split")
-
-    @staticmethod
     def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
         return pd.DataFrame(
             {
@@ -274,7 +265,7 @@ class PublicSpacesDashboard(Dashboard):
             configs = [self._edit_kepler_color(config, column) for config in configs]
         for col, gdf, config in zip(cols, gdfs, configs):
             with col:
-                self.plot_kepler(gdf, config=config)
+                plot_kepler(gdf, config=config)
 
     def _accessibility_input(
         self, data: pd.DataFrame = EXAMPLE_INPUT
@@ -304,83 +295,94 @@ class PublicSpacesDashboard(Dashboard):
         gdf["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf.dropna(subset="geometry")
 
-    def _get_plot_column_data(
+    def _plot_graph_outputs(
         self,
+        title: str,
         public_spaces: gpd.GeoDataFrame,
         simulated_params: GreenSurfacesSimulationParameters,
         key: Optional[str] = None,
         filter_column: Optional[str] = None,
         zone: Optional[list[str]] = None,
     ) -> ResultsColumnPlots:
-        speed = simulated_params.movility_type.value
-        session_results = key is not None
-        graph_outputs = st.session_state.graph_outputs or {}
-
-        if session_results and key in graph_outputs:
-            return graph_outputs[key]
-
-        radios = self.radios.copy()
-        if filter_column is not None and zone is not None:
-            # NOTE: Use availability just for the neighborhood column.
-            radios = filter_dataframe(self.radio_availability, filter_column, zone)
-        percentage_vs_travel = self.plot_pop_travel_time(
-            self._distances(public_spaces, radios),
-            speed=speed,
-        )
-        percentage_vs_area = self.plot_area_travel_time(
-            self._census_radio_points(radios=radios).geometry,
-            self.multipoint_gdf(public_spaces),
-            speed=speed,
-        )
-        availability_function = {
-            "Radios": get_radio_availability,
-            "Neighborhood": get_neighborhood_availability,
-            "Commune": get_commune_availability,
-        }.pop(simulated_params.aggregation_level)
-        args = [radios, public_spaces, self.neighborhoods]
-        if simulated_params.aggregation_level == "Commune":
-            args.append(self.communes)
-        availability_mapping = availability_function(
-            *args, selected_typologies=simulated_params.typologies
-        )
-        public_spaces_points = public_spaces.copy()
-        public_spaces_points.geometry = geometry_centroid(public_spaces_points)
-        isochrone_gdf = isochrone_mapping(
-            filter_dataframe(public_spaces_points, filter_column, zone),
-            node_tag_name="nombre",
-        )
-
-        results = ResultsColumnPlots(
-            percentage_vs_travel=percentage_vs_travel,
-            percentage_vs_area=percentage_vs_area,
-            availability_mapping=availability_mapping,
-            isochrone_mapping=isochrone_gdf,
-        )
-
-        if session_results:
-            graph_outputs[key] = results
-            st.session_state.graph_outputs = graph_outputs
-
-        return results
-
-    def _plot_graph_outputs(
-        self,
-        title: str,
-        results: ResultsColumnPlots,
-        config: Optional[dict[str, str]] = None,
-    ) -> None:
-        config = config or self.config
         st.markdown(
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
         )
-        # aggregation_level
-        st.plotly_chart(results.percentage_vs_travel)
-        st.plotly_chart(results.percentage_vs_area)
-        self.plot_kepler(results.availability_mapping, config)
-        self.plot_kepler(
-            results.isochrone_mapping, self._edit_kepler_color(config, "time")
+        speed = simulated_params.movility_type.value
+        session_results = key is not None
+        graph_outputs = st.session_state.graph_outputs or {}
+        config = {
+            "Radios": self.config_radios,
+            "Neighborhood": self.config_neighborhoods,
+            "Commune": self.config_communes,
+        }.pop(simulated_params.aggregation_level)
+        config = self._edit_kepler_color(
+            config,
+            "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
         )
+
+        if session_results:
+            results = dict(graph_outputs.get(key, {}))
+
+        radios = self.radios.copy()
+        if (percentage_vs_travel := results.get("percentage_vs_travel")) is None:
+            if filter_column is not None and zone is not None:
+                # NOTE: Use availability just for the neighborhood column.
+                radios = filter_dataframe(self.radio_availability, filter_column, zone)
+            percentage_vs_travel = self.plot_pop_travel_time(
+                self._distances(public_spaces, radios),
+                speed=speed,
+            )
+        st.plotly_chart(percentage_vs_travel)
+        yield
+
+        if (percentage_vs_area := results.get("percentage_vs_area")) is None:
+            percentage_vs_area = self.plot_area_travel_time(
+                self._census_radio_points(radios=radios).geometry,
+                self.multipoint_gdf(public_spaces),
+                speed=speed,
+            )
+        st.plotly_chart(percentage_vs_area)
+        yield
+
+        with st.spinner("⏳ Loading..."):
+            if (availability_mapping := results.get("availability_mapping")) is None:
+                availability_function = {
+                    "Radios": get_radio_availability,
+                    "Neighborhood": get_neighborhood_availability,
+                    "Commune": get_commune_availability,
+                }.pop(simulated_params.aggregation_level)
+                args = [radios, public_spaces, self.neighborhoods]
+                if simulated_params.aggregation_level == "Commune":
+                    args.append(self.communes)
+                availability_mapping = availability_function(
+                    *args, selected_typologies=simulated_params.typologies
+                )
+            plot_kepler(availability_mapping, config)
+        yield
+
+        with st.spinner("⏳ Loading..."):
+            if (isochrone_gdf := results.get("isochrone_mapping")) is None:
+                public_spaces_points = public_spaces.copy()
+                public_spaces_points.geometry = geometry_centroid(public_spaces_points)
+                isochrone_gdf = isochrone_mapping(
+                    filter_dataframe(public_spaces_points, filter_column, zone),
+                    node_tag_name="nombre",
+                )
+            plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
+
+            results = ResultsColumnPlots(
+                percentage_vs_travel=percentage_vs_travel,
+                percentage_vs_area=percentage_vs_area,
+                availability_mapping=availability_mapping,
+                isochrone_mapping=isochrone_gdf,
+            )
+
+            if session_results:
+                graph_outputs[key] = results
+                st.session_state.graph_outputs = graph_outputs
+        yield
+        return
 
     def _zone_selector(
         self, selected_process: str, default_value: list[str], action_zone: bool = True
@@ -424,17 +426,6 @@ class PublicSpacesDashboard(Dashboard):
         )
         parks_simulation = pd.concat([public_spaces, user_input])
         return self._visible_column(parks_simulation, mask_dict)
-
-    def plot_kepler(
-        self, data: gpd.GeoDataFrame, config: Optional[dict] = None
-    ) -> None:
-        data_ = self.kepler_df(data)
-        _config = config or self.config
-        kepler = KeplerGl(
-            height=500, data={"data": data_}, config=_config, show_docs=False
-        )
-        keplergl_static(kepler)
-        kepler.add_data(data=data_)
 
     def simulation(self) -> None:
         reference_maps_container = st.container()
@@ -522,13 +513,13 @@ class PublicSpacesDashboard(Dashboard):
                     "<h1 style='text-align: center'>Current Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(current_parks, config=self.parks_config)
+                plot_kepler(current_parks, config=self.parks_config)
             with col2:
                 st.markdown(
                     "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
-                self.plot_kepler(parks_simulation, config=self.parks_config)
+                plot_kepler(parks_simulation, config=self.parks_config)
 
         with submit_container:
             _, button_col = st.columns([3, 1])
@@ -547,8 +538,8 @@ class PublicSpacesDashboard(Dashboard):
                                     movility_type.replace(" ", "_").upper()
                                 ].value,
                                 process=selected_process,
-                                action_zone=action_zone,
-                                simulated_surfaces=user_input,
+                                action_zone=tuple(action_zone),
+                                simulated_surfaces=user_input.copy(),
                                 surface_metric=surface_metric,
                                 aggregation_level=aggregation_level,
                             )
@@ -573,41 +564,35 @@ class PublicSpacesDashboard(Dashboard):
             simulated_params.typologies,
             public_spaces=current_parks,
         )
-        config = {
-            "Radios": self.config_radios,
-            "Neighborhood": self.config_neighborhoods,
-            "Commune": self.config_communes,
-        }.pop(simulated_params.aggregation_level)
-        config = self._edit_kepler_color(
-            config,
-            "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
-        )
 
         with st.container():
             current_col, simulation_col = st.columns(2)
-            with current_col:
-                current_results = self._get_plot_column_data(
-                    current_parks,
-                    simulated_params,
-                    key="action_zone_t0",
-                    filter_column=simulated_params.process,
-                    zone=simulated_params.action_zone,
-                )
-                self._plot_graph_outputs("Current Results", current_results, config)
+            current_results_gen = self._plot_graph_outputs(
+                "Current Results",
+                current_parks,
+                simulated_params,
+                key="action_zone_t0",
+                filter_column=simulated_params.process,
+                zone=simulated_params.action_zone,
+            )
+            simulated_results_gen = self._plot_graph_outputs(
+                "Simulated Results",
+                parks_simulation,
+                simulated_params,
+                key="action_zone_t1",
+                filter_column=simulated_params.process,
+                zone=simulated_params.action_zone,
+            )
+            while True:
+                try:
+                    with current_col:
+                        next(current_results_gen)
 
-            with simulation_col:
-                simulation_results = self._get_plot_column_data(
-                    parks_simulation,
-                    simulated_params,
-                    key="action_zone_t1",
-                    filter_column=simulated_params.process,
-                    zone=simulated_params.action_zone,
-                )
-                self._plot_graph_outputs(
-                    "Simulated Results", simulation_results, config
-                )
+                    with simulation_col:
+                        next(simulated_results_gen)
 
-        st.write(simulated_params)  # DELETE
+                except StopIteration:
+                    break
 
     def zones(self) -> None:
         if "simulated_params" not in st.session_state:
@@ -625,7 +610,6 @@ class PublicSpacesDashboard(Dashboard):
         )
         st.session_state.simulated_params.reference_zone = reference_zone
         if reference_zone != []:
-            reference_zone_col, action_zone_col = st.columns(2)
             current_parks = self.current_parks(
                 simulated_params.typologies,
                 simulated_params.process,
@@ -636,44 +620,40 @@ class PublicSpacesDashboard(Dashboard):
                 simulated_params.typologies,
                 public_spaces=current_parks,
             )
-
-            config = {
-                "Radios": self.config_radios,
-                "Neighborhood": self.config_neighborhoods,
-                "Commune": self.config_communes,
-            }.pop(simulated_params.aggregation_level)
-            config = self._edit_kepler_color(
-                config,
-                "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
+            reference_parks = self.current_parks(
+                simulated_params.typologies,
+                simulated_params.process,
+                simulated_params.reference_zone,
             )
 
-            with reference_zone_col:
-                reference_parks = self.current_parks(
-                    simulated_params.typologies,
-                    simulated_params.process,
-                    simulated_params.reference_zone,
-                )
-                reference_zone_results = self._get_plot_column_data(
+            with st.container():
+                reference_zone_col, action_zone_col = st.columns(2)
+                reference_zone_results_gen = self._plot_graph_outputs(
+                    "Reference Zone Results",
                     reference_parks,
                     simulated_params,
                     key=f"reference_{hash(tuple(reference_zone))}",
                     filter_column=simulated_params.process,
                     zone=simulated_params.reference_zone,
                 )
-                self._plot_graph_outputs(
-                    "Reference Zone Results", reference_zone_results, config
-                )
-            with action_zone_col:
-                action_zone_results = self._get_plot_column_data(
+                action_zone_results_gen = self._plot_graph_outputs(
+                    "Action Zone Results",
                     parks_simulation,
                     simulated_params,
                     key="action_zone_t1",
                     filter_column=simulated_params.process,
                     zone=simulated_params.action_zone,
                 )
-                self._plot_graph_outputs(
-                    "Action Zone Results", action_zone_results, config
-                )
+                while True:
+                    try:
+                        with reference_zone_col:
+                            next(reference_zone_results_gen)
+
+                        with action_zone_col:
+                            next(action_zone_results_gen)
+
+                    except StopIteration:
+                        break
 
     def impact(self) -> None:
         if "simulated_params" not in st.session_state:
@@ -682,183 +662,6 @@ class PublicSpacesDashboard(Dashboard):
                 icon="⚠️",
             )
             return
-
-    def availability(self) -> None:
-        def load_data(selected_park_types):
-            # Load and preprocess the dataframe here
-            parques = self.public_spaces[
-                self.public_spaces["clasificac"].isin(selected_park_types)
-            ]
-            polygons = list(parques.geometry)
-            boundary = gpd.GeoSeries(unary_union(polygons))
-            boundary = gpd.GeoDataFrame(
-                geometry=gpd.GeoSeries(boundary), crs="epsg:4326"
-            )
-            df = pd.merge(
-                self.radios.reset_index(),
-                gpd.overlay(
-                    self.radios.reset_index().iloc[:,],
-                    boundary,
-                    how="intersection",
-                ),
-                on="index",
-                how="left",
-            )
-            df = df.loc[
-                :, ["index", "TOTAL_VIV_x", "Commune_x", "geometry_x", "geometry_y"]
-            ]
-            df.columns = [
-                "index",
-                "TOTAL_VIV",
-                "Communes",
-                "geometry_radio",
-                "geometry_ps_rc",
-            ]
-            df["TOTAL_VIV"] += 1
-            df["green_surface"] = (df.geometry_ps_rc.area * 1e10).round(3)
-            df["green_surface"].fillna(0, inplace=True)
-            df["ratio"] = df["green_surface"] / df["TOTAL_VIV"]
-            df["geometry"] = df["geometry_radio"]
-            df = df.loc[
-                :, ["green_surface", "TOTAL_VIV", "Communes", "ratio", "geometry"]
-            ]
-            df["distance"] = np.log(df["ratio"])
-            df["geometry_centroid"] = df.geometry.centroid
-            df["Neighborhoods"] = self.neighborhoods.apply(
-                lambda x: x["geometry"].contains(df["geometry_centroid"]), axis=1
-            ).T.dot(self.neighborhoods.Neighborhood)
-
-            return df
-
-        # Load the dataframe using the load_data function with the selected types.
-        selected_park_types = st.multiselect("park_types", self.park_types, key="fff")
-        df = load_data(selected_park_types)
-
-        parks = self.public_spaces.copy()
-        parks["Communes"] = "Comuna " + parks["Commune"].astype(str)
-        parks = parks[parks["clasificac"].isin(selected_park_types)]
-        parks["geometry"] = geometry_centroid(parks)
-        parks = gpd.GeoDataFrame(parks)
-
-        # Create a multiselect dropdown to select process
-        selected_process = st.selectbox(
-            "Select a process", ["Commune", "Neighborhood", "Radios"], key="legacy_proc"
-        )
-
-        if "Commune" in selected_process:
-            # Create a multiselect dropdown to select neighborhood column
-            communes = self.communes.copy()
-            selected_commune = st.multiselect(
-                "Select a commune", communes["Commune"].unique()
-            )
-            if selected_commune:
-                surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
-                aggregate_dimension = st.radio("Aggregate by", ("Radios", "Communes"))
-                if aggregate_dimension == "Radios":
-                    gdf = df.drop("geometry_centroid", axis=1)
-                self.config_communes["config"]["visState"]["layers"][0][
-                    "visualChannels"
-                ]["colorField"]["name"] = (
-                    "ratio" if surface_metric == "m2/inhabitant" else "green_surface"
-                )
-
-                if st.button("Submit"):
-                    filtered_dataframe = filter_dataframe(
-                        gdf, "Communes", selected_commune
-                    )
-                    self.plot_kepler(filtered_dataframe, self.config_communes)
-
-                    filtered_dataframe_park = filter_dataframe(
-                        parks, "Communes", selected_commune
-                    )
-                    isochrone_comunne = isochrone_mapping(
-                        filtered_dataframe_park, node_tag_name="nombre"
-                    )
-                    self.plot_kepler(isochrone_comunne, self.config_communes)
-
-        if "Neighborhood" in selected_process:
-            # Create a multiselect dropdown to select neighborhood column
-            selected_neighborhood = st.multiselect(
-                "Select a neighborhood", df["Neighborhoods"].unique()
-            )
-            if selected_neighborhood:
-                surface_metric = st.radio("Select an option", ("m2/inhabitant", "m2"))
-                aggregate_dimension = st.radio(
-                    "Aggregate by", ("Radios", "Neighborhoods")
-                )
-                self.config_neighborhoods["config"]["visState"]["layers"][0][
-                    "visualChannels"
-                ]["colorField"]["name"] = (
-                    "distance" if surface_metric == "m2/inhabitant" else "green_surface"
-                )
-                if aggregate_dimension == "Radios":
-                    df = df.drop("geometry_centroid", axis=1)
-                if aggregate_dimension == "Neighborhoods":
-                    neighborhoods = self.neighborhoods.copy()
-                    neighborhoods.columns = [
-                        "Neighborhoods",
-                        "Commune",
-                        "PERIMETRO",
-                        "AREA",
-                        "OBJETO",
-                        "geometry",
-                    ]
-                    radios_neigh_com = pd.merge(df, neighborhoods, on="Neighborhoods")
-                    barrio_geom = radios_neigh_com.loc[
-                        :, ["Neighborhoods", "geometry_y"]
-                    ].drop_duplicates()
-                    radios_neigh_com_gb = (
-                        radios_neigh_com.groupby("Neighborhoods")[
-                            "TOTAL_VIV", "green_surface"
-                        ]
-                        .sum()
-                        .reset_index()
-                    )
-                    radios_neigh_com_gb["ratio_neigh"] = radios_neigh_com_gb.apply(
-                        lambda x: 0
-                        if x["green_surface"] == 0
-                        else x["TOTAL_VIV"] / x["green_surface"],
-                        axis=1,
-                    )
-                    radios_neigh_com_gb.columns = [
-                        "Neighborhoods",
-                        "TOTAL_VIV",
-                        "area_neigh",
-                        "ratio_neigh",
-                    ]
-                    radios_neigh_com_gb_geom = pd.merge(
-                        radios_neigh_com_gb, barrio_geom, on="Neighborhoods"
-                    )
-                    radios_neigh_com_gb_geom.columns = [
-                        "Neighborhoods",
-                        "TOTAL_VIV",
-                        "area_neigh",
-                        "ratio_neigh",
-                        "geometry",
-                    ]
-                    df = radios_neigh_com_gb_geom
-                self.config_neighborhoods["config"]["visState"]["layers"][0][
-                    "visualChannels"
-                ]["colorField"]["name"] = (
-                    "ratio_neigh" if surface_metric == "m2/inhabitant" else "area_neigh"
-                )
-
-                if st.button("Submit"):
-                    filtered_dataframe_av = filter_dataframe(
-                        df, "Neighborhoods", selected_neighborhood
-                    )
-                    self.plot_kepler(filtered_dataframe_av, self.config_neighborhoods)
-
-                    filtered_dataframe_park = filter_dataframe(
-                        parks, "Neighborhood", selected_neighborhood
-                    )
-                    isochrone_park = isochrone_mapping(
-                        filtered_dataframe_park, node_tag_name="nombre"
-                    )
-                    self.config_neighborhoods["config"]["visState"]["layers"][0][
-                        "visualChannels"
-                    ]["colorField"]["name"] = "time"
-                    self.plot_kepler(isochrone_park, self.config_neighborhoods)
 
     def dashboard_header(self) -> None:
         section_header(
