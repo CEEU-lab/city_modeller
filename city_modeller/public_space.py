@@ -41,7 +41,7 @@ from city_modeller.utils import (
 from city_modeller.widgets import error_message, section_header, section_toggles
 
 
-ox.config(log_file=True, log_console=True, use_cache=True)
+ox.config(log_file=True, log_console=False, use_cache=True)
 
 
 class PublicSpacesDashboard(Dashboard):
