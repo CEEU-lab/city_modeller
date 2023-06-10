@@ -47,6 +47,7 @@ class GreenSurfacesSimulationParameters(BaseModel):
     simulated_surfaces: pd.DataFrame
     surface_metric: str
     aggregation_level: Literal["Commune", "Neighborhood", "Radios"]
+    isochrone_enabled: bool
 
     class Config:
         arbitrary_types_allowed = True

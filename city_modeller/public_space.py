@@ -369,40 +369,53 @@ class PublicSpacesDashboard(Dashboard):
             plot_kepler(availability_mapping, config)
         yield
 
-        with st.spinner("⏳ Loading..."):
-            if (isochrone_gdf := results.get("isochrone_mapping")) is None:
-                reference_outputs = None
-                if reference_key is not None:
-                    try:
-                        graph_outputs = st.session_state.graph_outputs or graph_outputs
-                        reference_outputs = graph_outputs[reference_key]
-                        public_spaces = gdf_diff(
-                            public_spaces, reference_outputs.public_spaces, "clasificac"
-                        )
-                    except KeyError:
-                        logging.warn(f"Reference key {reference_key} doesn't exist.")
-                public_spaces_points = public_spaces.copy().dropna(subset=["geometry"])
-                public_spaces_points.geometry = geometry_centroid(public_spaces_points)
-                isochrone_gdf = isochrone_mapping(
-                    public_spaces_points, node_tag_name="nombre"
-                )
-                if reference_outputs is not None:
-                    isochrone_gdf = isochrone_overlap(
-                        isochrone_gdf, reference_outputs.isochrone_mapping
+        if simulated_params.isochrone_enabled:
+            with st.spinner("⏳ Loading..."):
+                if (isochrone_gdf := results.get("isochrone_mapping")) is None:
+                    reference_outputs = None
+                    if reference_key is not None:
+                        try:
+                            graph_outputs = (
+                                st.session_state.graph_outputs or graph_outputs
+                            )
+                            reference_outputs = graph_outputs[reference_key]
+                            public_spaces = gdf_diff(
+                                public_spaces,
+                                reference_outputs.public_spaces,
+                                "clasificac",
+                            )
+                        except KeyError:
+                            logging.warn(
+                                f"Reference key {reference_key} doesn't exist."
+                            )
+                    public_spaces_points = public_spaces.copy().dropna(
+                        subset=["geometry"]
                     )
-            plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
+                    public_spaces_points.geometry = geometry_centroid(
+                        public_spaces_points
+                    )
+                    isochrone_gdf = isochrone_mapping(
+                        public_spaces_points, node_tag_name="nombre"
+                    )
+                    if reference_outputs is not None:
+                        isochrone_gdf = isochrone_overlap(
+                            isochrone_gdf, reference_outputs.isochrone_mapping
+                        )
+                plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
+        else:
+            isochrone_gdf = gpd.GeoDataFrame()
 
-            results = ResultsColumnPlots(
-                public_spaces=public_spaces_,
-                percentage_vs_travel=percentage_vs_travel,
-                percentage_vs_area=percentage_vs_area,
-                availability_mapping=availability_mapping,
-                isochrone_mapping=isochrone_gdf,
-            )
+        results = ResultsColumnPlots(
+            public_spaces=public_spaces_,
+            percentage_vs_travel=percentage_vs_travel,
+            percentage_vs_area=percentage_vs_area,
+            availability_mapping=availability_mapping,
+            isochrone_mapping=isochrone_gdf,
+        )
 
-            if session_results:
-                graph_outputs[key] = results
-                st.session_state.graph_outputs = graph_outputs
+        if session_results:
+            graph_outputs[key] = results
+            st.session_state.graph_outputs = graph_outputs
         yield
         return
 
@@ -500,6 +513,7 @@ class PublicSpacesDashboard(Dashboard):
                     horizontal=True,
                     index=int(simulated_params.get("surface_metric") == "m2"),
                 )
+                isochrone_enabled = st.checkbox("Isochrone Enabled", True)
             with col1:
                 mask_dict = simulated_params.get("typologies", {})
                 st.markdown(
@@ -564,6 +578,7 @@ class PublicSpacesDashboard(Dashboard):
                                 simulated_surfaces=user_input.copy(),
                                 surface_metric=surface_metric,
                                 aggregation_level=aggregation_level,
+                                isochrone_enabled=isochrone_enabled,
                             )
                         )
 
