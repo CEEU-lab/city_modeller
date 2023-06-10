@@ -1,11 +1,13 @@
 from typing import Optional
-from city_modeller.datasources import get_radio_availability
+
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
 import pandas as pd
 from shapely.geometry import Point
 from shapely.ops import unary_union
+
+from city_modeller.datasources import get_radio_availability
 
 
 def get_isochrone(
@@ -56,7 +58,9 @@ def apply_isochrones_gdf(
 
 
 def decouple_overlapping_rings_intra(isochrones, WT=[5, 10, 15]):
-    gdf = isochrones.set_index(["time", "point_index"]).copy().dropna()
+    gdf = (
+        isochrones.set_index(["time", "point_index"]).copy().dropna(subset=["geometry"])
+    )
     for idx in range(len(WT) - 1, 0, -1):
         gdf.loc[WT[idx], "geometry"] = (
             gdf.loc[WT[idx]]

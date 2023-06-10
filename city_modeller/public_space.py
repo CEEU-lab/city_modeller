@@ -363,11 +363,10 @@ class PublicSpacesDashboard(Dashboard):
 
         with st.spinner("⏳ Loading..."):
             if (isochrone_gdf := results.get("isochrone_mapping")) is None:
-                public_spaces_points = public_spaces.copy()
+                public_spaces_points = public_spaces.copy().dropna(subset=["geometry"])
                 public_spaces_points.geometry = geometry_centroid(public_spaces_points)
                 isochrone_gdf = isochrone_mapping(
-                    filter_dataframe(public_spaces_points, filter_column, zone),
-                    node_tag_name="nombre",
+                    public_spaces_points, node_tag_name="nombre"
                 )
             plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
 
