@@ -1,3 +1,4 @@
+import logging
 from copy import deepcopy
 from functools import partial
 from typing import Optional, Union
@@ -28,10 +29,14 @@ from city_modeller.schemas.public_space import (
     MovilityType,
     ResultsColumnPlots,
 )
-from city_modeller.streets_network.isochrones import isochrone_mapping
+from city_modeller.streets_network.isochrones import (
+    isochrone_mapping,
+    isochrone_overlap,
+)
 from city_modeller.utils import (
     distancia_mas_cercano,
     filter_dataframe,
+    gdf_diff,
     geometry_centroid,
     parse_config_json,
     plot_kepler,
@@ -303,6 +308,7 @@ class PublicSpacesDashboard(Dashboard):
         key: Optional[str] = None,
         filter_column: Optional[str] = None,
         zone: Optional[list[str]] = None,
+        reference_key: Optional[str] = None,
     ) -> ResultsColumnPlots:
         st.markdown(
             f"<h1 style='text-align: center'>{title}</h1>",
@@ -320,6 +326,7 @@ class PublicSpacesDashboard(Dashboard):
             config,
             "green_surface" if simulated_params.surface_metric == "m2" else "ratio",
         )
+        public_spaces_ = public_spaces.copy()
 
         if session_results:
             results = dict(graph_outputs.get(key, {}))
@@ -352,25 +359,41 @@ class PublicSpacesDashboard(Dashboard):
                     "Neighborhood": get_neighborhood_availability,
                     "Commune": get_commune_availability,
                 }.pop(simulated_params.aggregation_level)
-                args = [radios, public_spaces, self.neighborhoods]
-                if simulated_params.aggregation_level == "Commune":
-                    args.append(self.communes)
                 availability_mapping = availability_function(
-                    *args, selected_typologies=simulated_params.typologies
+                    radios,
+                    public_spaces,
+                    self.neighborhoods,
+                    self.communes,
+                    selected_typologies=simulated_params.typologies,
                 )
             plot_kepler(availability_mapping, config)
         yield
 
         with st.spinner("⏳ Loading..."):
             if (isochrone_gdf := results.get("isochrone_mapping")) is None:
+                reference_outputs = None
+                if reference_key is not None:
+                    try:
+                        graph_outputs = st.session_state.graph_outputs or graph_outputs
+                        reference_outputs = graph_outputs[reference_key]
+                        public_spaces = gdf_diff(
+                            public_spaces, reference_outputs.public_spaces, "clasificac"
+                        )
+                    except KeyError:
+                        logging.warn(f"Reference key {reference_key} doesn't exist.")
                 public_spaces_points = public_spaces.copy().dropna(subset=["geometry"])
                 public_spaces_points.geometry = geometry_centroid(public_spaces_points)
                 isochrone_gdf = isochrone_mapping(
                     public_spaces_points, node_tag_name="nombre"
                 )
+                if reference_outputs is not None:
+                    isochrone_gdf = isochrone_overlap(
+                        isochrone_gdf, reference_outputs.isochrone_mapping
+                    )
             plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
 
             results = ResultsColumnPlots(
+                public_spaces=public_spaces_,
                 percentage_vs_travel=percentage_vs_travel,
                 percentage_vs_area=percentage_vs_area,
                 availability_mapping=availability_mapping,
@@ -581,6 +604,7 @@ class PublicSpacesDashboard(Dashboard):
                 key="action_zone_t1",
                 filter_column=simulated_params.process,
                 zone=simulated_params.action_zone,
+                reference_key="action_zone_t0",
             )
             while True:
                 try:

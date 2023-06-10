@@ -54,6 +54,7 @@ class GreenSurfacesSimulationParameters(BaseModel):
 
 
 class ResultsColumnPlots(BaseModel):
+    public_spaces: gpd.GeoDataFrame
     percentage_vs_travel: go.Figure
     percentage_vs_area: go.Figure
     availability_mapping: gpd.GeoDataFrame

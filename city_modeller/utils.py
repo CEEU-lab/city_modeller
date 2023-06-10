@@ -197,3 +197,22 @@ def plot_kepler(data: gpd.GeoDataFrame, config: dict) -> None:
     kepler = KeplerGl(height=500, data={"data": data_}, config=config, show_docs=False)
     keplergl_static(kepler)
     kepler.add_data(data=data_)
+
+
+def gdf_diff(
+    gdf_new: gpd.GeoDataFrame,
+    gdf_old: gpd.GeoDataFrame,
+    diff_col: str,
+    geometry_col: str = "geometry",
+) -> gpd.GeoDataFrame:
+    gdf = (
+        gdf_new.set_geometry(geometry_col)
+        .merge(
+            gdf_old,
+            how="left",
+            suffixes=["", "_old"],
+            on=geometry_col,
+        )
+        .query(f"{diff_col}_old.isnull()")
+    )
+    return gdf[[col for col in gdf.columns if not col.endswith("_old")]]

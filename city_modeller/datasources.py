@@ -98,7 +98,7 @@ def get_public_space(
     """
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} no contiene un geojson, descargando de {url_home}...")
+        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
         url = (
             f"{url_home}datosabiertos/datasets/"
             "secretaria-de-desarrollo-urbano/espacios-verdes/"
@@ -155,7 +155,7 @@ def get_neighborhoods() -> gpd.GeoDataFrame:
 def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame:
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} no contiene un geojson, descargando de {url_home}...")
+        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
         url = (
             f"{url_home}datosabiertos/datasets/"
             "ministerio-de-educacion/comunas/comunas.geojson"
@@ -174,7 +174,7 @@ def get_radio_availability(
     _radios: gpd.GeoDataFrame,
     _public_spaces: gpd.GeoDataFrame,
     _neighborhoods: gpd.GeoDataFrame,
-    *,
+    _: Optional[gpd.GeoDataFrame] = None,
     selected_typologies: Optional[List[str]] = None,
 ) -> gpd.GeoDataFrame:
     if selected_typologies is not None:
@@ -218,7 +218,7 @@ def get_neighborhood_availability(
     radios: gpd.GeoDataFrame,
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
-    *,
+    _: Optional[gpd.GeoDataFrame] = None,
     selected_typologies: Optional[List] = None,
     radio_availability: Optional[gpd.GeoDataFrame] = None,
 ) -> gpd.GeoDataFrame:

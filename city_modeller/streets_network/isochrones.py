@@ -136,6 +136,20 @@ def isochrone_mapping(
     )
 
 
+def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1):
+    isochrone_mapping_0 = isochrone_mapping_0.copy()
+    isochrone_mapping_1 = isochrone_mapping_1.copy()
+    isochrone_mapping_0[["name", "point_index"]] = "new", 0
+    isochrone_mapping_0.time = isochrone_mapping_0.time.astype(int)
+    isochrone_mapping_1[["name", "point_index"]] = "old", 1
+    isochrone_mapping_1.time = isochrone_mapping_1.time.astype(int)
+    return merging_overlapping_rings_inter(
+        decouple_overlapping_rings_intra(
+            pd.concat([isochrone_mapping_1, isochrone_mapping_0])
+        )
+    )
+
+
 def social_impact(
     park_tipology: Optional[list],
     public_spaces: gpd.GeoDataFrame,
