@@ -151,23 +151,27 @@ def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1):
 
 
 def social_impact(
+    selected_process: Optional[str],    
     park_tipology: Optional[list],
     public_spaces: gpd.GeoDataFrame,
     availability_ratio: gpd.GeoDataFrame,
     neighborhood: Optional[list] = None,
     commune: Optional[list] = None,
 ) -> gpd.GeoDataFrame:
-    availability_ratio = get_radio_availability()
+    availability_ratio = availability_ratio
     public_spaces["geometry_centroid"] = public_spaces.geometry.centroid
-    list_park_tipology = list(park_tipology)
-    if commune is not None:
+    list_park_tipology = (park_tipology)
+    list_neighborhood = (neighborhood)
+    list_commune = list(commune)
+
+    if selected_process == "Commune":
         public_space_sel = public_spaces[
-            (public_spaces.Commune == str(commune))
+            (public_spaces.Commune.isin(list_commune))
             & (public_spaces.clasificac.isin(list_park_tipology))
         ]
-    elif neighborhood is not None:
+    elif selected_process == "Neighborhood":
         public_space_sel = public_spaces[
-            (public_spaces.Neighborhood == str(neighborhood))
+            (public_spaces.Neighborhood.isin(list_neighborhood))
             & (public_spaces.clasificac.isin(list_park_tipology))
         ]
 
@@ -203,10 +207,9 @@ def social_impact(
         axis=1,
     )
     list_surrounding_nb = availability_ratio[
-        availability_ratio.geometry_wo_ps_int_iso_5 != 0
-    ].Neighborhoods.unique()
+        availability_ratio.geometry_wo_ps_int_iso_5 != 0].loc[:,"Neighborhood"].unique()
     isochrone_surrounding_nb = isochrone_mapping(
-        public_space_sel[(public_space_sel.Neighborhood.isin(list_surrounding_nb))],
+        public_spaces[(public_spaces.Neighborhood.isin(list_surrounding_nb))&(public_spaces.clasificac.isin(list_park_tipology))],
         wt=[5, 10, 15],
         node_tag_name="nombre",
         geometry_columns="geometry_centroid",
