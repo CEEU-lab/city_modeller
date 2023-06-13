@@ -714,51 +714,69 @@ class PublicSpacesDashboard(Dashboard):
             public_spaces=current_parks,
         )
         parks_simulation["Neighborhood"] = self.neighborhoods.apply(
-        lambda x: x["geometry"].contains(parks_simulation.geometry.centroid), axis=1
-    ).T.dot(self.neighborhoods.Neighborhood)
-        
+            lambda x: x["geometry"].contains(parks_simulation.geometry.centroid), axis=1
+        ).T.dot(self.neighborhoods.Neighborhood)
+
         with st.container():
             # current_col, simulation_col = st.columns(2)
-            current_parks_social_impact=social_impact(
-                    selected_process= simulated_params.process,
-                    park_tipology=list(simulated_params.typologies.keys()),
-                    commune=simulated_params.action_zone,
-                    public_spaces = current_parks,
-                    availability_ratio = self.radio_availability,
-                    neighborhood = simulated_params.action_zone)
-            simulated_parks_social_impact=social_impact(
-                    selected_process= simulated_params.process,
-                    park_tipology=list(simulated_params.typologies.keys()),
-                    commune=simulated_params.action_zone,
-                    public_spaces = current_parks,
-                    availability_ratio = self.radio_availability,
-                    neighborhood = simulated_params.action_zone)
-            iso_5_sum_current = current_parks_social_impact['cant_hab_afect_iso_5'].sum()
-            iso_10_sum_current  = iso_5_sum_current+current_parks_social_impact['cant_hab_afect_iso_10'].sum()
-            iso_15_sum_current  = iso_10_sum_current+current_parks_social_impact['cant_hab_afect_iso_15'].sum()
-            iso_5_sum_simulated = simulated_parks_social_impact['cant_hab_afect_iso_5'].sum()
-            iso_10_sum_simulated = iso_5_sum_simulated+simulated_parks_social_impact['cant_hab_afect_iso_10'].sum()
-            iso_15_sum_simulated = iso_10_sum_simulated+simulated_parks_social_impact['cant_hab_afect_iso_15'].sum()
-
-             
-            
+            current_parks_social_impact = social_impact(
+                selected_process=simulated_params.process,
+                park_tipology=list(simulated_params.typologies.keys()),
+                commune=simulated_params.action_zone,
+                public_spaces=current_parks,
+                availability_ratio=self.radio_availability,
+                neighborhood=simulated_params.action_zone,
+            )
+            simulated_parks_social_impact = social_impact(
+                selected_process=simulated_params.process,
+                park_tipology=list(simulated_params.typologies.keys()),
+                commune=simulated_params.action_zone,
+                public_spaces=current_parks,
+                availability_ratio=self.radio_availability,
+                neighborhood=simulated_params.action_zone,
+            )
+            iso_5_sum_current = current_parks_social_impact[
+                "cant_hab_afect_iso_5"
+            ].sum()
+            iso_10_sum_current = (
+                iso_5_sum_current
+                + current_parks_social_impact["cant_hab_afect_iso_10"].sum()
+            )
+            iso_15_sum_current = (
+                iso_10_sum_current
+                + current_parks_social_impact["cant_hab_afect_iso_15"].sum()
+            )
+            iso_5_sum_simulated = simulated_parks_social_impact[
+                "cant_hab_afect_iso_5"
+            ].sum()
+            iso_10_sum_simulated = (
+                iso_5_sum_simulated
+                + simulated_parks_social_impact["cant_hab_afect_iso_10"].sum()
+            )
+            iso_15_sum_simulated = (
+                iso_10_sum_simulated
+                + simulated_parks_social_impact["cant_hab_afect_iso_15"].sum()
+            )
 
             # Generate data for the bar graph
-            x = ['Impact 5 min Isochrone', 'Impact 10 min Isochrone', 'Impact 15 min Isochrone']
+            x = [
+                "Impact 5 min Isochrone",
+                "Impact 10 min Isochrone",
+                "Impact 15 min Isochrone",
+            ]
             y1 = [iso_5_sum_current, iso_10_sum_current, iso_15_sum_current]
-            y2 = [iso_5_sum_simulated,iso_10_sum_simulated,iso_15_sum_simulated]
-            
+            y2 = [iso_5_sum_simulated, iso_10_sum_simulated, iso_15_sum_simulated]
 
             # Create a figure object
             fig = go.Figure()
 
             # Add the bar traces for each group
-            fig.add_trace(go.Bar(x=x, y=y1, name='Current Isochrone'))
-            fig.add_trace(go.Bar(x=x, y=y2, name='Simulated Isochrone'))
-            
+            fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
+            fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone"))
 
             # Set the layout
-            fig.update_layout(barmode='group')
+            fig.update_layout(barmode="group")
+            st.plotly_chart(fig)
 
     def dashboard_header(self) -> None:
         section_header(
