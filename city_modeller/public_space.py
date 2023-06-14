@@ -702,7 +702,6 @@ class PublicSpacesDashboard(Dashboard):
             )
             return
         simulated_params = st.session_state.simulated_params
-        current_col, simulation_col = st.columns(2)
         current_parks = self.current_parks(
             simulated_params.typologies,
             simulated_params.process,
@@ -718,7 +717,6 @@ class PublicSpacesDashboard(Dashboard):
         ).T.dot(self.neighborhoods.Neighborhood)
 
         with st.container():
-            # current_col, simulation_col = st.columns(2)
             current_parks_social_impact = social_impact(
                 selected_process=simulated_params.process,
                 park_tipology=list(simulated_params.typologies.keys()),
@@ -759,11 +757,7 @@ class PublicSpacesDashboard(Dashboard):
             )
 
             # Generate data for the bar graph
-            x = [
-                "Impact 5 min Isochrone",
-                "Impact 10 min Isochrone",
-                "Impact 15 min Isochrone",
-            ]
+            x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
             y1 = [iso_5_sum_current, iso_10_sum_current, iso_15_sum_current]
             y2 = [iso_5_sum_simulated, iso_10_sum_simulated, iso_15_sum_simulated]
 
