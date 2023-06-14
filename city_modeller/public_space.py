@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from shapely.geometry import MultiPoint, Polygon, shape
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 from city_modeller.base import Dashboard
 from city_modeller.datasources import (
@@ -32,7 +33,6 @@ from city_modeller.schemas.public_space import (
 from city_modeller.streets_network.isochrones import (
     isochrone_mapping,
     isochrone_overlap,
-    social_impact,
 )
 from city_modeller.utils import (
     distancia_mas_cercano,
@@ -389,7 +389,7 @@ class PublicSpacesDashboard(Dashboard):
                             logging.warn(
                                 f"Reference key {reference_key} doesn't exist."
                             )
-                    public_spaces_points = public_spaces.copy().dropna(
+                    public_spaces_points = public_spaces.query("visible").copy().dropna(
                         subset=["geometry"]
                     )
                     public_spaces_points.geometry = geometry_centroid(
@@ -434,6 +434,104 @@ class PublicSpacesDashboard(Dashboard):
             df[selected_process].unique(),
             default=default_value,
         )
+
+    def _social_impact(
+        self,
+        public_spaces: gpd.GeoDataFrame,
+        typologies: dict[str, bool],
+        process: str,
+        action_zone: list[str],
+        isochrone_enabled: bool,
+        isochrone_key: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
+        # Original isochrone.
+        MINUTES = [5, 10, 15]
+        graph_outputs = st.session_state.graph_outputs or {}
+        radio_availability = self.radio_availability.copy()
+        if (
+            isochrone_key is not None
+            and (results := graph_outputs.get(isochrone_key)) is not None
+            and isochrone_enabled
+        ):
+            isochrone_public_space = results.isochrone_mapping
+        else:
+            public_spaces_points = (
+                public_spaces.query("visible").copy().dropna(subset=["geometry"])
+            )
+            public_spaces_points.geometry = geometry_centroid(public_spaces_points)
+
+            isochrone_public_space = isochrone_mapping(
+                public_spaces_points, node_tag_name="nombre"
+            )
+
+        # Operations
+        public_spaces_unary = unary_union(public_spaces.geometry)
+        radio_availability["geometry_wo_ps"] = radio_availability.apply(
+            lambda x: ((x["geometry"]).difference(public_spaces_unary)), axis=1
+        )
+        for row, minutes in enumerate(MINUTES):
+            radio_availability[
+                f"geometry_wo_ps_int_iso_{minutes}"
+            ] = radio_availability.apply(
+                lambda x: (
+                    (x["geometry_wo_ps"]).intersection(
+                        isochrone_public_space.iloc[row, 1]
+                    )
+                ).area
+                * (10**10),
+                axis=1,
+            )
+
+        # Surrounding nbs
+        if (
+            isochrone_surrounding_nb := graph_outputs.get("surrounding_isochrone")
+        ) is None:
+            surrounding_nb = (
+                radio_availability[radio_availability.geometry_wo_ps_int_iso_5 != 0]
+                .loc[:, "Neighborhood"]
+                .unique()
+            )
+            surrounding_spaces = self._visible_column(
+                self.public_spaces, typologies
+            ).query("visible")
+            surrounding_spaces = surrounding_spaces[
+                (~surrounding_spaces[process].isin(action_zone))
+                & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
+            ]
+            surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
+            isochrone_surrounding_nb = isochrone_mapping(
+                surrounding_spaces,
+                node_tag_name="nombre",
+            )
+            graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
+            st.session_state.graph_outputs = graph_outputs
+
+        # Operations on isochrone.
+        isochrone_full = isochrone_overlap(
+            isochrone_surrounding_nb, isochrone_public_space
+        )
+        for row, minutes in enumerate(MINUTES):
+            radio_availability[
+                f"geometry_wo_ps_int_iso_{minutes}"
+            ] = radio_availability.apply(
+                lambda x: (
+                    (x["geometry_wo_ps"]).intersection(isochrone_full.iloc[row, 1])
+                ).area
+                * (10**10),
+                axis=1,
+            )
+            radio_availability["geometry_wo_ps_area"] = radio_availability[
+                "geometry_wo_ps"
+            ].area * (10**10)
+            radio_availability[f"ratio_geometry_wo_ps_int_iso_{minutes}"] = (
+                radio_availability[f"geometry_wo_ps_int_iso_{minutes}"]
+                / radio_availability["geometry_wo_ps_area"]
+            )
+            radio_availability[f"cant_hab_afect_iso_{minutes}"] = (
+                radio_availability[f"ratio_geometry_wo_ps_int_iso_{minutes}"]
+                * radio_availability["TOTAL_VIV"]
+            )
+        return radio_availability
 
     def current_parks(
         self,
@@ -602,6 +700,12 @@ class PublicSpacesDashboard(Dashboard):
             simulated_params.typologies,
             public_spaces=current_parks,
         )
+        if current_parks.query("visible and clasificac.notnull()").empty:
+            st.error(
+                "The combination of Action Zone and Typologies doesn't have any green "
+                "surfaces. Please adjust your simulation."
+            )
+            return
 
         with st.container():
             current_col, simulation_col = st.columns(2)
@@ -664,6 +768,16 @@ class PublicSpacesDashboard(Dashboard):
                 simulated_params.process,
                 simulated_params.reference_zone,
             )
+            for zone_name, df in {
+                "Reference Zone": reference_parks,
+                "Action Zone": parks_simulation,
+            }.items():
+                if df.query("visible and clasificac.notnull()").empty:
+                    st.error(
+                        f"The combination of {zone_name} and Typologies doesn't have "
+                        "any green surfaces. Please adjust your simulation."
+                    )
+                    return
 
             with st.container():
                 reference_zone_col, action_zone_col = st.columns(2)
@@ -712,54 +826,57 @@ class PublicSpacesDashboard(Dashboard):
             simulated_params.typologies,
             public_spaces=current_parks,
         )
-        parks_simulation["Neighborhood"] = self.neighborhoods.apply(
-            lambda x: x["geometry"].contains(parks_simulation.geometry.centroid), axis=1
-        ).T.dot(self.neighborhoods.Neighborhood)
+        if current_parks.query("visible and clasificac.notnull()").empty:
+            st.error(
+                "The combination of Action Zone and Typologies doesn't have any green "
+                "surfaces. Please adjust your simulation."
+            )
+            return
 
         with st.container():
-            current_parks_social_impact = social_impact(
-                selected_process=simulated_params.process,
-                park_tipology=list(simulated_params.typologies.keys()),
-                commune=simulated_params.action_zone,
+            current_parks_social_impact = self._social_impact(
                 public_spaces=current_parks,
-                availability_ratio=self.radio_availability,
-                neighborhood=simulated_params.action_zone,
+                typologies=simulated_params.typologies,
+                process=simulated_params.process,
+                action_zone=simulated_params.action_zone,
+                isochrone_enabled=simulated_params.isochrone_enabled,
+                isochrone_key="action_zone_t0",
             )
-            simulated_parks_social_impact = social_impact(
-                selected_process=simulated_params.process,
-                park_tipology=list(simulated_params.typologies.keys()),
-                commune=simulated_params.action_zone,
-                public_spaces=current_parks,
-                availability_ratio=self.radio_availability,
-                neighborhood=simulated_params.action_zone,
+            simulated_parks_social_impact = self._social_impact(
+                public_spaces=parks_simulation,
+                typologies=simulated_params.typologies,
+                process=simulated_params.process,
+                action_zone=simulated_params.action_zone,
+                isochrone_enabled=simulated_params.isochrone_enabled,
+                isochrone_key="action_zone_t1",
             )
-            iso_5_sum_current = current_parks_social_impact[
-                "cant_hab_afect_iso_5"
-            ].sum()
-            iso_10_sum_current = (
-                iso_5_sum_current
-                + current_parks_social_impact["cant_hab_afect_iso_10"].sum()
+            current_parks_results = (
+                current_parks_social_impact[
+                    [
+                        col
+                        for col in current_parks_social_impact.columns
+                        if "cant_hab_afect_iso" in col
+                    ]
+                ]
+                .sum()
+                .cumsum()
             )
-            iso_15_sum_current = (
-                iso_10_sum_current
-                + current_parks_social_impact["cant_hab_afect_iso_15"].sum()
-            )
-            iso_5_sum_simulated = simulated_parks_social_impact[
-                "cant_hab_afect_iso_5"
-            ].sum()
-            iso_10_sum_simulated = (
-                iso_5_sum_simulated
-                + simulated_parks_social_impact["cant_hab_afect_iso_10"].sum()
-            )
-            iso_15_sum_simulated = (
-                iso_10_sum_simulated
-                + simulated_parks_social_impact["cant_hab_afect_iso_15"].sum()
+            simulated_parks_results = (
+                simulated_parks_social_impact[
+                    [
+                        col
+                        for col in simulated_parks_social_impact.columns
+                        if "cant_hab_afect_iso" in col
+                    ]
+                ]
+                .sum()
+                .cumsum()
             )
 
             # Generate data for the bar graph
             x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
-            y1 = [iso_5_sum_current, iso_10_sum_current, iso_15_sum_current]
-            y2 = [iso_5_sum_simulated, iso_10_sum_simulated, iso_15_sum_simulated]
+            y1 = current_parks_results
+            y2 = simulated_parks_results
 
             # Create a figure object
             fig = go.Figure()
@@ -770,7 +887,7 @@ class PublicSpacesDashboard(Dashboard):
 
             # Set the layout
             fig.update_layout(barmode="group")
-            st.plotly_chart(fig)
+            st.plotly_chart(fig, use_container_width=True)
 
     def dashboard_header(self) -> None:
         section_header(
