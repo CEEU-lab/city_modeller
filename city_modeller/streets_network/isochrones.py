@@ -1,3 +1,5 @@
+from typing import Literal
+
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
@@ -6,10 +8,16 @@ from shapely.geometry import Point
 
 
 def get_isochrone(
-    lon, lat, walk_times=[15, 30], speed=4.5, name=None, point_index=None
+    lon,
+    lat,
+    walk_times: list[int] = [15, 30],
+    speed: float = 4.5,
+    network_type: Literal["walk", "drive", "bike"] = "walk",
+    name=None,
+    point_index=None,
 ):
     loc = (lat, lon)
-    G = ox.graph_from_point(loc, simplify=True, network_type="walk")
+    G = ox.graph_from_point(loc, simplify=True, network_type=network_type)
     # gdf_nodes = ox.graph_to_gdfs(G, edges=False)
     center_node = ox.distance.nearest_nodes(G, lon, lat)
 
@@ -32,7 +40,12 @@ def get_isochrone(
 
 
 def apply_isochrones_gdf(
-    gdf_point, geometry_columns="geometry", node_tag_name="name", WT=[5, 10, 15]
+    gdf_point,
+    geometry_columns="geometry",
+    node_tag_name="name",
+    WT=[5, 10, 15],
+    speed: float = 4.5,
+    network_type: Literal["walk", "drive", "bike"] = "walk",
 ):
     isochrones = pd.concat(
         [
@@ -43,6 +56,8 @@ def apply_isochrones_gdf(
                     name=r[node_tag_name],
                     point_index=i,
                     walk_times=WT,
+                    speed=speed,
+                    network_type=network_type,
                 ),
                 crs=gdf_point.crs,
             )
@@ -115,6 +130,8 @@ def merging_overlapping_rings_inter(gdf):
 def isochrone_mapping(
     gdf_point: gpd.GeoDataFrame,
     wt: list = [5, 10, 15],
+    speed: float = 4.5,
+    network_type: Literal["walk", "drive", "bike"] = "walk",
     node_tag_name: str = "name",
     geometry_columns: str = "geometry",
 ) -> gpd.GeoDataFrame:
@@ -125,6 +142,8 @@ def isochrone_mapping(
                 geometry_columns=geometry_columns,
                 node_tag_name=node_tag_name,
                 WT=wt,
+                speed=speed,
+                network_type=network_type,
             ),
             WT=wt,
         )

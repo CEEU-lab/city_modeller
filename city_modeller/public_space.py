@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import geojson
 import geopandas as gpd
@@ -315,7 +315,8 @@ class PublicSpacesDashboard(Dashboard):
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
         )
-        speed = simulated_params.movility_type.value
+        speed = simulated_params.movility_type.speed
+        network_type = simulated_params.movility_type.network_type
         session_results = key is not None
         graph_outputs = st.session_state.graph_outputs or {}
         config = {
@@ -398,7 +399,10 @@ class PublicSpacesDashboard(Dashboard):
                         public_spaces_points
                     )
                     isochrone_gdf = isochrone_mapping(
-                        public_spaces_points, node_tag_name="nombre"
+                        public_spaces_points,
+                        node_tag_name="nombre",
+                        speed=speed,
+                        network_type=network_type,
                     )
                     if reference_outputs is not None:
                         isochrone_gdf = isochrone_overlap(
@@ -443,6 +447,8 @@ class PublicSpacesDashboard(Dashboard):
         typologies: dict[str, bool],
         process: str,
         action_zone: list[str],
+        speed: float,
+        network_type: Literal["walk", "drive", "bike"],
         isochrone_enabled: bool,
         isochrone_key: Optional[str] = None,
     ) -> gpd.GeoDataFrame:
@@ -463,7 +469,10 @@ class PublicSpacesDashboard(Dashboard):
             public_spaces_points.geometry = geometry_centroid(public_spaces_points)
 
             isochrone_public_space = isochrone_mapping(
-                public_spaces_points, node_tag_name="nombre"
+                public_spaces_points,
+                speed=speed,
+                network_type=network_type,
+                node_tag_name="nombre",
             )
 
         # Operations
@@ -501,20 +510,26 @@ class PublicSpacesDashboard(Dashboard):
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
+            print(surrounding_spaces)
+            print(isochrone_public_space)
             try:
                 isochrone_surrounding_nb = isochrone_mapping(
                     surrounding_spaces,
+                    speed=speed,
+                    network_type=network_type,
                     node_tag_name="nombre",
                 )
-                graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
-                st.session_state.graph_outputs = graph_outputs
-
-                # Operations on isochrone.
-                isochrone_full = isochrone_overlap(
-                    isochrone_surrounding_nb, isochrone_public_space
-                )
             except ValueError:
-                isochrone_full = isochrone_public_space
+                isochrone_surrounding_nb = gpd.GeoDataFrame()
+            graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
+            st.session_state.graph_outputs = graph_outputs
+        # Operations on isochrone.
+        if not isochrone_surrounding_nb.empty:
+            isochrone_full = isochrone_overlap(
+                isochrone_surrounding_nb, isochrone_public_space
+            )
+        else:
+            isochrone_full = isochrone_public_space
 
         for row, minutes in enumerate(MINUTES):
             radio_availability[
@@ -677,7 +692,7 @@ class PublicSpacesDashboard(Dashboard):
                                 typologies=deepcopy(mask_dict),
                                 movility_type=MovilityType[
                                     movility_type.replace(" ", "_").upper()
-                                ].value,
+                                ],
                                 process=selected_process,
                                 action_zone=tuple(action_zone),
                                 simulated_surfaces=user_input.copy(),
@@ -847,6 +862,8 @@ class PublicSpacesDashboard(Dashboard):
                 action_zone=simulated_params.action_zone,
                 isochrone_enabled=simulated_params.isochrone_enabled,
                 isochrone_key="action_zone_t0",
+                speed=simulated_params.movility_type.speed,
+                network_type=simulated_params.movility_type.network_type,
             )
             simulated_parks_social_impact = self._social_impact(
                 public_spaces=parks_simulation,
@@ -855,6 +872,8 @@ class PublicSpacesDashboard(Dashboard):
                 action_zone=simulated_params.action_zone,
                 isochrone_enabled=simulated_params.isochrone_enabled,
                 isochrone_key="action_zone_t1",
+                speed=simulated_params.movility_type.speed,
+                network_type=simulated_params.movility_type.network_type,
             )
             current_parks_results = (
                 current_parks_social_impact[

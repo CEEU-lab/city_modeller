@@ -31,11 +31,16 @@ EXAMPLE_INPUT = pd.DataFrame(
 )
 
 
+class MovilityNetwork(BaseModel):
+    speed: float
+    network_type: Literal["walk", "drive", "bike"]
+
+
 class MovilityType(Enum):
-    WALK = 5
-    CAR = 25
-    BIKE = 10
-    PUBLIC_TRANSPORT = 15
+    WALK = MovilityNetwork(speed=4.5, network_type="walk")
+    CAR = MovilityNetwork(speed=25, network_type="drive")
+    BIKE = MovilityNetwork(speed=10, network_type="bike")
+    PUBLIC_TRANSPORT = MovilityNetwork(speed=15, network_type="drive")
 
 
 class GreenSurfacesSimulationParameters(BaseModel):
@@ -51,6 +56,7 @@ class GreenSurfacesSimulationParameters(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+        use_enum_values = True
         extra = Extra.forbid
 
 
