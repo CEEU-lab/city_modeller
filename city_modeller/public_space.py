@@ -389,8 +389,10 @@ class PublicSpacesDashboard(Dashboard):
                             logging.warn(
                                 f"Reference key {reference_key} doesn't exist."
                             )
-                    public_spaces_points = public_spaces.query("visible").copy().dropna(
-                        subset=["geometry"]
+                    public_spaces_points = (
+                        public_spaces.query("visible")
+                        .copy()
+                        .dropna(subset=["geometry"])
                     )
                     public_spaces_points.geometry = geometry_centroid(
                         public_spaces_points
@@ -499,17 +501,21 @@ class PublicSpacesDashboard(Dashboard):
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
-            isochrone_surrounding_nb = isochrone_mapping(
-                surrounding_spaces,
-                node_tag_name="nombre",
-            )
-            graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
-            st.session_state.graph_outputs = graph_outputs
+            try:
+                isochrone_surrounding_nb = isochrone_mapping(
+                    surrounding_spaces,
+                    node_tag_name="nombre",
+                )
+                graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
+                st.session_state.graph_outputs = graph_outputs
 
-        # Operations on isochrone.
-        isochrone_full = isochrone_overlap(
-            isochrone_surrounding_nb, isochrone_public_space
-        )
+                # Operations on isochrone.
+                isochrone_full = isochrone_overlap(
+                    isochrone_surrounding_nb, isochrone_public_space
+                )
+            except ValueError:
+                isochrone_full = isochrone_public_space
+
         for row, minutes in enumerate(MINUTES):
             radio_availability[
                 f"geometry_wo_ps_int_iso_{minutes}"
@@ -877,17 +883,20 @@ class PublicSpacesDashboard(Dashboard):
             x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
             y1 = current_parks_results
             y2 = simulated_parks_results
+            percentage_increase = "+" + ((y2 / y1 - 1) * 100).round(2).astype(str) + "%"
 
             # Create a figure object
             fig = go.Figure()
 
             # Add the bar traces for each group
             fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
-            fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone"))
+            fig.add_trace(
+                go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase)
+            )
 
             # Set the layout
-            fig.update_layout(barmode="group")
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(barmode="group", height=600)
+            st.plotly_chart(fig, use_container_width=True, height=600)
 
     def dashboard_header(self) -> None:
         section_header(
