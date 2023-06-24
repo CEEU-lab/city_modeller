@@ -10,22 +10,28 @@ from shapely.geometry import Point
 def get_isochrone(
     lon,
     lat,
-    walk_times: list[int] = [15, 30],
+    travel_times: list[int] = [5, 10, 15],
     speed: float = 4.5,
     network_type: Literal["walk", "drive", "bike"] = "walk",
     name=None,
     point_index=None,
 ):
     loc = (lat, lon)
-    G = ox.graph_from_point(loc, simplify=True, network_type=network_type)
+    meters_per_minute = speed * 1000 / 60
+    G = ox.graph_from_point(
+        loc,
+        dist=meters_per_minute * max(travel_times),
+        simplify=True,
+        network_type=network_type,
+        dist_type="network",
+    )
     # gdf_nodes = ox.graph_to_gdfs(G, edges=False)
     center_node = ox.distance.nearest_nodes(G, lon, lat)
 
-    meters_per_minute = speed * 1000 / 60
     for _, _, _, data in G.edges(data=True, keys=True):
         data["time"] = data["length"] / meters_per_minute
     polys = []
-    for walk_time in walk_times:
+    for walk_time in travel_times:
         subgraph = nx.ego_graph(G, center_node, radius=walk_time, distance="time")
         node_points = [
             Point(data["x"], data["y"]) for _, data in subgraph.nodes(data=True)
@@ -33,17 +39,17 @@ def get_isochrone(
         polys.append(gpd.GeoSeries(node_points).unary_union.convex_hull)
     info = {}
     if name:
-        info["name"] = [name for t in walk_times]
+        info["name"] = [name for t in travel_times]
     if point_index:
-        info["point_index"] = [point_index for t in walk_times]
-    return {**{"geometry": polys, "time": walk_times}, **info}
+        info["point_index"] = [point_index for t in travel_times]
+    return {**{"geometry": polys, "time": travel_times}, **info}
 
 
 def apply_isochrones_gdf(
     gdf_point,
     geometry_columns="geometry",
     node_tag_name="name",
-    WT=[5, 10, 15],
+    travel_times=[5, 10, 15],
     speed: float = 4.5,
     network_type: Literal["walk", "drive", "bike"] = "walk",
 ):
@@ -55,7 +61,7 @@ def apply_isochrones_gdf(
                     r[geometry_columns].y,
                     name=r[node_tag_name],
                     point_index=i,
-                    walk_times=WT,
+                    travel_times=travel_times,
                     speed=speed,
                     network_type=network_type,
                 ),
@@ -67,16 +73,16 @@ def apply_isochrones_gdf(
     return isochrones
 
 
-def decouple_overlapping_rings_intra(isochrones, WT=[5, 10, 15]):
+def decouple_overlapping_rings_intra(isochrones, travel_times=[5, 10, 15]):
     gdf = (
         isochrones.set_index(["time", "point_index"]).copy().dropna(subset=["geometry"])
     )
-    for idx in range(len(WT) - 1, 0, -1):
-        gdf.loc[WT[idx], "geometry"] = (
-            gdf.loc[WT[idx]]
+    for idx in range(len(travel_times) - 1, 0, -1):
+        gdf.loc[travel_times[idx], "geometry"] = (
+            gdf.loc[travel_times[idx]]
             .apply(
                 lambda r: r["geometry"].symmetric_difference(
-                    gdf.loc[(WT[idx - 1], r.name), "geometry"]
+                    gdf.loc[(travel_times[idx - 1], r.name), "geometry"]
                 ),
                 axis=1,
             )
@@ -129,7 +135,7 @@ def merging_overlapping_rings_inter(gdf):
 
 def isochrone_mapping(
     gdf_point: gpd.GeoDataFrame,
-    wt: list = [5, 10, 15],
+    travel_times: list = [5, 10, 15],
     speed: float = 4.5,
     network_type: Literal["walk", "drive", "bike"] = "walk",
     node_tag_name: str = "name",
@@ -141,11 +147,11 @@ def isochrone_mapping(
                 gdf_point,
                 geometry_columns=geometry_columns,
                 node_tag_name=node_tag_name,
-                WT=wt,
+                travel_times=travel_times,
                 speed=speed,
                 network_type=network_type,
             ),
-            WT=wt,
+            travel_times=travel_times,
         )
     )
 
