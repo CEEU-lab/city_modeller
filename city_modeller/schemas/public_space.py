@@ -38,9 +38,9 @@ class MovilityNetwork(BaseModel):
 
 class MovilityType(Enum):
     WALK = MovilityNetwork(speed=4.5, network_type="walk")
-    CAR = MovilityNetwork(speed=25, network_type="drive")
+    CAR = MovilityNetwork(speed=20, network_type="drive")
     BIKE = MovilityNetwork(speed=10, network_type="bike")
-    PUBLIC_TRANSPORT = MovilityNetwork(speed=15, network_type="drive")
+    PUBLIC_TRANSPORT = MovilityNetwork(speed=12, network_type="drive")
 
 
 class GreenSurfacesSimulationParameters(BaseModel):
