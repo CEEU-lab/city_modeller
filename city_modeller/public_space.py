@@ -510,8 +510,6 @@ class PublicSpacesDashboard(Dashboard):
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
-            print(surrounding_spaces)
-            print(isochrone_public_space)
             try:
                 isochrone_surrounding_nb = isochrone_mapping(
                     surrounding_spaces,
