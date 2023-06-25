@@ -280,6 +280,7 @@ class PublicSpacesDashboard(Dashboard):
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
 
         data["Public Space Type"] = data["Public Space Type"].astype(park_cat_type)
+        data = data if not data.empty else EXAMPLE_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
@@ -310,7 +311,7 @@ class PublicSpacesDashboard(Dashboard):
         filter_column: Optional[str] = None,
         zone: Optional[list[str]] = None,
         reference_key: Optional[str] = None,
-    ) -> ResultsColumnPlots:
+    ) -> ResultsColumnPlots:  # TODO: Extract into functions.
         st.markdown(
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
@@ -398,15 +399,23 @@ class PublicSpacesDashboard(Dashboard):
                     public_spaces_points.geometry = geometry_centroid(
                         public_spaces_points
                     )
-                    isochrone_gdf = isochrone_mapping(
-                        public_spaces_points,
-                        node_tag_name="nombre",
-                        speed=speed,
-                        network_type=network_type,
+                    isochrone_gdf = (
+                        isochrone_mapping(
+                            public_spaces_points,
+                            node_tag_name="nombre",
+                            speed=speed,
+                            network_type=network_type,
+                        )
+                        if not public_spaces_points.empty
+                        else gpd.GeoDataFrame()
                     )
                     if reference_outputs is not None:
-                        isochrone_gdf = isochrone_overlap(
-                            isochrone_gdf, reference_outputs.isochrone_mapping
+                        isochrone_gdf = (
+                            isochrone_overlap(
+                                isochrone_gdf, reference_outputs.isochrone_mapping
+                            )
+                            if not isochrone_gdf.empty
+                            else reference_outputs.isochrone_mapping
                         )
                 plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
         else:
@@ -510,24 +519,24 @@ class PublicSpacesDashboard(Dashboard):
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
-            try:
-                isochrone_surrounding_nb = isochrone_mapping(
+            isochrone_surrounding_nb = (
+                isochrone_mapping(
                     surrounding_spaces,
                     speed=speed,
                     network_type=network_type,
                     node_tag_name="nombre",
                 )
-            except ValueError:
-                isochrone_surrounding_nb = gpd.GeoDataFrame()
+                if not surrounding_spaces.empty
+                else gpd.GeoDataFrame()
+            )
             graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
             st.session_state.graph_outputs = graph_outputs
         # Operations on isochrone.
-        if not isochrone_surrounding_nb.empty:
-            isochrone_full = isochrone_overlap(
-                isochrone_surrounding_nb, isochrone_public_space
-            )
-        else:
-            isochrone_full = isochrone_public_space
+        isochrone_full = (
+            isochrone_overlap(isochrone_surrounding_nb, isochrone_public_space)
+            if not isochrone_surrounding_nb.empty
+            else isochrone_public_space
+        )
 
         for row, minutes in enumerate(MINUTES):
             radio_availability[
