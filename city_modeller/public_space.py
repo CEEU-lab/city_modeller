@@ -646,7 +646,7 @@ class PublicSpacesDashboard(Dashboard):
                 )
                 isochrone_enabled = st.checkbox("Isochrone Enabled", True)
             with col1:
-                mask_dict = simulated_params.get("typologies", {})
+                mask_dict = deepcopy(simulated_params.get("typologies", {}))
                 st.markdown(
                     "<h3 style='text-align: left'>Typology</h3>",
                     unsafe_allow_html=True,
@@ -700,7 +700,7 @@ class PublicSpacesDashboard(Dashboard):
                         st.session_state.graph_outputs = None
                         st.session_state.simulated_params = (
                             GreenSurfacesSimulationParameters(
-                                typologies=deepcopy(mask_dict),
+                                typologies=mask_dict,
                                 movility_type=MovilityType[
                                     movility_type.replace(" ", "_").upper()
                                 ],
