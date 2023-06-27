@@ -246,7 +246,6 @@ def make_folium_circlemarker(
         for y, x, attr, idx, Date in zip(
             gdf["y"], gdf["x"], gdf[attr_name], gdf["panoId"], gdf["panoDate"]
         ):
-
             # TODO: Beautify the pop-up
             html = """panoId: %s<br>
             panoDate: %s<br>

@@ -5,15 +5,15 @@
             "filters": [],
             "layers": [
                 {
-                    "id": "0gw9qyb",
+                    "id": "s6rv38u",
                     "type": "geojson",
                     "config": {
                         "dataId": "data",
                         "label": "data",
                         "color": [
-                            77,
-                            193,
-                            156
+                            221,
+                            178,
+                            124
                         ],
                         "highlightColor": [
                             252,
@@ -30,21 +30,21 @@
                             "strokeOpacity": 0.8,
                             "thickness": 0.5,
                             "strokeColor": [
-                                119,
-                                110,
-                                87
+                                136,
+                                87,
+                                44
                             ],
                             "colorRange": {
-                                "name": "ColorBrewer YlGn-6",
+                                "name": "ColorBrewer RdPu-6",
                                 "type": "sequential",
                                 "category": "ColorBrewer",
                                 "colors": [
-                                    "#006837",
-                                    "#31a354",
-                                    "#78c679",
-                                    "#addd8e",
+                                    "#ffffff",
                                     "#d9f0a3",
-                                    "#ffffff"
+                                    "#addd8e",
+                                    "#78c679",
+                                    "#31a354",
+                                    "#006837"
                                 ]
                             },
                             "strokeColorRange": {
@@ -101,8 +101,8 @@
                     },
                     "visualChannels": {
                         "colorField": {
-                            "name": "distance",
-                            "type": "integer"
+                            "name": "green_surface",
+                            "type": "real"
                         },
                         "colorScale": "quantile",
                         "strokeColorField": null,
@@ -121,31 +121,19 @@
                     "fieldsToShow": {
                         "data": [
                             {
-                                "name": "id",
+                                "name": "Commune",
                                 "format": null
                             },
                             {
-                                "name": "nomloc",
+                                "name": "green_surface",
                                 "format": null
                             },
                             {
-                                "name": "nombre",
+                                "name": "TOTAL_VIV",
                                 "format": null
                             },
                             {
-                                "name": "area",
-                                "format": null
-                            },
-                            {
-                                "name": "clasificac",
-                                "format": null
-                            },
-                            {
-                                "name": "perimeter",
-                                "format": null
-                            },
-                            {
-                                "name": "prov",
+                                "name": "ratio",
                                 "format": null
                             }
                         ]
@@ -175,10 +163,10 @@
         "mapState": {
             "bearing": 0,
             "dragRotate": false,
-            "latitude": -34.67642207618893,
-            "longitude": -58.494571172379864,
+            "latitude": -34.616419225588054,
+            "longitude": -58.43332949773258,
             "pitch": 0,
-            "zoom": 11.158923414117682,
+            "zoom": 11,
             "isSplit": false
         },
         "mapStyle": {

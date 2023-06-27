@@ -3,9 +3,9 @@ import warnings
 import streamlit as st
 
 from city_modeller.datasources import (
-    filter_census_data,
     get_census_data,
-    get_bbox,
+    get_communes,
+    get_neighborhoods,
     get_public_space,
     get_GVI_treepedia_BsAs,
     get_air_quality_stations_BsAs,
@@ -18,7 +18,7 @@ from city_modeller.public_space import PublicSpacesDashboard
 from city_modeller.streets_greenery import GreenViewIndexDashboard
 from city_modeller.streets_network.utils import get_projected_crs
 from city_modeller.urban_valuation import UrbanValuationDashboard
-from city_modeller.utils import PROJECT_DIR, bound_multipol_by_bbox, init_package
+from city_modeller.utils import PROJECT_DIR, init_package
 
 warnings.filterwarnings("ignore", message="Geometry is in a geographic CRS")
 init_package(PROJECT_DIR)
@@ -40,10 +40,16 @@ def main():
     page = page_group("page")
     # Instanciate Dashboard subclasses.
     lp = LandingPageDashboard()
+    # Public Spaces
     ps = PublicSpacesDashboard(
-        radios=filter_census_data(get_census_data(), 8),
-        public_spaces=bound_multipol_by_bbox(get_public_space(), get_bbox([8])),
+        radios=get_census_data(),
+        public_spaces=get_public_space(),
+        neighborhoods=get_neighborhoods(),
+        communes=get_communes(),
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
+        config_radios_path=f"{PROJECT_DIR}/config/config_radio_av.json",
+        config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
+        config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
     )
     gvi = GreenViewIndexDashboard(
         streets_gdf=get_BsAs_streets(),

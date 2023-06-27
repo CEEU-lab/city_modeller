@@ -4,7 +4,6 @@ import time
 import numpy as np
 import pymeanshift as pms
 import requests
-import streamlit as st
 from PIL import Image
 
 from city_modeller.widgets import error_message
@@ -57,7 +56,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 
     # in case there is not panorama in the site, therefore, continue
     if data["status"] != "OK":
-        if allow_prints:  # TODO: Make widget with red text.
+        if allow_prints:
             error_message("Reference Point not available")
     else:
         # get the meta data of the panorama
@@ -66,7 +65,7 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
         panoLat = data["location"]["lat"]
         panoLon = data["location"]["lng"]
 
-        if allow_prints:  # TODO: Make widget with red text.
+        if allow_prints:
             error_message(
                 "The coordinate ({},{}), panoId is: {}, panoDate is: {}".format(
                     panoLon, panoLat, panoId, panoDate
@@ -77,7 +76,6 @@ def GSVpanoMetadataCollector(geom, api_key, allow_prints=False):
 
 
 def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
-
     """
     Calls the endpoint associated to the collected Panoramas and calculates
     Green View Index by calculating the green pixels average between all the
@@ -136,7 +134,7 @@ def GreenViewComputing_3Horizon(headingArr, panoId, pitch, api_key, numGSVImg):
 
         # if the GSV images are not download successfully or failed to run, then return
         # a null value
-        except:  # FIXME
+        except Exception:  # FIXME
             greenPercent = -1000
             captions.append(0)
             continue

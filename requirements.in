@@ -17,4 +17,6 @@ mapclassify
 rtree
 folium
 geojson
+osmnx
+pydantic
 # pymeanshift==0.2.2 in extras_require

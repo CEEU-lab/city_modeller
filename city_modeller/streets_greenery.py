@@ -29,7 +29,12 @@ from city_modeller.streets_network.utils import (
     registerAPIkey,
 )
 from city_modeller.utils import parse_config_json, from_wkt
-from city_modeller.widgets import download_csv, download_gdf, section_toggles
+from city_modeller.widgets import (
+    download_csv,
+    download_gdf,
+    section_header,
+    section_toggles,
+)
 
 
 HEADING_ANGLES = 3
@@ -963,35 +968,43 @@ class GreenViewIndexDashboard(Dashboard):
             )
             st.plotly_chart(fig)
 
-    def run_dashboard(self) -> None:
-        st.subheader("Streets Network attributes - Green View level 🌳")
-
-        with st.container():
-            st.write(
-                "Street greenery provides a series of benefits to urban residents, such"
-                + " as air quality, provision of shade, and aesthetic values."
-            )
-        (
-            simulation_toggle,
-            main_results_toggle,
-            zone_toggle,
-            impact_toggle,
-        ) = section_toggles(
-            ["Simulation frame", "Explore results", "Explore zones", "Explore impact"]
+    def dashboard_header(self) -> None:
+        section_header(
+            "Streets Network attributes - Green View level 🌳",
+            "Street greenery provides a series of benefits to urban residents, such"
+            " as air quality, provision of shade, and aesthetic values.",
         )
-        if simulation_toggle:
+
+    def dashboard_sections(self) -> None:
+        (
+            self.simulation_toggle,
+            self.main_results_toggle,
+            self.zone_toggle,
+            self.impact_toggle,
+        ) = section_toggles(
+            "streets_greenery",
+            ["Simulation Frame", "Explore Results", "Explore Zones", "Explore Impact"],
+        )
+
+    def run_dashboard(self) -> None:
+        self.dashboard_header()
+        self.dashboard_sections()
+
+        if self.simulation_toggle:
             self.simulation()
-        if main_results_toggle:
-            self.main_results(show_impact=impact_toggle, show_zones=zone_toggle)
-            if zone_toggle and impact_toggle:
+        if self.main_results_toggle:
+            self.main_results(
+                show_impact=self.impact_toggle, show_zones=self.zone_toggle
+            )
+            if self.zone_toggle and self.impact_toggle:
                 st.warning(
                     "Results must be explored at zone or impact level. Please, "
                     + " activate one of them only",
                     icon="⚠️",
                 )
-            elif zone_toggle and not impact_toggle:
+            elif self.zone_toggle and not self.impact_toggle:
                 self.zone()
-            elif impact_toggle and not zone_toggle:
+            elif self.impact_toggle and not self.zone_toggle:
                 self.impact()
 
 

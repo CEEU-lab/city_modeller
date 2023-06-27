@@ -5,15 +5,15 @@
             "filters": [],
             "layers": [
                 {
-                    "id": "0gw9qyb",
+                    "id": "r9mrfac",
                     "type": "geojson",
                     "config": {
                         "dataId": "data",
                         "label": "data",
                         "color": [
-                            77,
-                            193,
-                            156
+                            255,
+                            203,
+                            153
                         ],
                         "highlightColor": [
                             252,
@@ -30,21 +30,21 @@
                             "strokeOpacity": 0.8,
                             "thickness": 0.5,
                             "strokeColor": [
-                                119,
-                                110,
-                                87
+                                136,
+                                87,
+                                44
                             ],
                             "colorRange": {
                                 "name": "ColorBrewer YlGn-6",
                                 "type": "sequential",
                                 "category": "ColorBrewer",
                                 "colors": [
-                                    "#006837",
-                                    "#31a354",
-                                    "#78c679",
-                                    "#addd8e",
+                                    "#ffffcc",
                                     "#d9f0a3",
-                                    "#ffffff"
+                                    "#addd8e",
+                                    "#78c679",
+                                    "#31a354",
+                                    "#006837"
                                 ]
                             },
                             "strokeColorRange": {
@@ -52,12 +52,7 @@
                                 "type": "sequential",
                                 "category": "Uber",
                                 "colors": [
-                                    "#5A1846",
-                                    "#900C3F",
-                                    "#C70039",
-                                    "#E3611C",
-                                    "#F1920E",
-                                    "#FFC300"
+                                    "#000000"
                                 ]
                             },
                             "radius": 10,
@@ -101,8 +96,8 @@
                     },
                     "visualChannels": {
                         "colorField": {
-                            "name": "distance",
-                            "type": "integer"
+                            "name": "green_surface",
+                            "type": "string"
                         },
                         "colorScale": "quantile",
                         "strokeColorField": null,
@@ -121,31 +116,11 @@
                     "fieldsToShow": {
                         "data": [
                             {
-                                "name": "id",
+                                "name": "nomdepto",
                                 "format": null
                             },
                             {
-                                "name": "nomloc",
-                                "format": null
-                            },
-                            {
-                                "name": "nombre",
-                                "format": null
-                            },
-                            {
-                                "name": "area",
-                                "format": null
-                            },
-                            {
-                                "name": "clasificac",
-                                "format": null
-                            },
-                            {
-                                "name": "perimeter",
-                                "format": null
-                            },
-                            {
-                                "name": "prov",
+                                "name": "distance",
                                 "format": null
                             }
                         ]
@@ -175,10 +150,10 @@
         "mapState": {
             "bearing": 0,
             "dragRotate": false,
-            "latitude": -34.67642207618893,
-            "longitude": -58.494571172379864,
+            "latitude": -34.61924837118219,
+            "longitude": -58.405545747237376,
             "pitch": 0,
-            "zoom": 11.158923414117682,
+            "zoom": 10.71463444979278,
             "isSplit": false
         },
         "mapStyle": {

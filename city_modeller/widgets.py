@@ -1,3 +1,5 @@
+from typing import Optional
+
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
@@ -6,30 +8,24 @@ from streamlit_toggle import st_toggle_switch
 from city_modeller.utils import convert_df, gdf_to_shz
 
 
-def subsection_buttons(subsections: list[str]) -> list:
-    return [
-        st.sidebar.button(subsection, type="secondary", use_container_width=True)
-        for subsection in subsections
-    ]
-
-
-def section_toggles(sections: list[str]) -> list[bool]:
-    buttons = []
-    cols = st.columns(len(sections))
-    for i, section in enumerate(sections):
-        col = cols[i]
-        with col:
-            buttons.append(
-                st_toggle_switch(
-                    label=section.capitalize(),
-                    key=section.replace(" ", "-"),
-                    default_value=False,
-                    label_after=False,
-                    inactive_color="#D3D3D3",
-                    active_color="#11567f",
-                    track_color="#29B5E8",
+def section_toggles(page: str, sections: list[str]) -> list[bool]:
+    with st.container():
+        buttons = []
+        cols = st.columns(len(sections))
+        for i, section in enumerate(sections):
+            col = cols[i]
+            with col:
+                buttons.append(
+                    st_toggle_switch(
+                        label=section.title(),
+                        key=f"{page}-{section.replace(' ', '-')}",
+                        default_value=False,
+                        label_after=False,
+                        inactive_color="#D3D3D3",
+                        active_color="#11567f",
+                        track_color="#29B5E8",
+                    )
                 )
-            )
     return buttons
 
 
@@ -80,3 +76,10 @@ def download_gdf(gdf_points: gpd.GeoDataFrame) -> None:
         data=gdf_to_shz(gdf_points, name=ds_name),
         file_name=f"{ds_name}.shz",
     )
+
+
+def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> None:
+    kwargs = kwargs or {}
+    st.subheader(title)
+    if tooltip is not None:
+        st.write(tooltip, **kwargs)
