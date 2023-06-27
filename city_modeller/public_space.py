@@ -104,10 +104,13 @@ class PublicSpacesDashboard(Dashboard):
     def plot_pop_travel_time(
         distancias: gpd.GeoSeries,
         minutos: np.ndarray[int] = np.arange(1, 21),
-        speed: int = 5,
+        movility_type: MovilityType = MovilityType.WALK,
     ) -> tuple:
         """Generate population vs travel time to public spaces."""
-        prop = [pob_a_distancia(distancias, minuto, speed) for minuto in minutos]
+        prop = [
+            pob_a_distancia(distancias, minuto, movility_type.value.speed)
+            for minuto in minutos
+        ]
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
@@ -118,8 +121,9 @@ class PublicSpacesDashboard(Dashboard):
             )
         )
         fig.update_layout(
-            title="Percentage of population by travel minutes to the nearest park",
-            xaxis_title="Travel minutes",
+            title=f"Percentage of population by {movility_type.value.network_type} minutes to the "
+            + "nearest public space",
+            xaxis_title=f"{movility_type.value.network_type.title()} minutes",
             yaxis_title="Population (%)",
             title_x=0.5,
             title_xanchor="center",
@@ -133,7 +137,7 @@ class PublicSpacesDashboard(Dashboard):
         gdf_target: gpd.GeoDataFrame,
         areas: np.ndarray[int] = np.arange(100, 10000, 100),
         minutes: int = 5,
-        speed: int = 5,
+        movility_type: MovilityType = MovilityType.WALK,
     ) -> tuple:
         prop = []
         for area in areas:
@@ -146,14 +150,14 @@ class PublicSpacesDashboard(Dashboard):
                 ]
             )
             if not parques_mp_area.is_empty:
-                distancia_area = partial(
+                distance_to_area = partial(
                     distancia_mas_cercano, target_points=parques_mp_area
                 )
-                distancias = geom_source.map(distancia_area) * 100000
+                distances = geom_source.map(distance_to_area) * 100000
             else:
-                distancias = np.ones_like(geom_source) * np.inf
+                distances = np.ones_like(geom_source) * np.inf
 
-            prop.append(pob_a_distancia(distancias, minutes, speed))
+            prop.append(pob_a_distancia(distances, minutes, movility_type.value.speed))
 
         fig = go.Figure()
         fig.add_trace(
@@ -166,8 +170,8 @@ class PublicSpacesDashboard(Dashboard):
         )
         fig.update_layout(
             title=(
-                "Percentage of population 5 minutes or less from a public space "
-                "based on area"
+                f"Percentage of population {minutes} minutes or less from a public "
+                "space based on area"
             ),
             xaxis_title="Minimum Green Surface Size",
             yaxis_title=f"Population within {minutes} minutes (%)",
@@ -341,7 +345,7 @@ class PublicSpacesDashboard(Dashboard):
                 radios = filter_dataframe(self.radio_availability, filter_column, zone)
             percentage_vs_travel = self.plot_pop_travel_time(
                 self._distances(public_spaces, radios),
-                speed=speed,
+                movility_type=MovilityType.WALK,
             )
         st.plotly_chart(percentage_vs_travel)
         yield
@@ -350,7 +354,7 @@ class PublicSpacesDashboard(Dashboard):
             percentage_vs_area = self.plot_area_travel_time(
                 self._census_radio_points(radios=radios).geometry,
                 self.multipoint_gdf(public_spaces),
-                speed=speed,
+                movility_type=MovilityType.WALK,
             )
         st.plotly_chart(percentage_vs_area)
         yield
