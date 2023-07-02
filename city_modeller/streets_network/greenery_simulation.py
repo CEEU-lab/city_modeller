@@ -234,11 +234,11 @@ def VegetationClassification(Img):
         Img, spatial_radius=6, range_radius=7, min_density=40
     )
 
-    I = segmented_image / 255.0
+    normalized_s_image = segmented_image / 255.0
 
-    red = I[:, :, 0]
-    green = I[:, :, 1]
-    blue = I[:, :, 2]
+    red = normalized_s_image[:, :, 0]
+    green = normalized_s_image[:, :, 1]
+    blue = normalized_s_image[:, :, 2]
 
     # calculate the difference between green band with other two bands
     green_red_Diff = green - red
@@ -254,7 +254,7 @@ def VegetationClassification(Img):
     shadowRedU = red < 0.3
     shadowGreenU = green < 0.3
     shadowBlueU = blue < 0.3
-    del red, blue, green, I
+    del red, blue, green, normalized_s_image
 
     greenImg1 = redThreImgU * blueThreImgU * greenThreImgU
     greenImgShadow1 = shadowRedU * shadowGreenU * shadowBlueU

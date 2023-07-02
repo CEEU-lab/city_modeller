@@ -121,8 +121,8 @@ class PublicSpacesDashboard(Dashboard):
             )
         )
         fig.update_layout(
-            title=f"Percentage of population by {movility_type.value.network_type} minutes to the "
-            + "nearest public space",
+            title=f"Percentage of population by {movility_type.value.network_type} "
+            + "minutes to the nearest public space",
             xaxis_title=f"{movility_type.value.network_type.title()} minutes",
             yaxis_title="Population (%)",
             title_x=0.5,
