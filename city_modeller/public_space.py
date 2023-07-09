@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
 import geojson
 import geopandas as gpd
@@ -10,8 +10,7 @@ import osmnx as ox
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from shapely.geometry import MultiPoint, Polygon, shape
-from shapely.geometry.base import BaseGeometry
+from shapely.geometry import MultiPoint
 from shapely.ops import unary_union
 
 from city_modeller.base import ModelingDashboard
@@ -24,7 +23,7 @@ from city_modeller.datasources import (
     get_public_space,
     get_radio_availability,
 )
-from city_modeller.schemas.public_space import (
+from city_modeller.models.public_space import (
     EXAMPLE_INPUT,
     GreenSurfacesSimulationParameters,
     MovilityType,
@@ -43,6 +42,7 @@ from city_modeller.utils import (
     plot_kepler,
     pob_a_distancia,
     PROJECT_DIR,
+    read_kepler_geometry,
 )
 from city_modeller.widgets import error_message, section_header
 
@@ -173,15 +173,6 @@ class PublicSpacesDashboard(ModelingDashboard):
         return fig
 
     @staticmethod
-    def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
-        gjson = geojson.loads(geom)
-        if len(gjson["coordinates"][0]) < 4:
-            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
-            return
-        poly = Polygon(shape(gjson))
-        return poly if not poly.is_empty else None
-
-    @staticmethod
     def multipoint_gdf(public_spaces: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         public_space_points = public_spaces.copy().dropna(subset="geometry")
         public_space_points["geometry"] = geometry_centroid(public_space_points)
@@ -269,7 +260,7 @@ class PublicSpacesDashboard(ModelingDashboard):
         )
         user_input["Public Space Type"] = user_input["Public Space Type"].fillna("USER INPUT")
         user_input = user_input.dropna(subset="Copied Geometry")
-        user_input["geometry"] = user_input["Copied Geometry"].apply(self._read_geometry)
+        user_input["geometry"] = user_input["Copied Geometry"].apply(read_kepler_geometry)
         user_input = user_input.drop("Copied Geometry", axis=1)
         user_input = user_input.rename(
             columns={
