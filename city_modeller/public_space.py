@@ -102,17 +102,17 @@ class PublicSpacesDashboard(ModelingDashboard):
     @staticmethod
     def plot_pop_travel_time(
         distancias: gpd.GeoSeries,
-        minutos: np.ndarray[int] = np.arange(1, 21),
+        minutes: np.ndarray[int] = np.arange(1, 21),
         movility_type: MovilityType = MovilityType.WALK,
     ) -> tuple:
         """Generate population vs travel time to public spaces."""
         prop = [
-            pob_a_distancia(distancias, minuto, movility_type.value.speed) for minuto in minutos
+            pob_a_distancia(distancias, minute, movility_type.value.speed) for minute in minutes
         ]
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=minutos,
+                x=minutes,
                 y=prop,
                 name="Accesibility Curve",
                 line=dict(color="limegreen", width=4),
