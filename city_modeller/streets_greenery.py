@@ -11,7 +11,7 @@ from streamlit_extras.stoggle import stoggle
 from streamlit_folium import folium_static
 from streamlit_keplergl import keplergl_static
 
-from city_modeller.base import Dashboard
+from city_modeller.base import ModelingDashboard
 from city_modeller.streets_network.greenery_simulation import (
     GSVpanoMetadataCollector,
     GreenViewComputing_3Horizon,
@@ -29,12 +29,7 @@ from city_modeller.streets_network.utils import (
     registerAPIkey,
 )
 from city_modeller.utils import parse_config_json, from_wkt
-from city_modeller.widgets import (
-    download_csv,
-    download_gdf,
-    section_header,
-    section_toggles,
-)
+from city_modeller.widgets import download_csv, download_gdf, section_header
 
 
 HEADING_ANGLES = 3
@@ -363,7 +358,7 @@ def calculate_gvi(
 
 
 # TODO: Check which copy()'s are necessary.
-class GreenViewIndexDashboard(Dashboard):
+class GreenViewIndexDashboard(ModelingDashboard):
     def __init__(
         self,
         streets_gdf: gpd.GeoDataFrame,
@@ -376,6 +371,7 @@ class GreenViewIndexDashboard(Dashboard):
         stations_config: Optional[dict] = None,
         stations_config_path: Optional[str] = None,
     ) -> None:
+        super().__init__("Street Greenery Dashboard")
         self.streets_gdf = streets_gdf
         self.treepedia_gdf = treepedia_gdf
         self.stations_gdf = stations_gdf
@@ -973,17 +969,6 @@ class GreenViewIndexDashboard(Dashboard):
             "Streets Network attributes - Green View level 🌳",
             "Street greenery provides a series of benefits to urban residents, such"
             " as air quality, provision of shade, and aesthetic values.",
-        )
-
-    def dashboard_sections(self) -> None:
-        (
-            self.simulation_toggle,
-            self.main_results_toggle,
-            self.zone_toggle,
-            self.impact_toggle,
-        ) = section_toggles(
-            "streets_greenery",
-            ["Simulation Frame", "Explore Results", "Explore Zones", "Explore Impact"],
         )
 
     def run_dashboard(self) -> None:

@@ -14,7 +14,7 @@ from shapely.geometry import MultiPoint, Polygon, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
-from city_modeller.base import Dashboard
+from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import (
     get_communes,
     get_commune_availability,
@@ -44,13 +44,13 @@ from city_modeller.utils import (
     pob_a_distancia,
     PROJECT_DIR,
 )
-from city_modeller.widgets import error_message, section_header, section_toggles
+from city_modeller.widgets import error_message, section_header
 
 
 ox.config(log_file=True, log_console=False, use_cache=True)
 
 
-class PublicSpacesDashboard(Dashboard):
+class PublicSpacesDashboard(ModelingDashboard):
     def __init__(
         self,
         radios: gpd.GeoDataFrame,
@@ -66,6 +66,7 @@ class PublicSpacesDashboard(Dashboard):
         config_communes: Optional[dict] = None,
         config_communes_path: Optional[str] = None,
     ) -> None:
+        super().__init__("Public Spaces")
         self.radios: gpd.GeoDataFrame = radios.copy()
         public_spaces = public_spaces.copy()
         public_spaces["visible"] = True
@@ -936,22 +937,6 @@ class PublicSpacesDashboard(Dashboard):
             "available, controlled against the current distribution, or against "
             "reference zones. It is recommended to start in the Simulation Frame, and "
             "select a small action zone, to be able to iterate quickly.",
-        )
-
-    def dashboard_sections(self) -> None:
-        (
-            self.simulation_toggle,
-            self.main_results_toggle,
-            self.zone_toggle,
-            self.impact_toggle,
-        ) = section_toggles(
-            "green_surfaces",
-            [
-                "Simulation Frame",
-                "Explore Results",
-                "Explore Zones",
-                "Explore Impact",
-            ],
         )
 
     def run_dashboard(self) -> None:
