@@ -939,18 +939,6 @@ class PublicSpacesDashboard(ModelingDashboard):
             "select a small action zone, to be able to iterate quickly.",
         )
 
-    def run_dashboard(self) -> None:
-        self.dashboard_header()
-        self.dashboard_sections()
-        if self.simulation_toggle:
-            self.simulation()
-        if self.main_results_toggle:
-            self.main_results()
-        if self.zone_toggle:
-            self.zones()
-        if self.impact_toggle:
-            self.impact()
-
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Public Spaces", layout="wide")
