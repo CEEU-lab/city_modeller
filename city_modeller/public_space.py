@@ -75,13 +75,11 @@ class PublicSpacesDashboard(ModelingDashboard):
         self.radio_availability = st.cache_data(get_radio_availability)(
             radios, public_spaces, neighborhoods
         )
-        self.neighborhood_availability: gpd.GeoDataFrame = (
-            get_neighborhood_availability(
-                radios,
-                public_spaces,
-                neighborhoods,
-                radio_availability=self.radio_availability,
-            )
+        self.neighborhood_availability: gpd.GeoDataFrame = get_neighborhood_availability(
+            radios,
+            public_spaces,
+            neighborhoods,
+            radio_availability=self.radio_availability,
         )
         self.commune_availability: gpd.GeoDataFrame = get_commune_availability(
             radios,
@@ -109,8 +107,7 @@ class PublicSpacesDashboard(ModelingDashboard):
     ) -> tuple:
         """Generate population vs travel time to public spaces."""
         prop = [
-            pob_a_distancia(distancias, minuto, movility_type.value.speed)
-            for minuto in minutos
+            pob_a_distancia(distancias, minuto, movility_type.value.speed) for minuto in minutos
         ]
         fig = go.Figure()
         fig.add_trace(
@@ -143,17 +140,10 @@ class PublicSpacesDashboard(ModelingDashboard):
         prop = []
         for area in areas:
             parques_mp_area = MultiPoint(
-                [
-                    i
-                    for i in gdf_target.loc[
-                        gdf_target.loc[:, "area"] > area, "geometry"
-                    ]
-                ]
+                [i for i in gdf_target.loc[gdf_target.loc[:, "area"] > area, "geometry"]]
             )
             if not parques_mp_area.is_empty:
-                distance_to_area = partial(
-                    distancia_mas_cercano, target_points=parques_mp_area
-                )
+                distance_to_area = partial(distancia_mas_cercano, target_points=parques_mp_area)
                 distances = geom_source.map(distance_to_area) * 100000
             else:
                 distances = np.ones_like(geom_source) * np.inf
@@ -210,15 +200,11 @@ class PublicSpacesDashboard(ModelingDashboard):
     @staticmethod
     def _edit_kepler_color(config: dict, column: str) -> dict:
         config_ = deepcopy(config)
-        config_["config"]["visState"]["layers"][0]["visualChannels"]["colorField"][
-            "name"
-        ] = column
+        config_["config"]["visState"]["layers"][0]["visualChannels"]["colorField"]["name"] = column
         return config_
 
     @staticmethod
-    def _visible_column(
-        gdf: gpd.GeoDataFrame, mask_dict: dict[str, bool]
-    ) -> gpd.GeoDataFrame:
+    def _visible_column(gdf: gpd.GeoDataFrame, mask_dict: dict[str, bool]) -> gpd.GeoDataFrame:
         gdf_ = gdf.copy()
         gdf_["visible"] = gdf_.clasificac.map(mask_dict)
         gdf_.loc["point_false", "visible"] = False
@@ -243,9 +229,7 @@ class PublicSpacesDashboard(ModelingDashboard):
 
         return config
 
-    def _census_radio_points(
-        self, radios: Optional[gpd.GeoDataFrame] = None
-    ) -> gpd.GeoDataFrame:
+    def _census_radio_points(self, radios: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
         radios = radios if radios is not None else self.radios.copy()
         census_points = radios.copy().to_crs(4326)  # TODO: Still necessary?
         census_points["geometry"] = geometry_centroid(census_points)
@@ -254,12 +238,8 @@ class PublicSpacesDashboard(ModelingDashboard):
     def _distances(
         self, public_spaces: gpd.GeoDataFrame, radios: Optional[gpd.GeoDataFrame] = None
     ) -> gpd.GeoSeries:
-        public_spaces_multipoint = MultiPoint(
-            self.multipoint_gdf(public_spaces).geometry.tolist()
-        )
-        parks_distances = partial(
-            distancia_mas_cercano, target_points=public_spaces_multipoint
-        )
+        public_spaces_multipoint = MultiPoint(self.multipoint_gdf(public_spaces).geometry.tolist())
+        parks_distances = partial(distancia_mas_cercano, target_points=public_spaces_multipoint)
         return (
             self._census_radio_points(radios=radios).geometry.map(parks_distances) * 1e5
         ).round(3)
@@ -278,9 +258,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             with col:
                 plot_kepler(gdf, config=config)
 
-    def _accessibility_input(
-        self, data: pd.DataFrame = EXAMPLE_INPUT
-    ) -> gpd.GeoDataFrame:
+    def _accessibility_input(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
 
@@ -289,13 +267,9 @@ class PublicSpacesDashboard(ModelingDashboard):
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        user_input["Public Space Type"] = user_input["Public Space Type"].fillna(
-            "USER INPUT"
-        )
+        user_input["Public Space Type"] = user_input["Public Space Type"].fillna("USER INPUT")
         user_input = user_input.dropna(subset="Copied Geometry")
-        user_input["geometry"] = user_input["Copied Geometry"].apply(
-            self._read_geometry
-        )
+        user_input["geometry"] = user_input["Copied Geometry"].apply(self._read_geometry)
         user_input = user_input.drop("Copied Geometry", axis=1)
         user_input = user_input.rename(
             columns={
@@ -383,9 +357,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                     reference_outputs = None
                     if reference_key is not None:
                         try:
-                            graph_outputs = (
-                                st.session_state.graph_outputs or graph_outputs
-                            )
+                            graph_outputs = st.session_state.graph_outputs or graph_outputs
                             reference_outputs = graph_outputs[reference_key]
                             public_spaces = gdf_diff(
                                 public_spaces,
@@ -393,17 +365,11 @@ class PublicSpacesDashboard(ModelingDashboard):
                                 "clasificac",
                             )
                         except KeyError:
-                            logging.warn(
-                                f"Reference key {reference_key} doesn't exist."
-                            )
+                            logging.warn(f"Reference key {reference_key} doesn't exist.")
                     public_spaces_points = (
-                        public_spaces.query("visible")
-                        .copy()
-                        .dropna(subset=["geometry"])
+                        public_spaces.query("visible").copy().dropna(subset=["geometry"])
                     )
-                    public_spaces_points.geometry = geometry_centroid(
-                        public_spaces_points
-                    )
+                    public_spaces_points.geometry = geometry_centroid(public_spaces_points)
                     isochrone_gdf = (
                         isochrone_mapping(
                             public_spaces_points,
@@ -416,9 +382,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                     )
                     if reference_outputs is not None:
                         isochrone_gdf = (
-                            isochrone_overlap(
-                                isochrone_gdf, reference_outputs.isochrone_mapping
-                            )
+                            isochrone_overlap(isochrone_gdf, reference_outputs.isochrone_mapping)
                             if not isochrone_gdf.empty
                             else reference_outputs.isochrone_mapping
                         )
@@ -495,30 +459,24 @@ class PublicSpacesDashboard(ModelingDashboard):
             lambda x: ((x["geometry"]).difference(public_spaces_unary)), axis=1
         )
         for row, minutes in enumerate(MINUTES):
-            radio_availability[
-                f"geometry_wo_ps_int_iso_{minutes}"
-            ] = radio_availability.apply(
+            radio_availability[f"geometry_wo_ps_int_iso_{minutes}"] = radio_availability.apply(
                 lambda x: (
-                    (x["geometry_wo_ps"]).intersection(
-                        isochrone_public_space.iloc[row, 1]
-                    )
+                    (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[row, 1])
                 ).area
                 * (10**10),
                 axis=1,
             )
 
         # Surrounding nbs
-        if (
-            isochrone_surrounding_nb := graph_outputs.get("surrounding_isochrone")
-        ) is None:
+        if (isochrone_surrounding_nb := graph_outputs.get("surrounding_isochrone")) is None:
             surrounding_nb = (
                 radio_availability[radio_availability.geometry_wo_ps_int_iso_5 != 0]
                 .loc[:, "Neighborhood"]
                 .unique()
             )
-            surrounding_spaces = self._visible_column(
-                self.public_spaces, typologies
-            ).query("visible")
+            surrounding_spaces = self._visible_column(self.public_spaces, typologies).query(
+                "visible"
+            )
             surrounding_spaces = surrounding_spaces[
                 (~surrounding_spaces[process].isin(action_zone))
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
@@ -544,12 +502,8 @@ class PublicSpacesDashboard(ModelingDashboard):
         )
 
         for row, minutes in enumerate(MINUTES):
-            radio_availability[
-                f"geometry_wo_ps_int_iso_{minutes}"
-            ] = radio_availability.apply(
-                lambda x: (
-                    (x["geometry_wo_ps"]).intersection(isochrone_full.iloc[row, 1])
-                ).area
+            radio_availability[f"geometry_wo_ps_int_iso_{minutes}"] = radio_availability.apply(
+                lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_full.iloc[row, 1])).area
                 * (10**10),
                 axis=1,
             )
@@ -573,13 +527,9 @@ class PublicSpacesDashboard(ModelingDashboard):
         action_zone: Optional[str] = None,
     ) -> gpd.GeoDataFrame:
         current_parks = self.public_spaces.copy()
-        current_parks["Commune"] = "Comuna " + current_parks.Commune.astype(int).astype(
-            str
-        )
+        current_parks["Commune"] = "Comuna " + current_parks.Commune.astype(int).astype(str)
         if filter_column is not None and action_zone is not None:
-            current_parks = current_parks[
-                current_parks[filter_column].isin(action_zone)
-            ]
+            current_parks = current_parks[current_parks[filter_column].isin(action_zone)]
         return self._visible_column(current_parks, mask_dict)
 
     def _simulated_parks(
@@ -588,9 +538,7 @@ class PublicSpacesDashboard(ModelingDashboard):
         mask_dict: dict,
         public_spaces: Optional[gpd.GeoDataFrame] = None,
     ) -> gpd.GeoDataFrame:
-        public_spaces = (
-            public_spaces if public_spaces is not None else self.public_spaces.copy()
-        )
+        public_spaces = public_spaces if public_spaces is not None else self.public_spaces.copy()
         parks_simulation = pd.concat([public_spaces, user_input])
         return self._visible_column(parks_simulation, mask_dict)
 
@@ -612,9 +560,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             col1, col2 = st.columns([1, 3])
             with col2:
                 table_values = (
-                    self._format_gdf_for_table(
-                        simulated_params.get("simulated_surfaces")
-                    )
+                    self._format_gdf_for_table(simulated_params.get("simulated_surfaces"))
                     if simulated_params.get("simulated_surfaces") is not None
                     else EXAMPLE_INPUT
                 )
@@ -665,10 +611,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 )
                 movility_type = st.radio(
                     "Mode",
-                    [
-                        k.replace("_", " ").title()
-                        for k in MovilityType.__members__.keys()
-                    ],
+                    [k.replace("_", " ").title() for k in MovilityType.__members__.keys()],
                     label_visibility="collapsed",
                 )
 
@@ -694,24 +637,18 @@ class PublicSpacesDashboard(ModelingDashboard):
             with button_col:
                 if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
                     if action_zone == []:
-                        error_message(
-                            "No action zone selected. Select one and submit again."
-                        )
+                        error_message("No action zone selected. Select one and submit again.")
                     else:
                         st.session_state.graph_outputs = None
-                        st.session_state.simulated_params = (
-                            GreenSurfacesSimulationParameters(
-                                typologies=mask_dict,
-                                movility_type=MovilityType[
-                                    movility_type.replace(" ", "_").upper()
-                                ],
-                                process=selected_process,
-                                action_zone=tuple(action_zone),
-                                simulated_surfaces=user_input.copy(),
-                                surface_metric=surface_metric,
-                                aggregation_level=aggregation_level,
-                                isochrone_enabled=isochrone_enabled,
-                            )
+                        st.session_state.simulated_params = GreenSurfacesSimulationParameters(
+                            typologies=mask_dict,
+                            movility_type=MovilityType[movility_type.replace(" ", "_").upper()],
+                            process=selected_process,
+                            action_zone=tuple(action_zone),
+                            simulated_surfaces=user_input.copy(),
+                            surface_metric=surface_metric,
+                            aggregation_level=aggregation_level,
+                            isochrone_enabled=isochrone_enabled,
                         )
 
     def main_results(self) -> None:
@@ -921,9 +858,7 @@ class PublicSpacesDashboard(ModelingDashboard):
 
             # Add the bar traces for each group
             fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
-            fig.add_trace(
-                go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase)
-            )
+            fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase))
 
             # Set the layout
             fig.update_layout(barmode="group", height=600)

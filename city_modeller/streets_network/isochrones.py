@@ -33,9 +33,7 @@ def get_isochrone(
     polys = []
     for walk_time in travel_times:
         subgraph = nx.ego_graph(G, center_node, radius=walk_time, distance="time")
-        node_points = [
-            Point(data["x"], data["y"]) for _, data in subgraph.nodes(data=True)
-        ]
+        node_points = [Point(data["x"], data["y"]) for _, data in subgraph.nodes(data=True)]
         polys.append(gpd.GeoSeries(node_points).unary_union.convex_hull)
     info = {}
     if name:
@@ -74,9 +72,7 @@ def apply_isochrones_gdf(
 
 
 def decouple_overlapping_rings_intra(isochrones, travel_times=[5, 10, 15]):
-    gdf = (
-        isochrones.set_index(["time", "point_index"]).copy().dropna(subset=["geometry"])
-    )
+    gdf = isochrones.set_index(["time", "point_index"]).copy().dropna(subset=["geometry"])
     for idx in range(len(travel_times) - 1, 0, -1):
         gdf.loc[travel_times[idx], "geometry"] = (
             gdf.loc[travel_times[idx]]
@@ -108,17 +104,13 @@ def merging_overlapping_rings_inter(gdf):
     for i, time_scope in enumerate(time_scopes):
         if i == 0:
             # For the first time scope, append the geometry as is
-            merged_geometries[str(time_scope)] = gdf_grouped.get_group(
-                time_scope
-            ).unary_union
+            merged_geometries[str(time_scope)] = gdf_grouped.get_group(time_scope).unary_union
         else:
             # Initialize the tmp geometry as the current time scope geometry
             temp_geom = gdf_grouped.get_group(time_scope).unary_union
             # Subtract overlapping parts of the outer rings with the inner rings
             for j in range(i):
-                temp_geom = temp_geom.difference(
-                    gdf_grouped.get_group(time_scopes[j]).unary_union
-                )
+                temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
             # Append the resulting geometry to the merged geometries list
             merged_geometries[str(time_scope)] = temp_geom
             # Convert the merged geometries into a MultiPolygon
@@ -164,7 +156,5 @@ def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1):
     isochrone_mapping_1[["name", "point_index"]] = "old", 1
     isochrone_mapping_1.time = isochrone_mapping_1.time.astype(int)
     return merging_overlapping_rings_inter(
-        decouple_overlapping_rings_intra(
-            pd.concat([isochrone_mapping_1, isochrone_mapping_0])
-        )
+        decouple_overlapping_rings_intra(pd.concat([isochrone_mapping_1, isochrone_mapping_0]))
     )

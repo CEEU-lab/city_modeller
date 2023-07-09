@@ -55,9 +55,7 @@ def get_PanoMetadata(gdf_points, colnames, api_key):
         Unavailable PanoIdx
     """
     client_key = r"{}".format(api_key)
-    raw_metadata = gdf_points["geometry"].apply(
-        lambda x: GSVpanoMetadataCollector(x, client_key)
-    )
+    raw_metadata = gdf_points["geometry"].apply(lambda x: GSVpanoMetadataCollector(x, client_key))
     metadata = raw_metadata.astype(str)
     metadata_df = metadata.str.split(",", expand=True)
     metadata_df.columns = colnames
@@ -112,9 +110,7 @@ def show_PanoNA(annot_col, map_col, numNA, gdf_NA, PanoCollection, fig):
     None
     """
     with annot_col:
-        annotated_text(
-            "🔴 Not available Pano: ", annotation(str(numNA), "panoId", color="black")
-        )
+        annotated_text("🔴 Not available Pano: ", annotation(str(numNA), "panoId", color="black"))
 
     with map_col:
         html_map_, _ = plot_simple_markers(
@@ -296,14 +292,10 @@ def calculate_gvi(
         Pano Idx metadata with greenview calculation
     """
     Panovars = ["panoDate", "panoId", "panoLat", "panoLon"]
-    metadata_df, PanoNA = get_PanoMetadata(
-        gdf_points=gdf, colnames=Panovars, api_key=api_key
-    )
+    metadata_df, PanoNA = get_PanoMetadata(gdf_points=gdf, colnames=Panovars, api_key=api_key)
 
     if PanoNA > 0:
-        metadata_df_NA = metadata_df.loc[
-            metadata_df["panoId"] == "Not available"
-        ].copy()
+        metadata_df_NA = metadata_df.loc[metadata_df["panoId"] == "Not available"].copy()
         metadata_gdf_NA = gpd.GeoDataFrame(
             data=metadata_df_NA,
             geometry=gpd.points_from_xy(metadata_df_NA.panoLat, metadata_df_NA.panoLon),
@@ -496,10 +488,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
                     if panoId != legend:
                         try:
                             pano_gvi = (
-                                zone.loc[zone["panoId"] == panoId, "greenView"].values[
-                                    0
-                                ]
-                                / 100
+                                zone.loc[zone["panoId"] == panoId, "greenView"].values[0] / 100
                             )  # type: ignore
                         except Exception:  # FIXME
                             pass
@@ -570,10 +559,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
 
                 if panoId != pano_legend:
                     try:
-                        pano_gvi = (
-                            zone.loc[zone["panoId"] == panoId, "greenView"].values[0]
-                            / 100
-                        )
+                        pano_gvi = zone.loc[zone["panoId"] == panoId, "greenView"].values[0] / 100
                     except Exception:  # FIXME
                         pass
                         pano_gvi = None
@@ -647,9 +633,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
         if upload_base:
             key_name = "{}_uploaded".format(lower_name)
             with zone_col:
-                uploaded_zone = st.file_uploader(
-                    "Choose a file", key=key_name, type="csv"
-                )
+                uploaded_zone = st.file_uploader("Choose a file", key=key_name, type="csv")
 
             self._uploaded_zone_greenery_distribution(
                 session_key=key_name,
@@ -770,9 +754,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
             landing_map = map_1
 
             if show_impact:  # FIXME: Determine whether or not to move to self.impact
-                legend_title = (
-                    "Insert a buffer distance in meters from air quality stations"
-                )
+                legend_title = "Insert a buffer distance in meters from air quality stations"
                 buffer_dst = st.slider(
                     label=legend_title,
                     min_value=10,
@@ -843,9 +825,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
             zone_col_alt,
             pano_input_col_alt,
         ) = st.columns(4)
-        map_col_base, chart_col_base, map_col_alt, chart_col_alt = st.columns(
-            (0.2, 0.1, 0.2, 0.1)
-        )
+        map_col_base, chart_col_base, map_col_alt, chart_col_alt = st.columns((0.2, 0.1, 0.2, 0.1))
 
         with markdown_col:
             st.markdown("**Define your streets zone analysis**")
@@ -881,9 +861,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
 
         stations_col, correl_plot_col, regplot_col = st.columns((0.3, 0.35, 0.35))
         with stations_col:
-            st.markdown(
-                ":deciduous_tree: :green[Air quality] stations  :deciduous_tree:"
-            )
+            st.markdown(":deciduous_tree: :green[Air quality] stations  :deciduous_tree:")
 
             stoggle(
                 "🏡 PARQUE CENTENARIO",
@@ -978,9 +956,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
         if self.simulation_toggle:
             self.simulation()
         if self.main_results_toggle:
-            self.main_results(
-                show_impact=self.impact_toggle, show_zones=self.zone_toggle
-            )
+            self.main_results(show_impact=self.impact_toggle, show_zones=self.zone_toggle)
             if self.zone_toggle and self.impact_toggle:
                 st.warning(
                     "Results must be explored at zone or impact level. Please, "

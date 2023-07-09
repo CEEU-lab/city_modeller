@@ -62,17 +62,13 @@ def interpolate_linestrings(distance, lines_gdf, proj, to_geog):
     for idx, row in lines_proj.iterrows():
         for distance in range(0, int(row["geometry"].length), min_dist):
             point = row["geometry"].interpolate(distance)
-            ids.append(
-                row["codigo"]
-            )  # TODO: hardoced colname, describe dataschema (bsas streets)
+            ids.append(row["codigo"])  # TODO: hardoced colname, describe dataschema (bsas streets)
             pts.append(point)
 
     d = {"idx": ids, "geometry": pts}
     interpol_points = gpd.GeoDataFrame(d, crs=proj)  # type:ignore
     # remove duplicated for cases when ending streets overlaps with starting streets
-    unique_points = interpol_points[
-        ~interpol_points.duplicated("geometry", keep="last")
-    ].copy()
+    unique_points = interpol_points[~interpol_points.duplicated("geometry", keep="last")].copy()
 
     if to_geog:
         # get back to geographic CRS
@@ -361,9 +357,7 @@ def plot_distribution(hist_data, group_labels, h_val, w_val, chart_title, x_ref=
         width=w_val,
     )
 
-    dist_fig.update_xaxes(
-        visible=True, showline=True, linecolor="black", gridcolor="lightgrey"
-    )
+    dist_fig.update_xaxes(visible=True, showline=True, linecolor="black", gridcolor="lightgrey")
 
     mean_ref = np.mean(hist_data)
     dist_fig.add_vline(x=mean_ref, line_width=2, line_dash="dash", line_color="black")
@@ -375,9 +369,7 @@ def plot_distribution(hist_data, group_labels, h_val, w_val, chart_title, x_ref=
                 add_dist_references(x_name=k, x_val=v / 100, ref=mean_ref, fig=dist_fig)
         else:
             # TODO: see if we remove the placeholder for x_name param
-            add_dist_references(
-                x_name="PanoId", x_val=x_ref, ref=mean_ref, fig=dist_fig
-            )
+            add_dist_references(x_name="PanoId", x_val=x_ref, ref=mean_ref, fig=dist_fig)
 
     return dist_fig
 

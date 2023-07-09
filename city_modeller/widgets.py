@@ -30,9 +30,7 @@ def section_toggles(page: str, sections: list[str]) -> list[bool]:
 
 
 def error_message(msg: str) -> None:
-    st.markdown(
-        f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True
-    )
+    st.markdown(f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True)
 
 
 def download_csv(gdf_points: gpd.GeoDataFrame) -> None:  # TODO: Make Widgets.
