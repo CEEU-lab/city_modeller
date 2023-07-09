@@ -42,9 +42,8 @@ from city_modeller.utils import (
     plot_kepler,
     pob_a_distancia,
     PROJECT_DIR,
-    read_kepler_geometry,
 )
-from city_modeller.widgets import error_message, section_header
+from city_modeller.widgets import error_message, read_kepler_geometry, section_header
 
 
 ox.config(log_file=True, log_console=False, use_cache=True)

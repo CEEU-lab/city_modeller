@@ -1,9 +1,12 @@
 from typing import Optional
 
+import geojson
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
 from streamlit_toggle import st_toggle_switch
+from shapely.geometry import Polygon, shape
+from shapely.geometry.base import BaseGeometry
 
 from city_modeller.utils import convert_df, gdf_to_shz
 
@@ -81,3 +84,12 @@ def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> No
     st.subheader(title)
     if tooltip is not None:
         st.write(tooltip, **kwargs)
+
+
+def read_kepler_geometry(geom: dict[str, str]) -> BaseGeometry | None:
+    gjson = geojson.loads(geom)
+    if len(gjson["coordinates"][0]) < 4:
+        error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+        return
+    poly = Polygon(shape(gjson))
+    return poly if not poly.is_empty else None

@@ -6,7 +6,6 @@ from numbers import Number
 from pathlib import Path
 from typing import Any, Optional
 
-import geojson
 import geopandas as gpd
 import pandas as pd
 from keplergl import KeplerGl
@@ -14,13 +13,10 @@ import pyproj
 import streamlit as st
 from numpy import ndarray
 from shapely import wkt
-from shapely.geometry.base import BaseGeometry
 from shapely.ops import nearest_points
 from shapely.wkt import dumps
-from shapely.geometry import Point, Polygon, MultiPoint, shape
+from shapely.geometry import Point, Polygon, MultiPoint
 from streamlit_keplergl import keplergl_static
-
-from city_modeller.widgets import error_message
 
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -212,12 +208,3 @@ def gdf_diff(
         .query(f"{diff_col}_old.isnull()")
     )
     return gdf[[col for col in gdf.columns if not col.endswith("_old")]]
-
-
-def read_kepler_geometry(geom: dict[str, str]) -> BaseGeometry | None:
-    gjson = geojson.loads(geom)
-    if len(gjson["coordinates"][0]) < 4:
-        error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
-        return
-    poly = Polygon(shape(gjson))
-    return poly if not poly.is_empty else None

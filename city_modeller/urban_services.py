@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from city_modeller.base import ModelingDashboard
-from city_modeller.utils import read_kepler_geometry
+from city_modeller.widgets import read_kepler_geometry
 from city_modeller.models.urban_services import (
     AMENITIES,
     EXAMPLE_INPUT,
@@ -107,3 +107,12 @@ class UrbanServicesDashboard(ModelingDashboard):
 
         simulated_params = st.session_state.simulated_params
         st.write(simulated_params)  # DELETE: Only a QA check for now.
+
+    def dashboard_header(self):
+        return super().dashboard_header()  # FIXME: Add a header.
+
+
+if __name__ == "__main__":
+    st.set_page_config(page_title="Urban Services", layout="wide")
+    dashboard = UrbanServicesDashboard()
+    dashboard.run_dashboard()
