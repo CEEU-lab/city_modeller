@@ -1,20 +1,23 @@
 import geopandas as gpd
+
 # import osmnx as ox
 import pandas as pd
 import streamlit as st
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.utils import read_kepler_geometry
-
-
-EXAMPLE_INPUT = pd.DataFrame()
+from city_modeller.models.urban_services import (
+    AMENITIES,
+    EXAMPLE_INPUT,
+    UrbanServicesSimulationParameters,
+)
 
 
 class UrbanServicesDashboard(ModelingDashboard):
     def __init__(self) -> None:
         super().__init__("15' Cities")
 
-    def _accessibility_input(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
+    def _input_table(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: In the call, pass the current values.
         service_type = pd.api.types.CategoricalDtype(categories=self.amenities)
 
@@ -34,23 +37,73 @@ class UrbanServicesDashboard(ModelingDashboard):
             }
         )
         gdf = gpd.GeoDataFrame(user_input)
-        gdf["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf.dropna(subset="geometry")
 
     def simulation(self) -> None:
         # Checkboxes of tags for osmnx
         # Input table of new services to add
-        pass
+        # TODO: Find equivalents, if they exist, for the following:
+        # reference_maps_container = st.container()
+        # simulation_comparison_container = st.container()
+        user_table_container = st.container()
+        submit_container = st.container()
+
+        with user_table_container:
+            col1, col2 = st.columns(2)
+            with col1:
+                mask_dict = {}
+                st.markdown(
+                    "<h3 style='text-align: left'>Urban Service Types</h3>",
+                    unsafe_allow_html=True,
+                )
+                for service_type in AMENITIES:
+                    mask_dict[service_type] = st.checkbox(
+                        service_type.replace("/", " / "),
+                        mask_dict.get(service_type, True),
+                    )
+
+        with submit_container:
+            _, button_col = st.columns([3, 1])
+            with button_col:
+                if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
+                    st.session_state.graph_outputs = None
+                    st.session_state.simulated_params = UrbanServicesSimulationParameters(
+                        typologies=mask_dict,
+                    )
 
     def main_results(self) -> None:
         # Create graph and cache it maybe?
         # before and after simulating
-        pass
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
+            )
+            return
+
+        simulated_params = st.session_state.simulated_params
+        st.write(simulated_params)  # DELETE: Only a QA check for now.
 
     def zones(self) -> None:
         # Use t1 graph and overlay regions.
-        pass
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
+            )
+            return
+
+        simulated_params = st.session_state.simulated_params
+        st.write(simulated_params)  # DELETE: Only a QA check for now.
 
     def impact(self) -> None:
         # Same as public spaces. Isochrone diff.
-        pass
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
+            )
+            return
+
+        simulated_params = st.session_state.simulated_params
+        st.write(simulated_params)  # DELETE: Only a QA check for now.
