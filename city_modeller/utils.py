@@ -1,23 +1,22 @@
 import json
 import os
 import tempfile
-import yaml
 from numbers import Number
 from pathlib import Path
 from typing import Any, Optional
 
 import geopandas as gpd
 import pandas as pd
-from keplergl import KeplerGl
 import pyproj
 import streamlit as st
+import yaml
+from keplergl import KeplerGl
 from numpy import ndarray
 from shapely import wkt
+from shapely.geometry import MultiPoint, Point, Polygon
 from shapely.ops import nearest_points
 from shapely.wkt import dumps
-from shapely.geometry import Point, Polygon, MultiPoint
 from streamlit_keplergl import keplergl_static
-
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 

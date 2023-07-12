@@ -13,19 +13,23 @@ from streamlit_keplergl import keplergl_static
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.streets_network.greenery_simulation import (
-    GreenViewComputing_3Horizon, GSVpanoMetadataCollector)
-from city_modeller.streets_network.utils import (build_zone,
-                                                 get_points_in_station_buff,
-                                                 interpolate_linestrings,
-                                                 make_folium_circlemarker,
-                                                 merge_dictionaries,
-                                                 plot_correleation_mx,
-                                                 plot_distribution,
-                                                 plot_scatter,
-                                                 plot_simple_markers,
-                                                 registerAPIkey)
+    GreenViewComputing_3Horizon,
+    GSVpanoMetadataCollector,
+)
+from city_modeller.streets_network.utils import (
+    build_zone,
+    get_points_in_station_buff,
+    interpolate_linestrings,
+    make_folium_circlemarker,
+    merge_dictionaries,
+    plot_correleation_mx,
+    plot_distribution,
+    plot_scatter,
+    plot_simple_markers,
+    registerAPIkey,
+)
 from city_modeller.utils import from_wkt, parse_config_json
-from city_modeller.widgets import download_csv, download_gdf, section_header
+from city_modeller.widgets import download_csv, download_gdf, section_header, section_toggles
 
 HEADING_ANGLES = 3
 

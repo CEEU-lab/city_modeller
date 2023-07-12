@@ -3,14 +3,14 @@ import warnings
 import streamlit as st
 
 from city_modeller.datasources import (
+    get_air_quality_data_BsAs,
+    get_air_quality_stations_BsAs,
+    get_BsAs_streets,
     get_census_data,
     get_communes,
+    get_GVI_treepedia_BsAs,
     get_neighborhoods,
     get_public_space,
-    get_GVI_treepedia_BsAs,
-    get_air_quality_stations_BsAs,
-    get_air_quality_data_BsAs,
-    get_BsAs_streets,
 )
 from city_modeller.landing_page import LandingPageDashboard
 from city_modeller.page import page_group
