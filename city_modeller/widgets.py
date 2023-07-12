@@ -4,9 +4,9 @@ import geojson
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
-from streamlit_toggle import st_toggle_switch
 from shapely.geometry import Polygon, shape
 from shapely.geometry.base import BaseGeometry
+from streamlit_toggle import st_toggle_switch
 
 from city_modeller.utils import convert_df, gdf_to_shz
 

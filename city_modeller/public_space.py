@@ -29,10 +29,7 @@ from city_modeller.models.public_space import (
     MovilityType,
     ResultsColumnPlots,
 )
-from city_modeller.streets_network.isochrones import (
-    isochrone_mapping,
-    isochrone_overlap,
-)
+from city_modeller.streets_network.isochrones import isochrone_mapping, isochrone_overlap
 from city_modeller.utils import (
     PROJECT_DIR,
     distancia_mas_cercano,

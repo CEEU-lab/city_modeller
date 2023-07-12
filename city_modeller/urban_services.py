@@ -1,12 +1,16 @@
 import geojson
 import geopandas as gpd
+
 # import osmnx as ox
 import pandas as pd
 import streamlit as st
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.models.urban_services import (
-    AMENITIES, EXAMPLE_INPUT, UrbanServicesSimulationParameters)
+    AMENITIES,
+    EXAMPLE_INPUT,
+    UrbanServicesSimulationParameters,
+)
 from city_modeller.widgets import read_kepler_geometry
 
 
