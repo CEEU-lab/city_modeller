@@ -3,13 +3,15 @@ from typing import List, Optional
 
 import geopandas as gpd
 import numpy as np
+import osmnx as ox
 import pandas as pd
 import requests
 import streamlit as st
+from shapely import geometry
 from shapely.ops import unary_union
 
+from city_modeller.models.urban_services import AMENITIES
 from city_modeller.utils import PROJECT_DIR
-
 
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 
@@ -300,3 +302,14 @@ def get_commune_availability(
     ]
     gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
     return gdf
+
+
+def get_amenities(
+    polygon: geometry.polygon.Polygon | geometry.multipolygon.MultiPolygon,
+    amenities: list[str] = AMENITIES,
+) -> gpd.GeoDataFrame:
+    return (
+        ox.geometries_from_polygon(polygon, tags={"amenity": ["pharmacy", "hospital", "school"]})
+        .loc[:, ["name", "amenity", "geometry"]]
+        .reset_index(drop=True)
+    )

@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -13,24 +13,19 @@ from streamlit_keplergl import keplergl_static
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.streets_network.greenery_simulation import (
-    GSVpanoMetadataCollector,
-    GreenViewComputing_3Horizon,
-)
-from city_modeller.streets_network.utils import (
-    build_zone,
-    get_points_in_station_buff,
-    interpolate_linestrings,
-    make_folium_circlemarker,
-    merge_dictionaries,
-    plot_simple_markers,
-    plot_distribution,
-    plot_correleation_mx,
-    plot_scatter,
-    registerAPIkey,
-)
-from city_modeller.utils import parse_config_json, from_wkt
+    GreenViewComputing_3Horizon, GSVpanoMetadataCollector)
+from city_modeller.streets_network.utils import (build_zone,
+                                                 get_points_in_station_buff,
+                                                 interpolate_linestrings,
+                                                 make_folium_circlemarker,
+                                                 merge_dictionaries,
+                                                 plot_correleation_mx,
+                                                 plot_distribution,
+                                                 plot_scatter,
+                                                 plot_simple_markers,
+                                                 registerAPIkey)
+from city_modeller.utils import from_wkt, parse_config_json
 from city_modeller.widgets import download_csv, download_gdf, section_header
-
 
 HEADING_ANGLES = 3
 
@@ -817,7 +812,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
             )
             st.plotly_chart(fig)
 
-    def zone(self) -> None:
+    def zones(self) -> None:
         markdown_col, toggle_col_base, _, toggle_col_alt = st.columns(4)
         (
             zone_col_base,

@@ -1,32 +1,39 @@
+import geojson
 import geopandas as gpd
-
 # import osmnx as ox
 import pandas as pd
 import streamlit as st
 
 from city_modeller.base import ModelingDashboard
-from city_modeller.widgets import read_kepler_geometry
 from city_modeller.models.urban_services import (
-    AMENITIES,
-    EXAMPLE_INPUT,
-    UrbanServicesSimulationParameters,
-)
+    AMENITIES, EXAMPLE_INPUT, UrbanServicesSimulationParameters)
+from city_modeller.widgets import read_kepler_geometry
 
 
 class UrbanServicesDashboard(ModelingDashboard):
     def __init__(self) -> None:
         super().__init__("15' Cities")
 
+    @staticmethod
+    def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "Urban Service Name": gdf.name,
+                "Urban Service Type": gdf.amenity,
+                "Copied Geometry": gdf.geometry.apply(geojson.dumps),
+            }
+        )
+
     def _input_table(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: In the call, pass the current values.
-        service_type = pd.api.types.CategoricalDtype(categories=self.amenities)
+        service_type = pd.api.types.CategoricalDtype(categories=AMENITIES)
 
         data["Urban Service Type"] = data["Urban Service Type"].astype(service_type)
         data = data if not data.empty else EXAMPLE_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        user_input["Urban Service Type"] = user_input["Urban Service Type"].fillna("USER INPUT")
+        user_input["Urban Service Type"] = user_input["Urban Service Type"].fillna("hospital")
         user_input = user_input.dropna(subset="Copied Geometry")
         user_input["geometry"] = user_input["Copied Geometry"].apply(read_kepler_geometry)
         user_input = user_input.drop("Copied Geometry", axis=1)
@@ -47,9 +54,10 @@ class UrbanServicesDashboard(ModelingDashboard):
         # simulation_comparison_container = st.container()
         user_table_container = st.container()
         submit_container = st.container()
+        simulated_params = dict(st.session_state.get("simulated_params", {}))
 
         with user_table_container:
-            col1, col2 = st.columns(2)
+            col1, col2 = st.columns([1, 3])
             with col1:
                 mask_dict = {}
                 st.markdown(
@@ -62,13 +70,25 @@ class UrbanServicesDashboard(ModelingDashboard):
                         mask_dict.get(service_type, True),
                     )
 
+            with col2:
+                st.markdown(
+                    "<h3 style='text-align: left'>Urban Service Inputs</h3>",
+                    unsafe_allow_html=True,
+                )
+                table_values = (
+                    self._format_gdf_for_table(simulated_params.get("simulated_services"))
+                    if simulated_params.get("simulated_services") is not None
+                    else EXAMPLE_INPUT
+                )
+                user_input = self._input_table(data=table_values)
+
         with submit_container:
             _, button_col = st.columns([3, 1])
             with button_col:
                 if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
                     st.session_state.graph_outputs = None
                     st.session_state.simulated_params = UrbanServicesSimulationParameters(
-                        typologies=mask_dict,
+                        typologies=mask_dict, simulated_services=user_input
                     )
 
     def main_results(self) -> None:
@@ -109,7 +129,7 @@ class UrbanServicesDashboard(ModelingDashboard):
         st.write(simulated_params)  # DELETE: Only a QA check for now.
 
     def dashboard_header(self):
-        return super().dashboard_header()  # FIXME: Add a header.
+        pass  # FIXME: Add a header.
 
 
 if __name__ == "__main__":
