@@ -29,7 +29,7 @@ from city_modeller.streets_network.utils import (
     registerAPIkey,
 )
 from city_modeller.utils import from_wkt, parse_config_json
-from city_modeller.widgets import download_csv, download_gdf, section_header, section_toggles
+from city_modeller.widgets import download_csv, download_gdf, section_header
 
 HEADING_ANGLES = 3
 
