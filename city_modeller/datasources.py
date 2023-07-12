@@ -309,7 +309,7 @@ def get_amenities(
     amenities: list[str] = AMENITIES,
 ) -> gpd.GeoDataFrame:
     return (
-        ox.geometries_from_polygon(polygon, tags={"amenity": ["pharmacy", "hospital", "school"]})
+        ox.geometries_from_polygon(polygon, tags={"amenity": amenities})
         .loc[:, ["name", "amenity", "geometry"]]
         .reset_index(drop=True)
     )
