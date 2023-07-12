@@ -10,7 +10,6 @@ from shapely.ops import unary_union
 
 from city_modeller.utils import PROJECT_DIR
 
-
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 
 

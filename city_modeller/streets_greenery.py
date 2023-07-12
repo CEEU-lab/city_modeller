@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -13,8 +13,8 @@ from streamlit_keplergl import keplergl_static
 
 from city_modeller.base import Dashboard
 from city_modeller.streets_network.greenery_simulation import (
-    GSVpanoMetadataCollector,
     GreenViewComputing_3Horizon,
+    GSVpanoMetadataCollector,
 )
 from city_modeller.streets_network.utils import (
     build_zone,
@@ -22,20 +22,19 @@ from city_modeller.streets_network.utils import (
     interpolate_linestrings,
     make_folium_circlemarker,
     merge_dictionaries,
-    plot_simple_markers,
-    plot_distribution,
     plot_correleation_mx,
+    plot_distribution,
     plot_scatter,
+    plot_simple_markers,
     registerAPIkey,
 )
-from city_modeller.utils import parse_config_json, from_wkt
+from city_modeller.utils import from_wkt, parse_config_json
 from city_modeller.widgets import (
     download_csv,
     download_gdf,
     section_header,
     section_toggles,
 )
-
 
 HEADING_ANGLES = 3
 

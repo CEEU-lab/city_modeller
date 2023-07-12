@@ -9,14 +9,13 @@ from shapely.geometry import MultiPoint, Point, Polygon
 from shapely.ops import nearest_points
 
 from city_modeller.utils import (
-    init_package,
-    geometry_centroid,
-    distancia_mas_cercano,
-    pob_a_distancia,
     bound_multipol_by_bbox,
+    distancia_mas_cercano,
+    geometry_centroid,
+    init_package,
+    pob_a_distancia,
 )
 from tests import PROJECT_DIR
-
 
 RADIOS_TEST = gpd.read_file(f"{PROJECT_DIR}/data/radios_test.geojson")
 PARQUES_TEST = gpd.read_file(f"{PROJECT_DIR}/data/public_space_test.geojson")

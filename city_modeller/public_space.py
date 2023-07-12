@@ -16,11 +16,11 @@ from shapely.ops import unary_union
 
 from city_modeller.base import Dashboard
 from city_modeller.datasources import (
-    get_communes,
-    get_commune_availability,
     get_census_data,
-    get_neighborhoods,
+    get_commune_availability,
+    get_communes,
     get_neighborhood_availability,
+    get_neighborhoods,
     get_public_space,
     get_radio_availability,
 )
@@ -35,6 +35,7 @@ from city_modeller.streets_network.isochrones import (
     isochrone_overlap,
 )
 from city_modeller.utils import (
+    PROJECT_DIR,
     distancia_mas_cercano,
     filter_dataframe,
     gdf_diff,
@@ -42,10 +43,8 @@ from city_modeller.utils import (
     parse_config_json,
     plot_kepler,
     pob_a_distancia,
-    PROJECT_DIR,
 )
 from city_modeller.widgets import error_message, section_header, section_toggles
-
 
 ox.config(log_file=True, log_console=False, use_cache=True)
 

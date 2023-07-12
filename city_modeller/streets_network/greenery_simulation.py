@@ -8,7 +8,6 @@ from PIL import Image
 
 from city_modeller.widgets import error_message
 
-
 MIN_THRESHOLD, MAX_THRESHOLD = 0.05, 0.1
 IMAGE_WIDTH, IMAGE_HEIGHT = 400, 400
 

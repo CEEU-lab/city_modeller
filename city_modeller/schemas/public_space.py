@@ -7,7 +7,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from pydantic import BaseModel, Extra
 
-
 EXAMPLE_INPUT = pd.DataFrame(
     [
         {
