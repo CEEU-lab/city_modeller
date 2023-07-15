@@ -350,6 +350,7 @@ def get_amenities_gdf():
     amenities_ba_neigh_comm=amenities_ba_neigh_comm.loc[:,['name', 'amenity','area','Neighborhood','Commune',"geometry"]]
     amenities_ba_neigh_comm=amenities_ba_neigh_comm.fillna("No name")
     amenities_ba_neigh_comm.columns=["nombre", "clasificac", "area", "Neighborhood", "Commune", "geometry"]
+    return amenities_ba_neigh_comm
 
 
 
