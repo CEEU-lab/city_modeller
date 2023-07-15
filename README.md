@@ -8,14 +8,14 @@ Urban dynamics performance assessment with data-driven modelling templates
 To install the app, it is recommended to create a virtual environment, as shown below:
 
 ``` shell
-> virtualenv venv --python=python3.9
+> virtualenv venv --python=python3.10
 > source venv/bin/activate
 ```
 
 Or, using `conda`'s wrapper for virtualenv:
 
 ``` shell
-> conda create -n venv python=3.9
+> conda create -n venv python=3.10
 > conda activate venv
 ```
 
@@ -29,6 +29,7 @@ Or
 
 ``` shell
 > pip install .
+> pip install .[pymeanshift]
 ```
 
 ## Contributing
@@ -43,6 +44,7 @@ Or
 
 ``` shell
 > pip install -e .
+> pip install -e .[pymeanshift]
 ```
 
 To comply with the app's code style and linting configuration, it is extremely recommended to also install the development requirements:
@@ -53,8 +55,32 @@ To comply with the app's code style and linting configuration, it is extremely r
 
 ## Usage
 
-To run the app's streamlit server locally, use:
+To run the urban modeller app's streamlit server locally, after installation, use:
 
 ``` shell
-streamlit run urban_modeller.py
+streamlit run main.py
+```
+
+## Running from Docker
+
+To use a Docker container, you first need to build it using:
+
+``` shell
+docker build . -t city_modeller
+```
+
+And then run it using:
+
+``` shell
+docker run -p 8501:8501 -v $PWD:/app city_modeller
+```
+
+In this way, you can run the whole app without installing the Python dependencies.
+
+## Running using Docker Compose
+
+To avoid building the image manually and exposing the port, simply run
+
+``` shell
+docker-compose up streamlit
 ```
