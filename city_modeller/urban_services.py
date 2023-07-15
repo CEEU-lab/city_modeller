@@ -1,11 +1,14 @@
 import geojson
 import geopandas as gpd
-
-# import osmnx as ox
+import osmnx as ox
 import pandas as pd
 import streamlit as st
+from shapely import geometry
 
 from city_modeller.base import ModelingDashboard
+from city_modeller.datasources import get_bs_as_multipolygon
+
+# from city_modeller.datasources import get_amenities
 from city_modeller.models.urban_services import (
     AMENITIES,
     EXAMPLE_INPUT,
@@ -17,6 +20,7 @@ from city_modeller.widgets import read_kepler_geometry
 class UrbanServicesDashboard(ModelingDashboard):
     def __init__(self) -> None:
         super().__init__("15' Cities")
+        self.city_amenities = st.cache_data(self.get_amenities)(get_bs_as_multipolygon())
 
     @staticmethod
     def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -26,6 +30,17 @@ class UrbanServicesDashboard(ModelingDashboard):
                 "Urban Service Type": gdf.amenity,
                 "Copied Geometry": gdf.geometry.apply(geojson.dumps),
             }
+        )
+
+    @staticmethod
+    def get_amenities(
+        _geom: geometry.polygon.Polygon | geometry.multipolygon.MultiPolygon,
+        amenities: list[str] = AMENITIES,
+    ) -> gpd.GeoDataFrame:
+        return (
+            ox.geometries_from_polygon(_geom, tags={"amenity": amenities})
+            .loc[:, ["name", "amenity", "geometry"]]
+            .reset_index(drop=True)
         )
 
     def _input_table(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
@@ -107,6 +122,7 @@ class UrbanServicesDashboard(ModelingDashboard):
 
         simulated_params = st.session_state.simulated_params
         st.write(simulated_params)  # DELETE: Only a QA check for now.
+        st.write(self.city_amenities)  # DELETE: Only a QA check for now.
 
     def zones(self) -> None:
         # Use t1 graph and overlay regions.

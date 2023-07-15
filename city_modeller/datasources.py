@@ -1,16 +1,15 @@
 import os
+from pathlib import Path
 from typing import List, Optional
 
 import geopandas as gpd
 import numpy as np
-import osmnx as ox
 import pandas as pd
 import requests
 import streamlit as st
-from shapely import geometry
+from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
 
-from city_modeller.models.urban_services import AMENITIES
 from city_modeller.utils import PROJECT_DIR
 
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
@@ -155,7 +154,7 @@ def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame
         url_home = "https://cdn.buenosaires.gob.ar/"
         print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
         url = (
-            f"{url_home}datosabiertos/datasets/" "ministerio-de-educacion/comunas/comunas.geojson"
+            f"{url_home}datosabiertos/datasets/ministerio-de-educacion/comunas/comunas.geojson"
         )
         resp = requests.get(url)
         with open(path, "w") as f:
@@ -165,6 +164,20 @@ def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame
     communes.Commune = "Comuna " + communes.Commune.astype(int).astype(str)
     communes = gpd.GeoDataFrame(communes, geometry="geometry", crs="epsg:4326")
     return communes
+
+
+@st.cache_data
+def get_bs_as_multipolygon(path: Path = Path(DATA_DIR) / "bs_as.geojson") -> MultiPolygon:
+    if not os.path.exists(path):
+        url_home = "https://cdn.buenosaires.gob.ar/"
+        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
+        url = (
+            f"{url_home}datosabiertos/datasets/ministerio-de-educacion/perimetro/perimetro.geojson"
+        )
+        resp = requests.get(url)
+        with open(path, "w") as f:
+            f.write(resp.text)
+    return gpd.read_file(path).loc[0, "geometry"]
 
 
 def get_radio_availability(
@@ -302,14 +315,3 @@ def get_commune_availability(
     ]
     gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
     return gdf
-
-
-def get_amenities(
-    polygon: geometry.polygon.Polygon | geometry.multipolygon.MultiPolygon,
-    amenities: list[str] = AMENITIES,
-) -> gpd.GeoDataFrame:
-    return (
-        ox.geometries_from_polygon(polygon, tags={"amenity": amenities})
-        .loc[:, ["name", "amenity", "geometry"]]
-        .reset_index(drop=True)
-    )
