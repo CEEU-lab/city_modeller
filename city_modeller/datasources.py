@@ -153,9 +153,7 @@ def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame
     if not os.path.exists(path):
         url_home = "https://cdn.buenosaires.gob.ar/"
         print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
-        url = (
-            f"{url_home}datosabiertos/datasets/ministerio-de-educacion/comunas/comunas.geojson"
-        )
+        url = f"{url_home}datosabiertos/datasets/ministerio-de-educacion/comunas/comunas.geojson"
         resp = requests.get(url)
         with open(path, "w") as f:
             f.write(resp.text)

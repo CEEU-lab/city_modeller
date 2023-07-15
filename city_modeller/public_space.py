@@ -543,8 +543,8 @@ class PublicSpacesDashboard(ModelingDashboard):
             )
 
         with user_table_container:
-            col1, col2 = st.columns([1, 3])
-            with col2:
+            col_control_panel, col_table = st.columns([1, 3])
+            with col_table:
                 table_values = (
                     self._format_gdf_for_table(simulated_params.get("simulated_surfaces"))
                     if simulated_params.get("simulated_surfaces") is not None
@@ -578,7 +578,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                     index=int(simulated_params.get("surface_metric") == "m2"),
                 )
                 isochrone_enabled = st.checkbox("Isochrone Enabled", True)
-            with col1:
+            with col_control_panel:
                 mask_dict = deepcopy(simulated_params.get("typologies", {}))
                 st.markdown(
                     "<h3 style='text-align: left'>Typology</h3>",
@@ -602,16 +602,16 @@ class PublicSpacesDashboard(ModelingDashboard):
                 )
 
         with simulation_comparison_container:
-            col1, col2 = st.columns(2)
+            col_t0, col_t1 = st.columns(2)
 
-            with col1:
+            with col_t0:
                 current_parks = self.current_parks(mask_dict)
                 st.markdown(
                     "<h1 style='text-align: center'>Current Public Spaces</h1>",
                     unsafe_allow_html=True,
                 )
                 plot_kepler(current_parks, config=self.parks_config)
-            with col2:
+            with col_t1:
                 st.markdown(
                     "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
                     unsafe_allow_html=True,

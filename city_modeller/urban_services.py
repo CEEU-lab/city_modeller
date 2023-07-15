@@ -1,26 +1,20 @@
 import geojson
 import geopandas as gpd
-import osmnx as ox
 import pandas as pd
 import streamlit as st
-from shapely import geometry
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import get_bs_as_multipolygon
-
-# from city_modeller.datasources import get_amenities
-from city_modeller.models.urban_services import (
-    AMENITIES,
-    EXAMPLE_INPUT,
-    UrbanServicesSimulationParameters,
-)
+from city_modeller.models.urban_services import EXAMPLE_INPUT, UrbanServicesSimulationParameters
+from city_modeller.streets_network.amenities import AMENITIES, get_amenities
+from city_modeller.utils import plot_kepler
 from city_modeller.widgets import read_kepler_geometry
 
 
 class UrbanServicesDashboard(ModelingDashboard):
     def __init__(self) -> None:
         super().__init__("15' Cities")
-        self.city_amenities = st.cache_data(self.get_amenities)(get_bs_as_multipolygon())
+        self.city_amenities = st.cache_data(get_amenities)(get_bs_as_multipolygon())
 
     @staticmethod
     def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -30,17 +24,6 @@ class UrbanServicesDashboard(ModelingDashboard):
                 "Urban Service Type": gdf.amenity,
                 "Copied Geometry": gdf.geometry.apply(geojson.dumps),
             }
-        )
-
-    @staticmethod
-    def get_amenities(
-        _geom: geometry.polygon.Polygon | geometry.multipolygon.MultiPolygon,
-        amenities: list[str] = AMENITIES,
-    ) -> gpd.GeoDataFrame:
-        return (
-            ox.geometries_from_polygon(_geom, tags={"amenity": amenities})
-            .loc[:, ["name", "amenity", "geometry"]]
-            .reset_index(drop=True)
         )
 
     def _input_table(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
@@ -69,8 +52,7 @@ class UrbanServicesDashboard(ModelingDashboard):
         # Checkboxes of tags for osmnx
         # Input table of new services to add
         # TODO: Find equivalents, if they exist, for the following:
-        # reference_maps_container = st.container()
-        # simulation_comparison_container = st.container()
+        t0_city_container = st.container()
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
@@ -99,7 +81,30 @@ class UrbanServicesDashboard(ModelingDashboard):
                     if simulated_params.get("simulated_services") is not None
                     else EXAMPLE_INPUT
                 )
+                processes = ["Commune", "Neighborhood"]  # TODO: Add "Custom".
                 user_input = self._input_table(data=table_values)
+                selected_process = st.selectbox(
+                    "Select a granularity for the simulation:",
+                    processes,
+                    index=processes.index(simulated_params.get("process", 0)),
+                )
+                # try:
+                #     action_zone = self._zone_selector(
+                #         selected_process, simulated_params.get("action_zone", [])
+                #     )
+                # except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                #     simulated_params["action_zone"] = []
+                #     action_zone = self._zone_selector(
+                #         selected_process, simulated_params.get("action_zone", [])
+                #     )
+                # TODO: turn action_zone into multipolygon.
+
+        with t0_city_container:
+            st.markdown(
+                "<h1 style='text-align: center'>Current Urban Services</h1>",
+                unsafe_allow_html=True,
+            )
+            plot_kepler(self.city_amenities, config={})
 
         with submit_container:
             _, button_col = st.columns([3, 1])

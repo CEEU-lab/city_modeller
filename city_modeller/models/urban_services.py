@@ -8,6 +8,7 @@ import pandas as pd
 
 # import plotly.graph_objects as go
 from pydantic import BaseModel, Extra
+from shapely.geometry import MultiPolygon
 
 EXAMPLE_INPUT = pd.DataFrame(
     [
@@ -30,12 +31,12 @@ EXAMPLE_INPUT = pd.DataFrame(
         }
     ]
 )
-AMENITIES = ["pharmacy", "hospital", "school"]
 
 
 class UrbanServicesSimulationParameters(BaseModel):
     typologies: dict[str, bool]
     simulated_services: pd.DataFrame
+    action_zone: MultiPolygon
 
     class Config:
         arbitrary_types_allowed = True
