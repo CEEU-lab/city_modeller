@@ -341,7 +341,7 @@ def get_amenities_gdf():
     neighborhoods=get_neighborhoods()
     city_polygon = neighborhoods.unary_union
     amenities_ba=get_amenities(city_polygon)
-    amenities_ba['geometry']=amenities_ba.geometry.apply(lambda x: generate_multipolygon_from_point(x,20) if type(x)==Point else x)
+    amenities_ba['geometry']=amenities_ba.geometry.apply(lambda x: generate_multipolygon_from_point(x,0.0001) if type(x)==Point else x)
     amenities_ba["Neighborhood"] = neighborhoods.apply(
         lambda x: x["geometry"].contains(amenities_ba.geometry.centroid), axis=1
     ).T.dot(neighborhoods.Neighborhood)
