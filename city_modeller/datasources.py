@@ -143,7 +143,19 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
 @st.cache_data
 def get_neighborhoods() -> gpd.GeoDataFrame:
     """Load neighborhoods data."""
-    neighborhoods = gpd.read_file(f"{DATA_DIR}/neighbourhoods.geojson")
+    path = f"{DATA_DIR}/neighbourhoods.geojson"
+    if not os.path.exists(path):
+        url_home = "https://cdn.buenosaires.gob.ar/"
+        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
+        url = (
+            f"{url_home}datosabiertos/datasets/"
+            "ministerio-de-educacion/barrios/"
+            "barrios.geojson"
+        )
+        resp = requests.get(url)
+        with open(path, "w") as f:
+            f.write(resp.text)
+    neighborhoods = gpd.read_file(path)
     neighborhoods = gpd.GeoDataFrame(
         neighborhoods, geometry="geometry", crs="epsg:4326"
     ).rename(columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"})
