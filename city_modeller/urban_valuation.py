@@ -16,12 +16,9 @@ class UrbanValuationDashboard(Dashboard):
     def simulation(self) -> None:
         import json
         from shapely import Polygon
-        #import rpy2
-        #st.write(rpy2.__version__)
         from rpy2 import robjects as ro
         from rpy2.robjects import pandas2ri
         from rpy2.robjects import conversion, default_converter
-        #from rpy2.robjects.conversion import localconverter
         from city_modeller.real_estate.offer_type import predict_offer_class
         from city_modeller.real_estate.utils import density_agg_cat, residential_agg_cat
         import geopandas as gpd
