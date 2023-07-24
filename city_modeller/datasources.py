@@ -326,3 +326,9 @@ def get_commune_availability(
     ]
     gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
     return gdf
+
+@st.cache_data
+def get_properaty_data():
+    root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    df = pd.read_csv(root)
+    return df
