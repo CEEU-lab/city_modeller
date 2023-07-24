@@ -14,8 +14,6 @@ class UrbanValuationDashboard(Dashboard):
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
     
     def simulation(self) -> None:
-        data_container = st.container()
-
         import json
         from shapely import Polygon
         #import rpy2
@@ -25,31 +23,49 @@ class UrbanValuationDashboard(Dashboard):
         from rpy2.robjects import conversion, default_converter
         #from rpy2.robjects.conversion import localconverter
         from city_modeller.real_estate.offer_type import predict_offer_class
-        from city_modeller.real_estate.utils import density_agg_cat
+        from city_modeller.real_estate.utils import density_agg_cat, residential_agg_cat
         import geopandas as gpd
 
-        raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
-        raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: density_agg_cat(x))
-
-        geom_legend = "paste your alt geometry here"
-        input_geometry = st.text_input(
-            "Simulation area",
-            geom_legend,
-            label_visibility="visible",
-            key="streets_selection",
-        )
-        json_polygon = json.loads(input_geometry)
-        polygon_geom = Polygon(json_polygon["coordinates"][0])
-        gdf = gpd.GeoDataFrame(
-            raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat)
-        )
-        zone = gdf.clip(polygon_geom)
-        df = pd.DataFrame(zone.drop(columns='geometry'))
-
-        st.write(len(df))
+        params_container = st.container()
+        with params_container:
+            btypes_legend = "specify your target buildings"
+            btypes = st.selectbox(
+                label = btypes_legend,
+                options = ["Housing density", "Land use"]
+            )
+            
+            raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
+            
+            if btypes == "Housing density":
+                raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: density_agg_cat(x))
+            elif btypes == "Land use":
+                raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: residential_agg_cat(x))
+            else:
+                # TODO: explores other classes/use cases
+                pass
+            
+            # keep class A-B for binomial dist
+            raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
         
+            geom_legend = "paste your alt geometry here"
+            input_geometry = st.text_input(
+                "Simulation area",
+                geom_legend,
+                label_visibility="visible",
+                key="streets_selection",
+            )
+            json_polygon = json.loads(input_geometry)
+            polygon_geom = Polygon(json_polygon["coordinates"][0])
+            gdf = gpd.GeoDataFrame(
+                raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat)
+            )
+            zone = gdf.clip(polygon_geom)
+            df = pd.DataFrame(zone.drop(columns='geometry'))
+
+            
+        sim_container = st.container()
         with conversion.localconverter(default_converter):
-            with data_container:
+            with sim_container:
                 # loads pandas as data.frame r object
                 with (ro.default_converter + pandas2ri.converter).context():
                     r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
@@ -61,8 +77,8 @@ class UrbanValuationDashboard(Dashboard):
 
                 # predict offer type
                 ro.r(predict_offer_class)
-                r_f_ = ro.globalenv['real_estate_offer']
-                r_f_(r_from_pd_df, prediction_method, intervals, colorsvec)
+                predominant_offer = ro.globalenv['real_estate_offer']
+                predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
                 
                 import streamlit.components.v1 as components
                 p = open('mymap.html')
