@@ -1,20 +1,31 @@
+from typing import Any, Optional
+
 import geojson
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
 
 from city_modeller.base import ModelingDashboard
-from city_modeller.datasources import get_bs_as_multipolygon
+from city_modeller.datasources import get_communes, get_neighborhoods
 from city_modeller.models.urban_services import EXAMPLE_INPUT, UrbanServicesSimulationParameters
-from city_modeller.streets_network.amenities import AMENITIES, get_amenities
-from city_modeller.utils import plot_kepler
-from city_modeller.widgets import read_kepler_geometry
+from city_modeller.streets_network.amenities import AMENITIES, get_amenities_gdf
+from city_modeller.utils import PROJECT_DIR, parse_config_json, plot_kepler
+from city_modeller.widgets import read_kepler_geometry, section_header
 
 
 class UrbanServicesDashboard(ModelingDashboard):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        neighborhoods: gpd.GeoDataFrame,
+        communes: gpd.GeoDataFrame,
+        default_config: Optional[dict[str, Any]] = None,
+        default_config_path: Optional[str] = None,
+    ) -> None:
         super().__init__("15' Cities")
-        self.city_amenities = st.cache_data(get_amenities)(get_bs_as_multipolygon())
+        self.city_amenities = st.cache_data(get_amenities_gdf)()
+        self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
+        self.communes: gpd.GeoDataFrame = communes.copy()
+        self.default_config = parse_config_json(default_config, default_config_path)
 
     @staticmethod
     def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -47,6 +58,17 @@ class UrbanServicesDashboard(ModelingDashboard):
         )
         gdf = gpd.GeoDataFrame(user_input)
         return gdf.dropna(subset="geometry")
+
+    def _zone_selector(
+        self, selected_process: str, default_value: list[str], action_zone: bool = True
+    ) -> list[str]:
+        df = self.communes if selected_process == "Commune" else self.neighborhoods
+        zone = "Action" if action_zone else "Reference"
+        return st.multiselect(
+            f"Select {selected_process.lower()}s for your {zone} Zone:",
+            df[selected_process].unique(),
+            default=default_value,
+        )
 
     def simulation(self) -> None:
         # Checkboxes of tags for osmnx
@@ -86,25 +108,24 @@ class UrbanServicesDashboard(ModelingDashboard):
                 selected_process = st.selectbox(
                     "Select a granularity for the simulation:",
                     processes,
-                    index=processes.index(simulated_params.get("process", 0)),
+                    index=processes.index(simulated_params.get("process", "Commune")),
                 )
-                # try:
-                #     action_zone = self._zone_selector(
-                #         selected_process, simulated_params.get("action_zone", [])
-                #     )
-                # except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
-                #     simulated_params["action_zone"] = []
-                #     action_zone = self._zone_selector(
-                #         selected_process, simulated_params.get("action_zone", [])
-                #     )
-                # TODO: turn action_zone into multipolygon.
+                try:
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
+                except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                    simulated_params["action_zone"] = []
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
 
         with t0_city_container:
             st.markdown(
                 "<h1 style='text-align: center'>Current Urban Services</h1>",
                 unsafe_allow_html=True,
             )
-            plot_kepler(self.city_amenities, config={})
+            plot_kepler(self.city_amenities, config=self.default_config)  # FIXME: Add config.
 
         with submit_container:
             _, button_col = st.columns([3, 1])
@@ -112,12 +133,18 @@ class UrbanServicesDashboard(ModelingDashboard):
                 if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
                     st.session_state.graph_outputs = None
                     st.session_state.simulated_params = UrbanServicesSimulationParameters(
-                        typologies=mask_dict, simulated_services=user_input
+                        typologies=mask_dict,
+                        simulated_services=user_input,
+                        action_zone=action_zone,
                     )
 
     def main_results(self) -> None:
-        # Create graph and cache it maybe?
-        # before and after simulating
+        # Save isochrone geojson for the full 15' isochrone per amenity.
+        # Add simulated points to the corresponding isochrone by amenity type.
+        # Show Kepler with new services.
+        # Show old vs new isochrones.
+        # Maybe cache new isochrone.
+        # Overlay only with action_zone.
         if "simulated_params" not in st.session_state:
             st.warning(
                 "No simulation parameters submitted. No results can be observed.",
@@ -127,10 +154,11 @@ class UrbanServicesDashboard(ModelingDashboard):
 
         simulated_params = st.session_state.simulated_params
         st.write(simulated_params)  # DELETE: Only a QA check for now.
-        st.write(self.city_amenities)  # DELETE: Only a QA check for now.
+        st.write(self.communes)  # DELETE: Only a QA check for now.
 
     def zones(self) -> None:
         # Use t1 graph and overlay regions.
+        # If main_results is not computed, do so and cache new isochrone here.
         if "simulated_params" not in st.session_state:
             st.warning(
                 "No simulation parameters submitted. No results can be observed.",
@@ -153,11 +181,23 @@ class UrbanServicesDashboard(ModelingDashboard):
         simulated_params = st.session_state.simulated_params
         st.write(simulated_params)  # DELETE: Only a QA check for now.
 
-    def dashboard_header(self):
-        pass  # FIXME: Add a header.
+    def dashboard_header(self) -> None:
+        section_header(
+            "Urban Services 🏥",
+            "Welcome to the Urban Services section! "
+            "Here, you will be able to simulate modifications to the existing amenities in the "
+            "city, and observe the impact of these changes on the city's accessibility to them. "
+            "The Simulation Frame will allow you to select the types of amenities you want to "
+            "add, while letting you see the city's current amenities, and the regions within 15' "
+            "of them.",
+        )
 
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Urban Services", layout="wide")
-    dashboard = UrbanServicesDashboard()
+    dashboard = UrbanServicesDashboard(
+        neighborhoods=get_neighborhoods(),
+        communes=get_communes(),
+        default_config_path=f"{PROJECT_DIR}/config/urban_services.json",
+    )
     dashboard.run_dashboard()

@@ -36,7 +36,7 @@ EXAMPLE_INPUT = pd.DataFrame(
 class UrbanServicesSimulationParameters(BaseModel):
     typologies: dict[str, bool]
     simulated_services: pd.DataFrame
-    action_zone: MultiPolygon
+    action_zone: list[str] | MultiPolygon
 
     class Config:
         arbitrary_types_allowed = True

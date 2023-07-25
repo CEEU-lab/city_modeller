@@ -15,13 +15,13 @@ from shapely.ops import unary_union
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import (
+    get_amenities_gdf,
     get_census_data,
     get_commune_availability,
     get_communes,
     get_neighborhood_availability,
     get_neighborhoods,
     get_radio_availability,
-    get_amenities_gdf
 )
 from city_modeller.models.public_space import (
     EXAMPLE_INPUT,

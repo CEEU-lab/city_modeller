@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from typing import List, Optional
-from city_modeller.streets_network.amenities import AMENITIES
 
 import geopandas as gpd
 import numpy as np
@@ -10,10 +9,6 @@ import requests
 import streamlit as st
 from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
-from shapely import geometry
-import osmnx as ox
-from shapely.geometry import Point
-from shapely.geometry import MultiPolygon
 
 from city_modeller.utils import PROJECT_DIR
 
@@ -318,39 +313,3 @@ def get_commune_availability(
     ]
     gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
     return gdf
-
-
-def generate_multipolygon_from_point(point_geometry, radius):
-    # Create a buffer around the Point to generate the circle
-    buffer_polygon = point_geometry.buffer(radius)
-    
-    # If the buffer_polygon is a MultiPolygon (in case of self-intersection), no need to convert
-    return buffer_polygon
-
-def get_amenities(
-        _geom: geometry.polygon.Polygon | geometry.multipolygon.MultiPolygon,
-        amenities: list[str] = AMENITIES,
-    ) -> gpd.GeoDataFrame:
-        return (
-            ox.geometries_from_polygon(_geom, tags={"amenity": amenities})
-            .loc[:, ["name", "amenity", "geometry"]]
-            .reset_index(drop=True)
-        )
-
-def get_amenities_gdf():
-    neighborhoods=get_neighborhoods()
-    city_polygon = neighborhoods.unary_union
-    amenities_ba=get_amenities(city_polygon)
-    amenities_ba['geometry']=amenities_ba.geometry.apply(lambda x: generate_multipolygon_from_point(x,0.0001) if type(x)==Point else x)
-    amenities_ba["Neighborhood"] = neighborhoods.apply(
-        lambda x: x["geometry"].contains(amenities_ba.geometry.centroid), axis=1
-    ).T.dot(neighborhoods.Neighborhood)
-    amenities_ba_neigh_comm=pd.merge(amenities_ba,neighborhoods.loc[:,["Neighborhood","Commune"]], on="Neighborhood")
-    amenities_ba_neigh_comm["area"]=amenities_ba_neigh_comm.geometry.apply(lambda x: x.area)
-    amenities_ba_neigh_comm=amenities_ba_neigh_comm.loc[:,['name', 'amenity','area','Neighborhood','Commune',"geometry"]]
-    amenities_ba_neigh_comm=amenities_ba_neigh_comm.fillna("No name")
-    amenities_ba_neigh_comm.columns=["nombre", "clasificac", "area", "Neighborhood", "Commune", "geometry"]
-    return amenities_ba_neigh_comm
-
-
-
