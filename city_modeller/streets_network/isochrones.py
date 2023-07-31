@@ -113,15 +113,15 @@ def merging_overlapping_rings_inter(gdf):
                 temp_geom = temp_geom.difference(gdf_grouped.get_group(time_scopes[j]).unary_union)
             # Append the resulting geometry to the merged geometries list
             merged_geometries[str(time_scope)] = temp_geom
-            # Convert the merged geometries into a MultiPolygon
-            result_geometry = (
-                gpd.GeoSeries(merged_geometries)
-                .reset_index()
-                .rename(columns={"index": "time", 0: "geometry"})
-            )
-            result_geometry.columns = ["time", "geometry"]
-            # Convert the resulting geometry to a GeoDataFrame
-            result_gdf = gpd.GeoDataFrame(result_geometry, geometry="geometry")
+    # Convert the merged geometries into a MultiPolygon
+    result_geometry = (
+        gpd.GeoSeries(merged_geometries)
+        .reset_index()
+        .rename(columns={"index": "time", 0: "geometry"})
+    )
+    result_geometry.columns = ["time", "geometry"]
+    # Convert the resulting geometry to a GeoDataFrame
+    result_gdf = gpd.GeoDataFrame(result_geometry, geometry="geometry")
     return result_gdf
 
 

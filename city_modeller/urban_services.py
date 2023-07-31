@@ -8,7 +8,11 @@ import streamlit as st
 from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import get_communes, get_neighborhoods
 from city_modeller.models.urban_services import EXAMPLE_INPUT, UrbanServicesSimulationParameters
-from city_modeller.streets_network.amenities import AMENITIES, get_amenities_gdf
+from city_modeller.streets_network.amenities import (
+    AMENITIES,
+    get_amenities_gdf,
+    get_amenities_isochrones_gdf,
+)
 from city_modeller.utils import PROJECT_DIR, parse_config_json, plot_kepler
 from city_modeller.widgets import read_kepler_geometry, section_header
 
@@ -23,6 +27,7 @@ class UrbanServicesDashboard(ModelingDashboard):
     ) -> None:
         super().__init__("15' Cities")
         self.city_amenities = st.cache_data(get_amenities_gdf)()
+        self.default_isochrones = st.cache_data(get_amenities_isochrones_gdf)()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.default_config = parse_config_json(default_config, default_config_path)
@@ -66,7 +71,7 @@ class UrbanServicesDashboard(ModelingDashboard):
         zone = "Action" if action_zone else "Reference"
         return st.multiselect(
             f"Select {selected_process.lower()}s for your {zone} Zone:",
-            df[selected_process].unique(),
+            sorted(df[selected_process].unique()),
             default=default_value,
         )
 
@@ -125,7 +130,7 @@ class UrbanServicesDashboard(ModelingDashboard):
                 "<h1 style='text-align: center'>Current Urban Services</h1>",
                 unsafe_allow_html=True,
             )
-            plot_kepler(self.city_amenities, config=self.default_config)  # FIXME: Add config.
+            plot_kepler(pd.concat([self.city_amenities, user_input]), config=self.default_config)
 
         with submit_container:
             _, button_col = st.columns([3, 1])
@@ -154,7 +159,11 @@ class UrbanServicesDashboard(ModelingDashboard):
 
         simulated_params = st.session_state.simulated_params
         st.write(simulated_params)  # DELETE: Only a QA check for now.
-        st.write(self.communes)  # DELETE: Only a QA check for now.
+        st.write(
+            simulated_params.simulated_services[
+                simulated_params.simulated_services.amenity.map(simulated_params.typologies)
+            ]
+        )  # DELETE: Only a QA check for now.
 
     def zones(self) -> None:
         # Use t1 graph and overlay regions.
