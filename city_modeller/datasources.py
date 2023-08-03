@@ -1,6 +1,8 @@
 import os
 from typing import List, Optional
 
+import yaml
+from shapely import Polygon
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -11,6 +13,7 @@ from shapely.ops import unary_union
 from city_modeller.utils import PROJECT_DIR
 
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
+CONF_DIR = os.path.join(PROJECT_DIR, "config")
 
 
 @st.cache_data
@@ -332,3 +335,19 @@ def get_properaty_data():
     root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
     df = pd.read_csv(root)
     return df
+
+@st.cache_data
+def get_default_zones():
+    with open(f"{CONF_DIR}/default_zones.yaml", 'r') as config_zone:
+        zone_geoms = yaml.safe_load(config_zone)
+        
+        zones_frame = {'Default Zones': [], 'geometry':[]}
+        
+        for z in ['Caba South', 'Caba North']:
+            zone = zone_geoms[z]
+            geom = Polygon(zone["coordinates"][0])
+            zones_frame['Default Zones'].append(z)
+            zones_frame['geometry'].append(geom)
+
+    gdf = gpd.GeoDataFrame(zones_frame)
+    return gdf
