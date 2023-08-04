@@ -1,14 +1,9 @@
-# from enum import Enum
-# from typing import Literal, Optional
+from typing import Literal, Optional
 
 import geojson
-
-# import geopandas as gpd
+import geopandas as gpd
 import pandas as pd
-
-# import plotly.graph_objects as go
 from pydantic import BaseModel, Extra
-from shapely.geometry import MultiPolygon
 
 EXAMPLE_INPUT = pd.DataFrame(
     [
@@ -36,9 +31,20 @@ EXAMPLE_INPUT = pd.DataFrame(
 class UrbanServicesSimulationParameters(BaseModel):
     typologies: dict[str, bool]
     simulated_services: pd.DataFrame
-    action_zone: list[str] | MultiPolygon
+    process: Literal["Commune", "Neighborhood"]
+    action_zone: list[str]
+    reference_zone: Optional[list[str]]
 
     class Config:
         arbitrary_types_allowed = True
         use_enum_values = True
+        extra = Extra.forbid
+
+
+class ResultsColumnPlots(BaseModel):
+    urban_services: gpd.GeoDataFrame
+    isochrone_mapping: gpd.GeoDataFrame
+
+    class Config:
+        arbitrary_types_allowed = True
         extra = Extra.forbid

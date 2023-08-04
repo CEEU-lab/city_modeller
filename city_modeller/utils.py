@@ -185,7 +185,7 @@ def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
 
 def plot_kepler(data: gpd.GeoDataFrame, config: dict) -> None:
     data_ = kepler_df(data)
-    kepler = KeplerGl(height=500, data={"data": data_}, config=config, show_docs=False)
+    kepler = KeplerGl(height=500, data={"data": data_}, config=config)
     keplergl_static(kepler)
     kepler.add_data(data=data_)
 

@@ -148,7 +148,7 @@ def isochrone_mapping(
     )
 
 
-def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1):
+def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1, travel_times=[5, 10, 15]):
     isochrone_mapping_0 = isochrone_mapping_0.copy()
     isochrone_mapping_1 = isochrone_mapping_1.copy()
     isochrone_mapping_0[["name", "point_index"]] = "new", 0
@@ -156,5 +156,7 @@ def isochrone_overlap(isochrone_mapping_0, isochrone_mapping_1):
     isochrone_mapping_1[["name", "point_index"]] = "old", 1
     isochrone_mapping_1.time = isochrone_mapping_1.time.astype(int)
     return merging_overlapping_rings_inter(
-        decouple_overlapping_rings_intra(pd.concat([isochrone_mapping_1, isochrone_mapping_0]))
+        decouple_overlapping_rings_intra(
+            pd.concat([isochrone_mapping_1, isochrone_mapping_0]), travel_times=travel_times
+        )
     )

@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Optional
 
 import geojson
@@ -7,13 +8,18 @@ import streamlit as st
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import get_communes, get_neighborhoods
-from city_modeller.models.urban_services import EXAMPLE_INPUT, UrbanServicesSimulationParameters
+from city_modeller.models.urban_services import (
+    EXAMPLE_INPUT,
+    ResultsColumnPlots,
+    UrbanServicesSimulationParameters,
+)
 from city_modeller.streets_network.amenities import (
     AMENITIES,
     get_amenities_gdf,
-    get_amenities_isochrones_gdf,
+    get_amenities_isochrones,
 )
-from city_modeller.utils import PROJECT_DIR, parse_config_json, plot_kepler
+from city_modeller.streets_network.isochrones import isochrone_overlap
+from city_modeller.utils import gdf_diff, PROJECT_DIR, parse_config_json, plot_kepler
 from city_modeller.widgets import read_kepler_geometry, section_header
 
 
@@ -26,8 +32,7 @@ class UrbanServicesDashboard(ModelingDashboard):
         default_config_path: Optional[str] = None,
     ) -> None:
         super().__init__("15' Cities")
-        self.city_amenities = st.cache_data(get_amenities_gdf)()
-        self.default_isochrones = st.cache_data(get_amenities_isochrones_gdf)()
+        self.city_amenities: gpd.GeoDataFrame = st.cache_data(get_amenities_gdf)()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.default_config = parse_config_json(default_config, default_config_path)
@@ -41,6 +46,11 @@ class UrbanServicesDashboard(ModelingDashboard):
                 "Copied Geometry": gdf.geometry.apply(geojson.dumps),
             }
         )
+
+    @staticmethod
+    def _visible_data(gdf: gpd.GeoDataFrame, mask_dict: dict[str, bool]) -> gpd.GeoDataFrame:
+        gdf_ = gdf.copy()
+        return gdf_[gdf_.amenity.map(mask_dict)]
 
     def _input_table(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: In the call, pass the current values.
@@ -64,6 +74,87 @@ class UrbanServicesDashboard(ModelingDashboard):
         gdf = gpd.GeoDataFrame(user_input)
         return gdf.dropna(subset="geometry")
 
+    def _current_services(
+        self,
+        mask_dict: dict[str, bool],
+        filter_column: Optional[str] = None,
+        action_zone: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
+        current_services = self.city_amenities.copy()
+        if filter_column is not None and action_zone is not None:
+            current_services = current_services[current_services[filter_column].isin(action_zone)]
+        return self._visible_data(current_services, mask_dict)
+
+    def _simulated_services(
+        self,
+        user_input: gpd.GeoDataFrame,
+        mask_dict: dict,
+        current_services: Optional[gpd.GeoDataFrame] = None,
+    ) -> gpd.GeoDataFrame:
+        current_services = (
+            current_services if current_services is not None else self.city_amenities.copy()
+        )
+        parks_simulation = pd.concat([current_services, user_input])
+        return self._visible_data(parks_simulation, mask_dict)
+
+    def _plot_graph_outputs(
+        self,
+        title: str,
+        urban_services: gpd.GeoDataFrame,
+        simulated_params: UrbanServicesSimulationParameters,
+        key: Optional[str] = None,
+        filter_column: Optional[str] = None,
+        zone: Optional[list[str]] = None,
+        reference_key: Optional[str] = None,
+    ) -> ResultsColumnPlots:  # TODO: Extract into functions.
+        st.markdown(
+            f"<h1 style='text-align: center'>{title}</h1>",
+            unsafe_allow_html=True,
+        )
+        session_results = key is not None
+        graph_outputs = st.session_state.graph_outputs or {}
+        urban_services_ = urban_services.copy()
+
+        if session_results:
+            results = dict(graph_outputs.get(key, {}))
+
+        with st.spinner("⏳ Loading..."):
+            if (isochrone_gdf := results.get("isochrone_mapping")) is None:
+                reference_outputs = None
+                if reference_key is not None:
+                    try:
+                        graph_outputs = st.session_state.graph_outputs or graph_outputs
+                        reference_outputs = graph_outputs[reference_key]
+                        urban_services = gdf_diff(
+                            urban_services,
+                            reference_outputs.urban_services,
+                            "amenity",
+                        )
+                    except KeyError:
+                        logging.warn(f"Reference key {reference_key} doesn't exist.")
+                isochrone_gdf = get_amenities_isochrones(urban_services)
+                if reference_outputs is not None:
+                    isochrone_gdf = (
+                        isochrone_overlap(
+                            isochrone_gdf, reference_outputs.isochrone_mapping, travel_times=[15]
+                        )
+                        if not isochrone_gdf.empty
+                        else reference_outputs.isochrone_mapping
+                    )  # FIXME: Merge by amenity.
+            st.write(isochrone_gdf)
+            plot_kepler(isochrone_gdf, self.default_config)  # FIXME: Plot by amenity.
+
+        results = ResultsColumnPlots(
+            urban_services=urban_services_,
+            isochrone_mapping=isochrone_gdf,
+        )
+
+        if session_results:
+            graph_outputs[key] = results
+            st.session_state.graph_outputs = graph_outputs
+        yield
+        return
+
     def _zone_selector(
         self, selected_process: str, default_value: list[str], action_zone: bool = True
     ) -> list[str]:
@@ -76,9 +167,6 @@ class UrbanServicesDashboard(ModelingDashboard):
         )
 
     def simulation(self) -> None:
-        # Checkboxes of tags for osmnx
-        # Input table of new services to add
-        # TODO: Find equivalents, if they exist, for the following:
         t0_city_container = st.container()
         user_table_container = st.container()
         submit_container = st.container()
@@ -140,30 +228,68 @@ class UrbanServicesDashboard(ModelingDashboard):
                     st.session_state.simulated_params = UrbanServicesSimulationParameters(
                         typologies=mask_dict,
                         simulated_services=user_input,
+                        process=selected_process,
                         action_zone=action_zone,
                     )
 
     def main_results(self) -> None:
-        # Save isochrone geojson for the full 15' isochrone per amenity.
-        # Add simulated points to the corresponding isochrone by amenity type.
-        # Show Kepler with new services.
-        # Show old vs new isochrones.
-        # Maybe cache new isochrone.
-        # Overlay only with action_zone.
         if "simulated_params" not in st.session_state:
             st.warning(
                 "No simulation parameters submitted. No results can be observed.",
                 icon="⚠️",
             )
             return
-
         simulated_params = st.session_state.simulated_params
-        st.write(simulated_params)  # DELETE: Only a QA check for now.
-        st.write(
-            simulated_params.simulated_services[
-                simulated_params.simulated_services.amenity.map(simulated_params.typologies)
-            ]
-        )  # DELETE: Only a QA check for now.
+        current_col, simulation_col = st.columns(2)
+        current_services = self._current_services(
+            simulated_params.typologies,
+            simulated_params.process,
+            simulated_params.action_zone,
+        )
+        services_simulation = self._simulated_services(
+            simulated_params.simulated_services,
+            simulated_params.typologies,
+            current_services=current_services,
+        )
+        if current_services.query("amenity.notnull()").empty:
+            st.error(
+                "The combination of Action Zone and Typologies doesn't have any green "
+                "services. Please adjust your simulation."
+            )
+            return
+
+        with st.container():
+            current_col, simulation_col = st.columns(2)
+            current_results_gen = self._plot_graph_outputs(
+                "Current Results",
+                current_services,
+                simulated_params,
+                key="action_zone_t0",
+                filter_column=simulated_params.process,
+                zone=simulated_params.action_zone,
+            )
+            simulated_results_gen = self._plot_graph_outputs(
+                "Simulated Results",
+                services_simulation,
+                simulated_params,
+                key="action_zone_t1",
+                filter_column=simulated_params.process,
+                zone=simulated_params.action_zone,
+                reference_key="action_zone_t0",
+            )
+            while True:
+                try:
+                    with current_col:
+                        next(current_results_gen)
+
+                    with simulation_col:
+                        next(simulated_results_gen)
+
+                except StopIteration:
+                    break
+
+        st.write(current_services)  # DELETE: Only a QA check for now.
+        st.write(services_simulation)  # DELETE: Only a QA check for now.
 
     def zones(self) -> None:
         # Use t1 graph and overlay regions.
