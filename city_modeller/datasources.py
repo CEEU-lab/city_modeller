@@ -341,13 +341,20 @@ def get_default_zones():
     with open(f"{CONF_DIR}/default_zones.yaml", 'r') as config_zone:
         zone_geoms = yaml.safe_load(config_zone)
         
-        zones_frame = {'Default Zones': [], 'geometry':[]}
+        zones_frame = {'Custom Zone': [], 'geometry':[]}
         
         for z in ['Caba South', 'Caba North']:
             zone = zone_geoms[z]
             geom = Polygon(zone["coordinates"][0])
-            zones_frame['Default Zones'].append(z)
+            zones_frame['Custom Zone'].append(z)
             zones_frame['geometry'].append(geom)
 
-    gdf = gpd.GeoDataFrame(zones_frame)
+    gdf = gpd.GeoDataFrame(zones_frame, crs=4326)
     return gdf
+
+@st.cache_data
+def get_user_defined_crs():
+    with open(f"{CONF_DIR}/proj.yaml", 'r') as custom_crs:
+        proj_str = yaml.safe_load(custom_crs)['proj']
+
+    return proj_str
