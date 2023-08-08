@@ -65,7 +65,7 @@ def main():
     uv = UrbanValuationDashboard(
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
-        default_zones=get_default_zones(),
+        custom_zones=get_default_zones(),
         properaty_data=get_properaty_data(),
         main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
             )
