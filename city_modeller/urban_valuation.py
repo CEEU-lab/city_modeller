@@ -9,7 +9,8 @@ import pandas as pd
 from city_modeller.datasources import (
     get_communes,
     get_neighborhoods,
-    get_default_zones
+    get_default_zones,
+    get_user_defined_crs
 )
 
 from city_modeller.schemas.urban_valuation import (
@@ -19,8 +20,10 @@ from city_modeller.schemas.urban_valuation import (
     #ResultsColumnPlots,
 )
 
+import yaml
 import json
 from shapely import Polygon
+import pyproj
 from rpy2 import robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import conversion, default_converter
@@ -37,33 +40,54 @@ class UrbanValuationDashboard(Dashboard):
         self,
         neighborhoods: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
-        default_zones: gpd.GeoDataFrame,
+        custom_zones: gpd.GeoDataFrame,
         properaty_data: pd.DataFrame,
         main_ref_config: Optional[dict] = None,
         main_ref_config_path: Optional[str] = None,
     ) -> None:
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
-        self.default_zones: gpd.GeoDataFrame = default_zones,
+        self.custom_zones: gpd.GeoDataFrame = custom_zones.copy()
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
-    
-    def _zone_selector(
-        self, selected_process: str, default_value: list[str], action_zone: bool = True
-    ) -> list[str]:
+       
+    def _geom_selector(
+        self, selected_process: str, 
+        geom_names: list[str] | None,
+        proj: int | str | None
+    ) -> gpd.GeoDataFrame :
         
-        df = {
-            "Commune": self.communes, 
-            "Neighborhood": self.neighborhoods, 
-            "Default zones": self.default_zones
-            }
+        gdfs = {"Commune": self.communes, 
+                "Neighborhood": self.neighborhoods, 
+                "Custom Zone": self.custom_zones}
+        
+        gdf = gdfs[selected_process]
+       
+        if proj:
+            # Reproyect layer
+            user_crs = pyproj.CRS.from_user_input(proj)
+            gdf = gdf.to_crs(user_crs)
+        
+        if geom_names is not None:
+            # subset the canvas: S ⊆ R2 - region inside the space
+            return gdf.loc[gdf[selected_process].isin(geom_names)].copy()
+        else:
+            # return all zones - the entire space R2
+            return gdf.copy()
+        
 
-        #df = (
-         #   self.communes
-          #  if selected_process == "Commune"
-           # else self.neighborhoods
-        #)
-        #import pdb;pdb.set_trace()
+    def _zone_selector(
+        self, selected_process: str, default_value: list[str], 
+        action_zone: bool = True    
+    ) -> list[str] :
+        
+        df = (
+            self.communes
+            if selected_process == "Commune"
+            else (self.neighborhoods if selected_process == "Neighborhood" 
+                  else self.custom_zones)
+        )
+        
         zone = "Action" if action_zone else "Reference"
         return st.multiselect(
             f"Select {selected_process.lower()}s for your {zone} Zone:",
@@ -76,7 +100,6 @@ class UrbanValuationDashboard(Dashboard):
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
-        st.write(simulated_params)
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
 
         # Project settings
@@ -98,14 +121,15 @@ class UrbanValuationDashboard(Dashboard):
         with project_zone:
             selected_process = st.selectbox(
                     "Select a process",
-                    ["Commune", "Neighborhood", "Default Zones"],
-                    index=int(simulated_params.get("process") == "Default zones"),
+                    ["Commune", "Neighborhood", "Custom Zone"],
+                    index=int(simulated_params.get("process") == "Custom Zone"),
             )
-            st.write(selected_process)
+            
             try:
                 action_zone = self._zone_selector(
                     selected_process, simulated_params.get("action_zone", [])
                 )
+                
             except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
                 simulated_params["action_zone"] = []
                 action_zone = self._zone_selector(
@@ -118,7 +142,8 @@ class UrbanValuationDashboard(Dashboard):
         map_col = st.container()
         with map_col:
             sim_frame_map = KeplerGl(height=475, width=300, config=self.main_ref_config)
-            # necesito agregar data? sim_frame_map.add_data(data=self.streets_gdf, name="Streets")
+            # necesito agregar data? 
+            # sim_frame_map.add_data(data=self.streets_gdf, name="Streets")
             landing_map = sim_frame_map
 
             if activate_parcels:
@@ -149,57 +174,67 @@ class UrbanValuationDashboard(Dashboard):
                             )
                         )
 
-        #### RESULTS #####
-        offer_type = st.container()#columns((0.5,0.5))
-        with offer_type:            
-            raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: build_project_class(
-                x, target_group=target_btypes, comparison_group=compar_btypes)
+        if len(action_zone) > 0: # FIXME
+            #### RESULTS #####
+            offer_type = st.container()#columns((0.5,0.5))
+            with offer_type:            
+                raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: build_project_class(
+                    x, target_group=target_btypes, comparison_group=compar_btypes)
+                    )
+                
+                # keep discrete classes to model out binomial distribution 
+                raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
+                custom_crs = get_user_defined_crs()
+                gdf = gpd.GeoDataFrame(
+                    raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat), crs=4326
                 )
-            
-            # keep class A-B for binomial dist
-            raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
-            gdf = gpd.GeoDataFrame(
-                raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat)
-            )
-            
-            geom_legend = "paste your alt geometry here"
-            input_geometry = st.text_input(
-                "Simulation area",
-                geom_legend,
-                label_visibility="visible",
-                key="streets_selection",
-            )
-            json_polygon = json.loads(input_geometry)
-            polygon_geom = Polygon(json_polygon["coordinates"][0])
-            
-            if polygon_geom is not None:
-                # overwrites action zone
-                action_zone = polygon_geom
                 
-            zone = gdf.clip(action_zone)
-            df = pd.DataFrame(zone.drop(columns='geometry'))
+                # LLEVAR A STATIC METHOD (load users geometry)
+                geom_legend = "overwrite your custom zone here" # FIXME: reemplazar con tabla usuaria
+                input_geometry = st.text_input(
+                    "Simulation area",
+                    geom_legend,
+                    label_visibility="visible",
+                    key="streets_selection",
+                )
+    
 
-            
-        sim_container = st.container()
-        with conversion.localconverter(default_converter):
-            with sim_container:
-                # loads pandas as data.frame r object
-                with (ro.default_converter + pandas2ri.converter).context():
-                    r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
-                
-                # parameters
-                prediction_method = "orthogonal"
-                intervals = 10 
-                colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
+                points_gdf = gdf.to_crs(custom_crs)
+                action_geom = self._geom_selector(selected_process, action_zone, custom_crs)
 
-                # predict offer type
-                ro.r(predict_offer_class)
-                predominant_offer = ro.globalenv['real_estate_offer']
-                predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
+                if input_geometry != geom_legend: # FIXME (move to users table)
+                    # overwrites action zone
+                    json_polygon = json.loads(input_geometry)
+                    polygon_geom = Polygon(json_polygon["coordinates"][0])
+                    action_geom = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]).to_crs(custom_crs)
+
+                market_area = points_gdf.clip(action_geom)
+                df = pd.DataFrame(market_area.drop(columns='geometry'))
+                #st.write(df)
                 
-                import streamlit.components.v1 as components
-                p = open('mymap.html')
-                components.html(p.read(), width=1000, height=600, scrolling=True)
+            if (len(cat_name) > 0) and (len(target_btypes) > 0): # FIXME
+                sim_container = st.container()
+                with conversion.localconverter(default_converter):
+                    with sim_container:
+                        # loads pandas as data.frame r object
+                        with (ro.default_converter + pandas2ri.converter).context():
+                            r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
+                        
+                        # parameters
+                        prediction_method = "splines"
+                        intervals = 10 
+                        colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
+
+                        # predict offer type
+                        ro.r(predict_offer_class)
+                        predominant_offer = ro.globalenv['real_estate_offer']
+                        predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
+                        
+                        import streamlit.components.v1 as components
+                        p = open('mymap.html')
+                        components.html(p.read(), width=1000, height=600, scrolling=True)
+            else:
+                st.warning("🚨" + " Define your project type and units" + "🚨")
 
     def dashboard_header(self) -> None:
         section_header("Land Valuator 🏗️", "Your land valuation model starts here 🏗️")
