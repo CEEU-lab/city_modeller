@@ -50,7 +50,21 @@ class UrbanValuationDashboard(Dashboard):
         self.custom_zones: gpd.GeoDataFrame = custom_zones.copy()
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
-       
+
+    @staticmethod
+    def _transform_gjson_str_repr(
+        str_geometry: str,
+        crs_code: str | int
+    ) -> gpd.GeoDataFrame:
+        json_polygon = json.loads(str_geometry)
+        if len(json_polygon["coordinates"][0]) < 4:
+            error_message(f"Invalid Geometry ({json_polygon['coordinates'][0]}).")
+            return
+        polygon_geom = Polygon(json_polygon["coordinates"][0])
+        gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326',
+                               geometry=[polygon_geom]).to_crs(crs_code)
+        return gdf
+
     def _geom_selector(
         self, selected_process: str, 
         geom_names: list[str] | None,
@@ -100,56 +114,108 @@ class UrbanValuationDashboard(Dashboard):
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
+        # Here we define {Z(s):s ⊆ S ⊆ R2}
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
 
-        # Project settings
-        project_type, project_units, project_zone, parcel_selector = st.columns((0.25,0.25,0.25,0.25))
-        
-        with project_type:
-            cat_name = st.text_input(label = 'Define your project type')
-        
-        with project_units:
-            btypes = raw_df['property_type'].unique()
-            target_btypes = st.multiselect('Define your unit types', options=btypes)
+        st.markdown("### Project settings")
+        params_col, kepler_col  = st.columns((0.5,0.5))
 
-            user_also_defines_comparison_types = False
-            if user_also_defines_comparison_types:
-                print("Write here another multiselect input")
-            else:
-                compar_btypes = [i for i in btypes if i not in target_btypes]
+
+        with params_col:
+            project_type, project_units = st.columns((0.5,0.5))
+            project_zone, parcel_selector = st.columns((0.5,0.5))
+        
+            with project_type:
+                cat_name = st.text_input(label = 'Define your project type')
             
-        with project_zone:
-            selected_process = st.selectbox(
-                    "Select a process",
+            with project_units:
+                btypes = raw_df['property_type'].unique()
+                target_btypes = st.multiselect('Define your unit types', options=btypes)
+
+                # Here we can redifine the non target class (1-p) used to define binomial 
+                # rule of the density function. This affects the performance of the model 
+                # because changes the success probability of Z(s) = 0 | Z(s) = 1  
+                user_also_defines_comparison_types = False
+                if user_also_defines_comparison_types:
+                    print("Can write here another multiselect input")
+                else:
+                    # all the other offered typologies
+                    other_btypes = [i for i in btypes if i not in target_btypes]
+            
+            with project_zone:
+                selected_process = st.selectbox(
+                    "Define your project zone",
                     ["Commune", "Neighborhood", "Custom Zone"],
                     index=int(simulated_params.get("process") == "Custom Zone"),
-            )
-            
-            try:
-                action_zone = self._zone_selector(
-                    selected_process, simulated_params.get("action_zone", [])
                 )
                 
-            except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
-                simulated_params["action_zone"] = []
-                action_zone = self._zone_selector(
-                    selected_process, simulated_params.get("action_zone", [])
-                )
+                try:
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
+                    
+                except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                    simulated_params["action_zone"] = []
+                    action_zone = self._zone_selector(
+                        selected_process, simulated_params.get("action_zone", [])
+                    )
 
-        with parcel_selector:
-            activate_parcels = st.checkbox('Parcel selector')
+                # Defines the grid space {A ⊆ S ⊆ Rd}
+                custom_crs = get_user_defined_crs()
+                compact_region = self._geom_selector(selected_process, action_zone, custom_crs)
 
-        map_col = st.container()
-        with map_col:
+                if selected_process == "Custom Zone":
+                    overwrite_custom_action_zone = st.checkbox('Overwrites custom zone')
+                    
+                    if overwrite_custom_action_zone:
+                        geom_legend = "overwrite your custom zone here" 
+                        input_geometry = st.text_input(
+                            "Simulation area",
+                            geom_legend,
+                            label_visibility="visible",
+                            key="compact-region",
+                        )
+
+                        if input_geometry != geom_legend: 
+                            # overwrites the geometry if users decide to customize the action zone
+                            compact_region = self._transform_gjson_str_repr(input_geometry, custom_crs)
+
+            # User can redefine the custom reference zone here
+            compact_region_ref = None    
+            #if reference_zone_geom_isin_users_table:
+                #compact_region_ref = user_input.apply.loads_gjson_str_repr(str_rep, custom_crs) # SA
+
+            with parcel_selector:
+                st.markdown("Define your project footprint")
+                activate_parcels = st.checkbox('Parcel selector')
+
+            st.markdown("### Model settings")
+            land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
+            
+            with land_size:
+                lot_ref_size = st.slider('Define your reference lot size', 0, 1000, (125, 575))
+
+            with covered_size:
+                unit_ref_size = st.slider('Define your reference covered size', 0, 500, (35, 275))
+
+            with st.container():
+                unit_ammenities = ["bedrooms","bathrooms"]
+                urban_environment_ammenities = ["streets greenery"]
+                selected_expvars = st.multiselect('Define your explanatory variables', 
+                                        options=unit_ammenities+urban_environment_ammenities)
+        
+        with kepler_col:
             sim_frame_map = KeplerGl(height=475, width=300, config=self.main_ref_config)
-            # necesito agregar data? 
-            # sim_frame_map.add_data(data=self.streets_gdf, name="Streets")
+            # Landing data?
+            #sim_frame_map.add_data(data=sampledata, name="test")
             landing_map = sim_frame_map
 
             if activate_parcels:
                 parcels = "load data here"
                 sim_frame_map.add_data(data=parcels)
+
             keplergl_static(landing_map, center_map=True)
+
 
         with submit_container:
             _, button_col = st.columns([3, 1])
@@ -164,77 +230,71 @@ class UrbanValuationDashboard(Dashboard):
                         st.session_state.simulated_params = (
                             LandValuatorSimulationParameters(
                                 project_type=cat_name,
+                                project_btypes=target_btypes,
+                                non_project_btypes=other_btypes,  
                                 process=selected_process,
                                 action_zone=tuple(action_zone),
-                                parcel_selector=activate_parcels
-                                #simulated_surfaces=user_input.copy(),
-                                #surface_metric=surface_metric,
-                                #aggregation_level=aggregation_level,
-                                #isochrone_enabled=isochrone_enabled,
+                                action_geom=compact_region,
+                                reference_geom=compact_region_ref,
+                                parcel_selector=activate_parcels,
+                                CRS = custom_crs,
+                                lot_size = lot_ref_size,
+                                unit_size = unit_ref_size,
+                                planar_point_process = raw_df,
+                                expvars = selected_expvars
                             )
                         )
-
-        if len(action_zone) > 0: # FIXME
-            #### RESULTS #####
-            offer_type = st.container()#columns((0.5,0.5))
-            with offer_type:            
-                raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: build_project_class(
-                    x, target_group=target_btypes, comparison_group=compar_btypes)
-                    )
-                
-                # keep discrete classes to model out binomial distribution 
-                raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
-                custom_crs = get_user_defined_crs()
-                gdf = gpd.GeoDataFrame(
-                    raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat), crs=4326
+    def main_results(self) -> None:
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No results can be observed.",
+                icon="⚠️",
+            )
+            return
+        simulated_params = st.session_state.simulated_params
+        raw_df = simulated_params.planar_point_process
+        
+        #### OFFER TYPE RESULTS #####
+        offer_type = st.container()#columns((0.5,0.5))
+        with offer_type:            
+            raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: build_project_class(
+                x, target_group=simulated_params.project_btypes, 
+                comparison_group=simulated_params.non_project_btypes)
                 )
+            
+            # keep discrete classes to model out binomial distribution 
+            raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
+            gdf = gpd.GeoDataFrame(
+                raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat), crs=4326
+            )
+            points_gdf = gdf.to_crs(simulated_params.CRS)
+            market_area = points_gdf.clip(simulated_params.action_geom)
+            df = pd.DataFrame(market_area.drop(columns='geometry'))
                 
-                # LLEVAR A STATIC METHOD (load users geometry)
-                geom_legend = "overwrite your custom zone here" # FIXME: reemplazar con tabla usuaria
-                input_geometry = st.text_input(
-                    "Simulation area",
-                    geom_legend,
-                    label_visibility="visible",
-                    key="streets_selection",
-                )
-    
+            #if (len(simulated_params.project_type) > 0) and (len(simulated_params.project_btypes) > 0): # FIXME
+            sim_container = st.container()
+            with conversion.localconverter(default_converter):
+                with sim_container:
+                    # loads pandas as data.frame r object
+                    with (ro.default_converter + pandas2ri.converter).context():
+                        r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
+                    
+                    # parameters
+                    # TODO: use histogram to chek the observed distribution of the target class?
+                    prediction_method = "splines" # DENSITY FUNCTION.  
+                    intervals = 10 
+                    colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
 
-                points_gdf = gdf.to_crs(custom_crs)
-                action_geom = self._geom_selector(selected_process, action_zone, custom_crs)
-
-                if input_geometry != geom_legend: # FIXME (move to users table)
-                    # overwrites action zone
-                    json_polygon = json.loads(input_geometry)
-                    polygon_geom = Polygon(json_polygon["coordinates"][0])
-                    action_geom = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon_geom]).to_crs(custom_crs)
-
-                market_area = points_gdf.clip(action_geom)
-                df = pd.DataFrame(market_area.drop(columns='geometry'))
-                #st.write(df)
-                
-            if (len(cat_name) > 0) and (len(target_btypes) > 0): # FIXME
-                sim_container = st.container()
-                with conversion.localconverter(default_converter):
-                    with sim_container:
-                        # loads pandas as data.frame r object
-                        with (ro.default_converter + pandas2ri.converter).context():
-                            r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
-                        
-                        # parameters
-                        prediction_method = "splines"
-                        intervals = 10 
-                        colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
-
-                        # predict offer type
-                        ro.r(predict_offer_class)
-                        predominant_offer = ro.globalenv['real_estate_offer']
-                        predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
-                        
-                        import streamlit.components.v1 as components
-                        p = open('mymap.html')
-                        components.html(p.read(), width=1000, height=600, scrolling=True)
-            else:
-                st.warning("🚨" + " Define your project type and units" + "🚨")
+                    # predict offer type
+                    ro.r(predict_offer_class)
+                    predominant_offer = ro.globalenv['real_estate_offer']
+                    predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
+                    
+                    import streamlit.components.v1 as components
+                    p = open('mymap.html')
+                    components.html(p.read(), width=1000, height=600, scrolling=True)
+            #else:
+                #st.warning("🚨" + " Define your project type and units" + "🚨")
 
     def dashboard_header(self) -> None:
         section_header("Land Valuator 🏗️", "Your land valuation model starts here 🏗️")
