@@ -332,6 +332,7 @@ def get_commune_availability(
 
 @st.cache_data
 def get_properaty_data():
+    # TODO Issue 32: define the data schema and how to adjust the properaty data to different dates 
     root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
     df = pd.read_csv(root)
     return df
@@ -351,7 +352,7 @@ def get_default_zones():
 
     gdf = gpd.GeoDataFrame(zones_frame, crs=4326)
 
-    gdf['zone_type'] = ['action_zone', 'reference_zone']
+    gdf['zone_type'] = ['Action', 'Reference']
     return gdf
 
 @st.cache_data
