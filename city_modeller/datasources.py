@@ -350,6 +350,8 @@ def get_default_zones():
             zones_frame['geometry'].append(geom)
 
     gdf = gpd.GeoDataFrame(zones_frame, crs=4326)
+
+    gdf['zone_type'] = ['action_zone', 'reference_zone']
     return gdf
 
 @st.cache_data
