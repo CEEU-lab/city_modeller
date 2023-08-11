@@ -1,21 +1,44 @@
 from typing import Literal, Optional
 
-#import geojson
+import geojson
 import geopandas as gpd
 import pandas as pd
-#import plotly.graph_objects as go
 from pydantic import BaseModel, Extra
 
 
+EXAMPLE_INPUT = pd.DataFrame(
+    [
+        {
+            "Input Name": "example_project",
+            "Input Type": "project footprint",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        }
+    ]
+)
+
 class LandValuatorSimulationParameters(BaseModel):
-    project_type: str #dict[str, bool]
+    project_type: str 
     project_btypes: list[str]
     non_project_btypes: list[str]
+    simulated_project: Optional[pd.DataFrame] # switch to mandatory
     process: Literal["Commune", "Neighborhood", "Custom Zone"]
     action_zone: list[str] 
     action_geom: gpd.GeoDataFrame
+    reference_zone: Optional[list[str]]
     reference_geom: None | gpd.GeoDataFrame 
-    parcel_selector: bool #Optional[list[str]]
+    parcel_selector: bool 
     CRS: int | str
     lot_size: tuple[int, int]
     unit_size: tuple[int, int]

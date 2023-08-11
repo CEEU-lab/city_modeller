@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 from city_modeller.base import Dashboard
 from city_modeller.utils import parse_config_json
 from city_modeller.widgets import section_header, section_toggles, error_message
@@ -14,15 +14,18 @@ from city_modeller.datasources import (
 )
 
 from city_modeller.schemas.urban_valuation import (
-   # EXAMPLE_INPUT,
+    EXAMPLE_INPUT,
     LandValuatorSimulationParameters,
     #MovilityType,
     #ResultsColumnPlots,
 )
 
-import yaml
+#import yaml
 import json
+import geojson
 from shapely import Polygon
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 import pyproj
 from rpy2 import robjects as ro
 from rpy2.robjects import pandas2ri
@@ -50,6 +53,25 @@ class UrbanValuationDashboard(Dashboard):
         self.custom_zones: gpd.GeoDataFrame = custom_zones.copy()
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
+
+    @staticmethod
+    def _format_gdf_for_table() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "Input Name": 'None',
+                "Input Type": 'None',
+                "Input Geometry": 'None', #gdf.geometry.apply(geojson.dumps),
+            }, index = [0]
+        )
+    
+    @staticmethod
+    def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
+        gjson = geojson.loads(geom)
+        if len(gjson["coordinates"][0]) < 4:
+            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+            return
+        poly = Polygon(shape(gjson))
+        return poly if not poly.is_empty else None
 
     @staticmethod
     def _transform_gjson_str_repr(
@@ -89,37 +111,67 @@ class UrbanValuationDashboard(Dashboard):
             # return all zones - the entire space R2
             return gdf.copy()
         
-
     def _zone_selector(
         self, selected_process: str, default_value: list[str], 
         action_zone: bool = True    
     ) -> list[str] :
         
+        zone = "Action" if action_zone else "Reference"
+        
         df = (
             self.communes
             if selected_process == "Commune"
             else (self.neighborhoods if selected_process == "Neighborhood" 
-                  else self.custom_zones)
+                  else self.custom_zones.loc[self.custom_zones['zone_type']==zone])
         )
         
-        zone = "Action" if action_zone else "Reference"
         return st.multiselect(
             f"Select {selected_process.lower()}s for your {zone} Zone:",
             df[selected_process].unique(),
             default=default_value,
         )
 
+    
+    def _user_input(
+        self, data: pd.DataFrame = EXAMPLE_INPUT
+    ) -> gpd.GeoDataFrame:
+        input_cat_type = pd.api.types.CategoricalDtype(categories=['real estate project', 'action zone', 'reference_zone'])
+
+        data["Input Type"] = data["Input Type"].astype(input_cat_type)
+        data = data if not data.empty else EXAMPLE_INPUT
+        user_input = st.experimental_data_editor(
+            data, num_rows="dynamic", use_container_width=True
+        )
+        user_input["Input Type"] = user_input["Input Type"].fillna(
+            "real estate project"
+        )
+        user_input = user_input.dropna(subset="Copied Geometry")
+        user_input["geometry"] = user_input["Copied Geometry"].apply(
+            self._read_geometry
+        )
+        user_input = user_input.drop("Copied Geometry", axis=1)
+        #user_input = user_input.rename(
+         #   columns={
+          #      "Input Name": "nombre", 
+           #     "Input Type": "clasificac",
+            #}
+        #)
+        gdf = gpd.GeoDataFrame(user_input, crs=4326)
+        custom_crs = get_user_defined_crs()
+        gdf_rep = gdf.to_crs(custom_crs)
+        gdf_rep["area"] = (gdf.geometry.area * 1e10).round(3)
+        return gdf_rep.dropna(subset="geometry")
+
     def simulation(self) -> None: 
 
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
-        # Here we define {Z(s):s ⊆ S ⊆ R2}
+        # Define the random vars {Z(s):s ⊆ S ⊆ R2}
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
 
         st.markdown("### Project settings")
-        params_col, kepler_col  = st.columns((0.5,0.5))
-
+        params_col, kepler_col  = st.columns((0.4,0.6))
 
         with params_col:
             project_type, project_units = st.columns((0.5,0.5))
@@ -132,7 +184,7 @@ class UrbanValuationDashboard(Dashboard):
                 btypes = raw_df['property_type'].unique()
                 target_btypes = st.multiselect('Define your unit types', options=btypes)
 
-                # Here we can redifine the non target class (1-p) used to define binomial 
+                # Here we can redifine the non target class (1-p) for the binomial 
                 # rule of the density function. This affects the performance of the model 
                 # because changes the success probability of Z(s) = 0 | Z(s) = 1  
                 user_also_defines_comparison_types = False
@@ -164,6 +216,7 @@ class UrbanValuationDashboard(Dashboard):
                 custom_crs = get_user_defined_crs()
                 compact_region = self._geom_selector(selected_process, action_zone, custom_crs)
 
+                # OPTION 1 for custom zones redefinition
                 if selected_process == "Custom Zone":
                     overwrite_custom_action_zone = st.checkbox('Overwrites custom zone')
                     
@@ -180,14 +233,32 @@ class UrbanValuationDashboard(Dashboard):
                             # overwrites the geometry if users decide to customize the action zone
                             compact_region = self._transform_gjson_str_repr(input_geometry, custom_crs)
 
-            # User can redefine the custom reference zone here
-            compact_region_ref = None    
-            #if reference_zone_geom_isin_users_table:
-                #compact_region_ref = user_input.apply.loads_gjson_str_repr(str_rep, custom_crs) # SA
-
             with parcel_selector:
                 st.markdown("Define your project footprint")
                 activate_parcels = st.checkbox('Parcel selector')
+
+            with user_table_container:
+                table_values = (
+                    self._format_gdf_for_table(
+                        #simulated_params.get("simulated_surfaces")
+                    )
+                    if simulated_params.get("simulated_project") is not None
+                    else EXAMPLE_INPUT
+                )
+            user_input = self._user_input(table_values)
+
+            # OPTION 2 for custom zones redefinition
+            compact_region_ref = None
+            ref_zone_num = user_input['Input Type'].value_counts().loc['reference_zone']
+            
+            if ref_zone_num == 1:
+                compact_region_ref = user_input.loc[user_input['Input Type'] == 'reference_zone']
+            elif ref_zone_num > 1:
+                error_message(
+                            "Users cannot define more than one reference zone. Modify your settings and submit again."
+                        )
+            else:
+                pass # no new reference zone
 
             st.markdown("### Model settings")
             land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
@@ -205,7 +276,7 @@ class UrbanValuationDashboard(Dashboard):
                                         options=unit_ammenities+urban_environment_ammenities)
         
         with kepler_col:
-            sim_frame_map = KeplerGl(height=475, width=300, config=self.main_ref_config)
+            sim_frame_map = KeplerGl(height=620, width=300, config=self.main_ref_config)
             # Landing data?
             #sim_frame_map.add_data(data=sampledata, name="test")
             landing_map = sim_frame_map
@@ -271,7 +342,6 @@ class UrbanValuationDashboard(Dashboard):
             market_area = points_gdf.clip(simulated_params.action_geom)
             df = pd.DataFrame(market_area.drop(columns='geometry'))
                 
-            #if (len(simulated_params.project_type) > 0) and (len(simulated_params.project_btypes) > 0): # FIXME
             sim_container = st.container()
             with conversion.localconverter(default_converter):
                 with sim_container:
@@ -293,9 +363,33 @@ class UrbanValuationDashboard(Dashboard):
                     import streamlit.components.v1 as components
                     p = open('mymap.html')
                     components.html(p.read(), width=1000, height=600, scrolling=True)
-            #else:
-                #st.warning("🚨" + " Define your project type and units" + "🚨")
+            
+            #st.warning("🚨" + " Define your project type and units" + "🚨")
 
+    def zones(self) -> None:
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No action zone can be compared.",
+                icon="⚠️",
+            )
+            return
+
+        simulated_params = st.session_state.simulated_params
+        reference_zone = self._zone_selector(
+            simulated_params.process,
+            simulated_params.reference_zone,
+            False,
+        )
+
+        st.session_state.simulated_params.reference_zone = reference_zone
+
+        if reference_zone == "Custom Zone":
+            if simulated_params.reference_geom is None:
+                custom_zones = get_default_zones()
+                reference_geom = custom_zones.loc[custom_zones['zone_type']=='reference_zone']
+            else:
+                reference_geom = simulated_params.reference_geom
+    
     def dashboard_header(self) -> None:
         section_header("Land Valuator 🏗️", "Your land valuation model starts here 🏗️")
 
