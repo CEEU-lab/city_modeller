@@ -17,6 +17,7 @@ from city_modeller.page import page_group
 from city_modeller.public_space import PublicSpacesDashboard
 from city_modeller.streets_greenery import GreenViewIndexDashboard
 from city_modeller.streets_network.utils import get_projected_crs
+from city_modeller.urban_services import UrbanServicesDashboard
 from city_modeller.urban_valuation import UrbanValuationDashboard
 from city_modeller.utils import PROJECT_DIR, init_package
 
@@ -60,6 +61,11 @@ def main():
         main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
         stations_config_path=f"{PROJECT_DIR}/config/gvi_stations.json",
     )
+    us = UrbanServicesDashboard(
+        neighborhoods=get_neighborhoods(),
+        communes=get_communes(),
+        default_config_path=f"{PROJECT_DIR}/config/urban_services.json",
+    )
     uv = UrbanValuationDashboard()
 
     # SIDE BAR CONFIG
@@ -72,6 +78,7 @@ def main():
         with st.expander("**Micromodelling**", True):
             page.item("Green surfaces", ps.run_dashboard)
             page.item("Streets greenery", gvi.run_dashboard)
+            page.item("Urban Services", us.run_dashboard)
 
         with st.expander("**Macromodelling**", True):
             page.item("Urban Land Valuation", uv.run_dashboard)

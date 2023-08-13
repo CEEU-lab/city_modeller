@@ -38,7 +38,7 @@ def get_amenities_gdf() -> gpd.GeoDataFrame:
 
 
 def get_amenities_isochrones(
-    amenities: gpd.GeoDataFrame, travel_times: list[int] = [15]
+    amenities: gpd.GeoDataFrame, travel_times: list[int] = [5, 10, 15]
 ) -> gpd.GeoDataFrame:
     results = gpd.GeoDataFrame()
     amenities_points = amenities.dropna(subset=["geometry"])
@@ -46,12 +46,12 @@ def get_amenities_isochrones(
     for amenity in amenities["amenity"].unique():
         isochrones_gdf = (
             isochrone_mapping(
-                amenities_points,
+                amenities_points.query(f"amenity == '{amenity}'"),
                 travel_times=travel_times,
                 node_tag_name="name",
                 network_type="walk",
             )
-            if not amenities_points.empty
+            if not amenities_points.query(f"amenity == '{amenity}'").empty
             else gpd.GeoDataFrame()
         )
         isochrones_gdf["amenity"] = amenity

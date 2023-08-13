@@ -103,8 +103,6 @@ class UrbanServicesDashboard(ModelingDashboard):
         urban_services: gpd.GeoDataFrame,
         simulated_params: UrbanServicesSimulationParameters,
         key: Optional[str] = None,
-        filter_column: Optional[str] = None,
-        zone: Optional[list[str]] = None,
         reference_key: Optional[str] = None,
     ) -> ResultsColumnPlots:  # TODO: Extract into functions.
         st.markdown(
@@ -132,15 +130,28 @@ class UrbanServicesDashboard(ModelingDashboard):
                         )
                     except KeyError:
                         logging.warn(f"Reference key {reference_key} doesn't exist.")
-                isochrone_gdf = get_amenities_isochrones(urban_services)
+                isochrone_gdf = get_amenities_isochrones(urban_services, [15]).sort_values(
+                    "amenity"
+                )
                 if reference_outputs is not None:
-                    isochrone_gdf = (
-                        isochrone_overlap(
-                            isochrone_gdf, reference_outputs.isochrone_mapping, travel_times=[15]
-                        )
-                        if not isochrone_gdf.empty
-                        else reference_outputs.isochrone_mapping
-                    )  # FIXME: Merge by amenity.
+                    gdf = gpd.GeoDataFrame()
+                    for amenity in [k for k, v in simulated_params.typologies.items() if v]:
+                        gdf_ = (
+                            isochrone_overlap(
+                                isochrone_gdf.query(f"amenity == '{amenity}'"),
+                                reference_outputs.isochrone_mapping.query(
+                                    f"amenity == '{amenity}'"
+                                ),
+                                travel_times=[15],
+                            )
+                            if not isochrone_gdf.query(f"amenity == '{amenity}'").empty
+                            else reference_outputs.isochrone_mapping.query(
+                                f"amenity == '{amenity}'"
+                            )
+                        )  # FIXME: Merge by amenity.
+                        gdf_["amenity"] = amenity
+                        gdf = pd.concat([gdf, gdf_])
+                    isochrone_gdf = gdf.reset_index(drop=True).sort_values("amenity")
             st.write(isochrone_gdf)
             plot_kepler(isochrone_gdf, self.default_config)  # FIXME: Plot by amenity.
 
@@ -265,16 +276,12 @@ class UrbanServicesDashboard(ModelingDashboard):
                 current_services,
                 simulated_params,
                 key="action_zone_t0",
-                filter_column=simulated_params.process,
-                zone=simulated_params.action_zone,
             )
             simulated_results_gen = self._plot_graph_outputs(
                 "Simulated Results",
                 services_simulation,
                 simulated_params,
                 key="action_zone_t1",
-                filter_column=simulated_params.process,
-                zone=simulated_params.action_zone,
                 reference_key="action_zone_t0",
             )
             while True:
