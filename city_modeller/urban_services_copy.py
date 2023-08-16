@@ -29,7 +29,7 @@ from city_modeller.models.public_space import (
     MovilityType,
     ResultsColumnPlots,
 )
-from city_modeller.streets_network.isochrones import isochrone_mapping, isochrone_overlap
+from city_modeller.streets_network.isochrones import isochrone_mapping, isochrone_overlap,isochrone_mapping_intersection
 from city_modeller.utils import (
     PROJECT_DIR,
     distancia_mas_cercano,
@@ -357,7 +357,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                     )
                     public_spaces_points.geometry = geometry_centroid(public_spaces_points)
                     isochrone_gdf = (
-                        isochrone_mapping(
+                        isochrone_mapping_intersection(
                             public_spaces_points,
                             node_tag_name="nombre",
                             speed=speed,
@@ -372,6 +372,8 @@ class PublicSpacesDashboard(ModelingDashboard):
                             if not isochrone_gdf.empty
                             else reference_outputs.isochrone_mapping
                         )
+                
+
                 plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
         else:
             isochrone_gdf = gpd.GeoDataFrame()
@@ -432,7 +434,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             )
             public_spaces_points.geometry = geometry_centroid(public_spaces_points)
 
-            isochrone_public_space = isochrone_mapping(
+            isochrone_public_space = isochrone_mapping_intersection(
                 public_spaces_points,
                 speed=speed,
                 network_type=network_type,
@@ -469,7 +471,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
             isochrone_surrounding_nb = (
-                isochrone_mapping(
+                isochrone_mapping_intersection(
                     surrounding_spaces,
                     speed=speed,
                     network_type=network_type,
