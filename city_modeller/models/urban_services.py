@@ -8,7 +8,7 @@ from pydantic import BaseModel, Extra
 EXAMPLE_INPUT = pd.DataFrame(
     [
         {
-            "Urban Service Name": "example_amenity",
+            "Urban Service Name": "example_hospital",
             "Urban Service Type": "hospital",
             "Copied Geometry": geojson.dumps(
                 {
@@ -23,7 +23,41 @@ EXAMPLE_INPUT = pd.DataFrame(
                     ],
                 }
             ),
-        }
+        },
+        {
+            "Urban Service Name": "example_pharmacy",
+            "Urban Service Type": "pharmacy",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        },
+        {
+            "Urban Service Name": "example_school",
+            "Urban Service Type": "school",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        },
     ]
 )
 

@@ -44,16 +44,19 @@ def get_amenities_isochrones(
     amenities_points = amenities.dropna(subset=["geometry"])
     amenities_points.geometry = geometry_centroid(amenities_points)
     for amenity in amenities["amenity"].unique():
-        isochrones_gdf = (
-            isochrone_mapping(
-                amenities_points.query(f"amenity == '{amenity}'"),
-                travel_times=travel_times,
-                node_tag_name="name",
-                network_type="walk",
+        try:
+            isochrones_gdf = (
+                isochrone_mapping(
+                    amenities_points.query(f"amenity == '{amenity}'"),
+                    travel_times=travel_times,
+                    node_tag_name="name",
+                    network_type="walk",
+                )
+                if not amenities_points.query(f"amenity == '{amenity}'").empty
+                else gpd.GeoDataFrame()
             )
-            if not amenities_points.query(f"amenity == '{amenity}'").empty
-            else gpd.GeoDataFrame()
-        )
+        except ox._errors.EmptyOverpassResponse:
+            isochrones_gdf = gpd.GeoDataFrame()
         isochrones_gdf["amenity"] = amenity
         results = pd.concat([results, isochrones_gdf])
     return results.reset_index(drop=True)
