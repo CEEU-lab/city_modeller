@@ -1,10 +1,12 @@
+import os
 from typing import Optional, Union
 from city_modeller.base import Dashboard
 from city_modeller.utils import parse_config_json
 from city_modeller.widgets import section_header, section_toggles, error_message
+from city_modeller.utils import PROJECT_DIR
 from city_modeller.datasources import get_properaty_data
-import streamlit as st
-import pandas as pd
+from city_modeller.real_estate.offer_type import offer_type_predictor_wrapper 
+from city_modeller.real_estate.utils import build_project_class
 
 from city_modeller.datasources import (
     get_communes,
@@ -16,27 +18,24 @@ from city_modeller.datasources import (
 from city_modeller.schemas.urban_valuation import (
     EXAMPLE_INPUT,
     LandValuatorSimulationParameters,
-    #MovilityType,
-    #ResultsColumnPlots,
 )
 
-#import yaml
+import streamlit as st
+from keplergl import KeplerGl
+from streamlit_keplergl import keplergl_static
+import streamlit.components.v1 as components
+
+import pandas as pd
+import geopandas as gpd
 import json
 import geojson
 from shapely import Polygon
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 import pyproj
-from rpy2 import robjects as ro
-from rpy2.robjects import pandas2ri
-from rpy2.robjects import conversion, default_converter
-from city_modeller.real_estate.offer_type import predict_offer_class
-from city_modeller.real_estate.utils import build_project_class
-import geopandas as gpd
-from keplergl import KeplerGl
-from streamlit_keplergl import keplergl_static
 
 
+RESULTS_DIR = os.path.join(PROJECT_DIR, "real_estate/results")
 
 class UrbanValuationDashboard(Dashboard):
     def __init__(
@@ -150,6 +149,8 @@ class UrbanValuationDashboard(Dashboard):
             self._read_geometry
         )
         user_input = user_input.drop("Copied Geometry", axis=1)
+        # TODO: Si el usuario solo puede usar la tablita para registrar proyectos
+        # Input Name se podría llamar Project Name e Input Type solo tenría el tipo project_footprint 
         #user_input = user_input.rename(
          #   columns={
           #      "Input Name": "nombre", 
@@ -161,12 +162,42 @@ class UrbanValuationDashboard(Dashboard):
         gdf_rep = gdf.to_crs(custom_crs)
         gdf_rep["area"] = (gdf.geometry.area * 1e10).round(3)
         return gdf_rep.dropna(subset="geometry")
+    
+    def render_spatial_density_function(
+            self, 
+            df: pd.DataFrame,
+            target_group_lst: list[str], 
+            comparison_group_lst: list[str],
+            CRS: str|int,
+            geom: list[str],
+            file_name: str
+            ) -> str:
+        #simulated_params = dict(st.session_state.get("simulated_params", {}))
+        df['tipo_agr'] = df['property_type'].apply(lambda x: build_project_class(
+                x, target_group=target_group_lst, 
+                comparison_group=comparison_group_lst)
+                )
+            
+        # keep discrete classes to model out binomial distribution 
+        df = df.loc[df['tipo_agr'] != 'other'].copy()
+        gdf = gpd.GeoDataFrame(
+            df, geometry=gpd.points_from_xy(df.lon, df.lat), crs=4326
+        )
+        points_gdf = gdf.to_crs(CRS)
+        market_area = points_gdf.clip(geom)
+        df_ = pd.DataFrame(market_area.drop(columns='geometry'))
+        path = RESULTS_DIR + file_name 
+        
+        offer_type_predictor_wrapper(df_, path)
+        p = open(path)
+        return p
 
     def simulation(self) -> None: 
 
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
+        
         # Define the random vars {Z(s):s ⊆ S ⊆ R2}
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
 
@@ -181,8 +212,8 @@ class UrbanValuationDashboard(Dashboard):
                 cat_name = st.text_input(label = 'Define your project type')
             
             with project_units:
-                btypes = raw_df['property_type'].unique()
-                target_btypes = st.multiselect('Define your unit types', options=btypes)
+                building_types = raw_df['property_type'].unique()
+                target_btypes = st.multiselect('Define your unit types', options=building_types)
 
                 # Here we can redifine the non target class (1-p) for the binomial 
                 # rule of the density function. This affects the performance of the model 
@@ -192,7 +223,11 @@ class UrbanValuationDashboard(Dashboard):
                     print("Can write here another multiselect input")
                 else:
                     # all the other offered typologies
-                    other_btypes = [i for i in btypes if i not in target_btypes]
+                    other_btypes = [i for i in building_types if i not in target_btypes]
+                
+                # If more interoperability is needed, users can redifine the urban land typology
+                target_ltypes = ["Lote"] 
+                other_ltypes = [i for i in building_types if i not in target_ltypes]
             
             with project_zone:
                 selected_process = st.selectbox(
@@ -216,7 +251,7 @@ class UrbanValuationDashboard(Dashboard):
                 custom_crs = get_user_defined_crs()
                 compact_region = self._geom_selector(selected_process, action_zone, custom_crs)
 
-                # OPTION 1 for custom zones redefinition
+                # OPTION 1 for custom zones redefinition (out of the user input table)
                 if selected_process == "Custom Zone":
                     overwrite_custom_action_zone = st.checkbox('Overwrites custom zone')
                     
@@ -240,14 +275,14 @@ class UrbanValuationDashboard(Dashboard):
             with user_table_container:
                 table_values = (
                     self._format_gdf_for_table(
-                        #simulated_params.get("simulated_surfaces")
+                        simulated_params.get("simulated_project")
                     )
                     if simulated_params.get("simulated_project") is not None
                     else EXAMPLE_INPUT
                 )
             user_input = self._user_input(table_values)
 
-            # OPTION 2 for custom zones redefinition
+            # OPTION 2 for custom zones redefinition (inside the user input table)
             compact_region_ref = None
             ref_zone_num = user_input['Input Type'].value_counts().loc['reference_zone']
             
@@ -277,7 +312,7 @@ class UrbanValuationDashboard(Dashboard):
         
         with kepler_col:
             sim_frame_map = KeplerGl(height=620, width=300, config=self.main_ref_config)
-            # Landing data?
+            # TODO: new map config + Landing data? 
             #sim_frame_map.add_data(data=sampledata, name="test")
             landing_map = sim_frame_map
 
@@ -302,7 +337,9 @@ class UrbanValuationDashboard(Dashboard):
                             LandValuatorSimulationParameters(
                                 project_type=cat_name,
                                 project_btypes=target_btypes,
-                                non_project_btypes=other_btypes,  
+                                non_project_btypes=other_btypes,
+                                urban_land_typology=target_ltypes,
+                                non_urban_land_typology=other_ltypes,  
                                 process=selected_process,
                                 action_zone=tuple(action_zone),
                                 action_geom=compact_region,
@@ -325,47 +362,38 @@ class UrbanValuationDashboard(Dashboard):
         simulated_params = st.session_state.simulated_params
         raw_df = simulated_params.planar_point_process
         
-        #### OFFER TYPE RESULTS #####
-        offer_type = st.container()#columns((0.5,0.5))
-        with offer_type:            
-            raw_df['tipo_agr'] = raw_df['property_type'].apply(lambda x: build_project_class(
-                x, target_group=simulated_params.project_btypes, 
-                comparison_group=simulated_params.non_project_btypes)
-                )
-            
-            # keep discrete classes to model out binomial distribution 
-            raw_df = raw_df.loc[raw_df['tipo_agr'] != 'other'].copy()
-            gdf = gpd.GeoDataFrame(
-                raw_df, geometry=gpd.points_from_xy(raw_df.lon, raw_df.lat), crs=4326
+        st.markdown("### Real Estate Market Scene")
+        available_urban_land, project_offer_type = st.columns((0.5,0.5))
+        with available_urban_land:
+            st.markdown("#### Available urban land")
+            st.markdown("""The output map indicates where is more likebale to find offered lots""")
+            p1 = self.render_spatial_density_function(
+                df=raw_df, 
+                target_group_lst=simulated_params.urban_land_typology,
+                comparison_group_lst=simulated_params.non_urban_land_typology,
+                CRS=simulated_params.CRS,
+                geom=simulated_params.action_geom,
+                file_name='/land_offer_type.html'
             )
-            points_gdf = gdf.to_crs(simulated_params.CRS)
-            market_area = points_gdf.clip(simulated_params.action_geom)
-            df = pd.DataFrame(market_area.drop(columns='geometry'))
-                
-            sim_container = st.container()
-            with conversion.localconverter(default_converter):
-                with sim_container:
-                    # loads pandas as data.frame r object
-                    with (ro.default_converter + pandas2ri.converter).context():
-                        r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
-                    
-                    # parameters
-                    # TODO: use histogram to chek the observed distribution of the target class?
-                    prediction_method = "splines" # DENSITY FUNCTION.  
-                    intervals = 10 
-                    colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
-
-                    # predict offer type
-                    ro.r(predict_offer_class)
-                    predominant_offer = ro.globalenv['real_estate_offer']
-                    predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec)
-                    
-                    import streamlit.components.v1 as components
-                    p = open('mymap.html')
-                    components.html(p.read(), width=1000, height=600, scrolling=True)
+            components.html(p1.read(), width=1000, height=400, scrolling=True)
             
-            #st.warning("🚨" + " Define your project type and units" + "🚨")
+        
+        with project_offer_type:
+            st.markdown("#### Similar project offer")
+            st.markdown("""The output map indicates where is more likebale to find """)
+            
+            p2 = self.render_spatial_density_function(
+                df=raw_df, 
+                target_group_lst=simulated_params.project_btypes,
+                comparison_group_lst=simulated_params.non_project_btypes,
+                CRS=simulated_params.CRS,
+                geom=simulated_params.action_geom,
+                file_name='/project_offer_type.html'
+            )
+            components.html(p2.read(), width=1000, height=400, scrolling=True)
 
+            
+            
     def zones(self) -> None:
         if "simulated_params" not in st.session_state:
             st.warning(
