@@ -363,34 +363,39 @@ class UrbanValuationDashboard(Dashboard):
         raw_df = simulated_params.planar_point_process
         
         st.markdown("### Real Estate Market Scene")
-        available_urban_land, project_offer_type = st.columns((0.5,0.5))
-        with available_urban_land:
-            st.markdown("#### Available urban land")
-            st.markdown("""The output map indicates where is more likebale to find offered lots""")
-            p1 = self.render_spatial_density_function(
-                df=raw_df, 
-                target_group_lst=simulated_params.urban_land_typology,
-                comparison_group_lst=simulated_params.non_urban_land_typology,
-                CRS=simulated_params.CRS,
-                geom=simulated_params.action_geom,
-                file_name='/land_offer_type.html'
-            )
-            components.html(p1.read(), width=1000, height=400, scrolling=True)
-            
+        st.markdown("""Below, users can find the outputs of the Real Estate Modelling 
+                funcionalities applied to the offer published in the formal market""")
         
-        with project_offer_type:
-            st.markdown("#### Similar project offer")
-            st.markdown("""The output map indicates where is more likebale to find """)
+        available_urban_land, project_offer_type = st.columns((0.5,0.5))
+
+        with st.spinner("⏳ Loading..."):
+            with available_urban_land:
+                st.markdown("#### Offered urban land")
+                st.markdown("""The output map indicates where is more likebale to find available lots""")
+                p1 = self.render_spatial_density_function(
+                    df=raw_df, 
+                    target_group_lst=simulated_params.urban_land_typology,
+                    comparison_group_lst=simulated_params.non_urban_land_typology,
+                    CRS=simulated_params.CRS,
+                    geom=simulated_params.action_geom,
+                    file_name='/land_offer_type.html'
+                )
+                components.html(p1.read(), width=1000, height=400, scrolling=True)
+                
             
-            p2 = self.render_spatial_density_function(
-                df=raw_df, 
-                target_group_lst=simulated_params.project_btypes,
-                comparison_group_lst=simulated_params.non_project_btypes,
-                CRS=simulated_params.CRS,
-                geom=simulated_params.action_geom,
-                file_name='/project_offer_type.html'
-            )
-            components.html(p2.read(), width=1000, height=400, scrolling=True)
+            with project_offer_type:
+                st.markdown("#### Offered units")
+                st.markdown("""The output map indicates where is more likebale to find similar building types""")
+                
+                p2 = self.render_spatial_density_function(
+                    df=raw_df, 
+                    target_group_lst=simulated_params.project_btypes,
+                    comparison_group_lst=simulated_params.non_project_btypes,
+                    CRS=simulated_params.CRS,
+                    geom=simulated_params.action_geom,
+                    file_name='/project_offer_type.html'
+                )
+                components.html(p2.read(), width=1000, height=400, scrolling=True)
 
             
             
