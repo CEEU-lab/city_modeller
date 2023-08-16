@@ -134,3 +134,6 @@ data
 figures
 **.ipynb
 cache
+
+# model temporary files
+real_estate/results/
