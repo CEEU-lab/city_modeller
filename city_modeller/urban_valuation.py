@@ -423,6 +423,16 @@ class UrbanValuationDashboard(Dashboard):
             else:
                 reference_geom = simulated_params.reference_geom
     
+    def impact(self) -> None:
+        if "simulated_params" not in st.session_state:
+            st.warning(
+                "No simulation parameters submitted. No action zone can be compared.",
+                icon="⚠️",
+            )
+            return
+        st.markdown("## Coming soon!")
+        simulated_params = st.session_state.simulated_params
+
     def dashboard_header(self) -> None:
         section_header("Land Valuator 🏗️", "Your land valuation model starts here 🏗️")
 
