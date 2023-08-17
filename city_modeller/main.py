@@ -64,7 +64,8 @@ def main():
     us = UrbanServicesDashboard(
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
-        default_config_path=f"{PROJECT_DIR}/config/urban_services.json",
+        default_config_path=f"{PROJECT_DIR}/config/urban_services/urban_services.json",
+        isochrones_config_path=f"{PROJECT_DIR}/config/urban_services/isochrones.json"
     )
     uv = UrbanValuationDashboard()
 

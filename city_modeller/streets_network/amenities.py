@@ -1,10 +1,9 @@
 import geopandas as gpd
 import osmnx as ox
-import pandas as pd
 from shapely import geometry
 
 from city_modeller.datasources import get_bs_as_multipolygon, get_neighborhoods
-from city_modeller.streets_network.isochrones import isochrone_mapping
+from city_modeller.streets_network.isochrones import isochrone_mapping_intersection
 from city_modeller.utils import geometry_centroid
 
 AMENITIES = ["pharmacy", "hospital", "school"]
@@ -40,23 +39,19 @@ def get_amenities_gdf() -> gpd.GeoDataFrame:
 def get_amenities_isochrones(
     amenities: gpd.GeoDataFrame, travel_times: list[int] = [5, 10, 15]
 ) -> gpd.GeoDataFrame:
-    results = gpd.GeoDataFrame()
     amenities_points = amenities.dropna(subset=["geometry"])
     amenities_points.geometry = geometry_centroid(amenities_points)
-    for amenity in amenities["amenity"].unique():
-        try:
-            isochrones_gdf = (
-                isochrone_mapping(
-                    amenities_points.query(f"amenity == '{amenity}'"),
-                    travel_times=travel_times,
-                    node_tag_name="name",
-                    network_type="walk",
-                )
-                if not amenities_points.query(f"amenity == '{amenity}'").empty
-                else gpd.GeoDataFrame()
+    try:
+        isochrones_gdf = (
+            isochrone_mapping_intersection(
+                amenities_points,
+                travel_times=travel_times,
+                node_tag_name="name",
+                network_type="walk",
             )
-        except ox._errors.EmptyOverpassResponse:
-            isochrones_gdf = gpd.GeoDataFrame()
-        isochrones_gdf["amenity"] = amenity
-        results = pd.concat([results, isochrones_gdf])
-    return results.reset_index(drop=True)
+            if not amenities_points.empty
+            else gpd.GeoDataFrame()
+        )
+    except ox._errors.EmptyOverpassResponse:
+        isochrones_gdf = gpd.GeoDataFrame()
+    return isochrones_gdf.reset_index(drop=True)

@@ -1,12 +1,12 @@
 import logging
-from itertools import product
 from typing import Any, Optional
 
 import geojson
 import geopandas as gpd
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
-from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 from city_modeller.base import ModelingDashboard
 from city_modeller.datasources import get_communes, get_neighborhoods
@@ -20,8 +20,17 @@ from city_modeller.streets_network.amenities import (
     get_amenities_gdf,
     get_amenities_isochrones,
 )
-from city_modeller.streets_network.isochrones import isochrone_overlap
-from city_modeller.utils import gdf_diff, PROJECT_DIR, parse_config_json, plot_kepler
+from city_modeller.streets_network.isochrones import (
+    isochrone_overlap,
+    isochrone_mapping_intersection,
+)
+from city_modeller.utils import (
+    PROJECT_DIR,
+    gdf_diff,
+    geometry_centroid,
+    parse_config_json,
+    plot_kepler,
+)
 from city_modeller.widgets import read_kepler_geometry, section_header
 
 
@@ -32,12 +41,15 @@ class UrbanServicesDashboard(ModelingDashboard):
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict[str, Any]] = None,
         default_config_path: Optional[str] = None,
+        isochrones_config: Optional[dict[str, Any]] = None,
+        isochrones_config_path: Optional[str] = None,
     ) -> None:
         super().__init__("15' Cities")
         self.city_amenities: gpd.GeoDataFrame = st.cache_data(get_amenities_gdf)()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.default_config = parse_config_json(default_config, default_config_path)
+        self.isochrones_config = parse_config_json(isochrones_config, isochrones_config_path)
 
     @staticmethod
     def _format_gdf_for_table(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -136,49 +148,22 @@ class UrbanServicesDashboard(ModelingDashboard):
                         )
                     except KeyError:
                         logging.warn(f"Reference key {reference_key} doesn't exist.")
-                isochrone_gdf = get_amenities_isochrones(urban_services, travel_times).sort_values(
-                    "amenity"
-                )
+                isochrone_gdf = get_amenities_isochrones(urban_services, travel_times)
                 if reference_outputs is not None:
-                    gdf = gpd.GeoDataFrame()
-                    for amenity in [k for k, v in simulated_params.typologies.items() if v]:
-                        gdf_ = (
-                            isochrone_overlap(
-                                isochrone_gdf.query(f"amenity == '{amenity}'"),
-                                reference_outputs.isochrone_mapping.query(
-                                    f"amenity == '{amenity}'"
-                                ),
-                                travel_times=travel_times,
-                            )
-                            if not isochrone_gdf.query(f"amenity == '{amenity}'").empty
-                            else reference_outputs.isochrone_mapping.query(
-                                f"amenity == '{amenity}'"
-                            )
-                        )  # FIXME: Merge by amenity.
-                        gdf_["amenity"] = amenity
-                        gdf = pd.concat([gdf, gdf_])
-                    isochrone_gdf = gdf
-                for amenity, travel_time in product(AMENITIES, travel_times):
-                    if isochrone_gdf.query(
-                        f"(amenity == '{amenity}') & (time == '{travel_time}')"
-                    ).empty:
-                        isochrone_gdf = pd.concat(
-                            [
-                                isochrone_gdf,
-                                gpd.GeoDataFrame(
-                                    [
-                                        {
-                                            "time": travel_time,
-                                            "amenity": amenity,
-                                            "geometry": Polygon([[0, 0], [0, 0], [0, 0], [0, 0]]),
-                                        }
-                                    ]
-                                ),
-                            ]
+                    isochrone_gdf = (
+                        isochrone_overlap(
+                            isochrone_gdf,
+                            reference_outputs.isochrone_mapping,
+                            travel_times=travel_times,
                         )
-            isochrone_gdf = isochrone_gdf.reset_index(drop=True).sort_values(["amenity", "time"])
-            st.write(isochrone_gdf)
-            plot_kepler(isochrone_gdf, self.default_config)  # FIXME: Plot intersection.
+                        if not isochrone_gdf.empty
+                        else reference_outputs.isochrone_mapping
+                    )
+            isochrone_gdf["time"] = isochrone_gdf.time.astype(int)
+            isochrone_gdf = isochrone_gdf.reset_index(drop=True).sort_values(
+                ["time"], ascending=False
+            )
+            plot_kepler(isochrone_gdf, self.isochrones_config)  # FIXME: Check hollowness.
 
         results = ResultsColumnPlots(
             urban_services=urban_services_,
@@ -201,6 +186,88 @@ class UrbanServicesDashboard(ModelingDashboard):
             sorted(df[selected_process].unique()),
             default=default_value,
         )
+
+    def _social_impact(
+        self,
+        urban_services: gpd.GeoDataFrame,
+        typologies: dict[str, bool],
+        process: str,
+        action_zone: list[str],
+        isochrone_key: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
+        # Original isochrone.
+        TRAVEL_TIMES = [5, 10, 15]
+        graph_outputs = st.session_state.graph_outputs or {}
+        radio_availability = self.radio_availability.copy()
+        if isochrone_key is not None and (results := graph_outputs.get(isochrone_key)) is not None:
+            isochrone_public_space = results.isochrone_mapping
+        else:
+            isochrone_public_space = get_amenities_isochrones(urban_services.copy(), TRAVEL_TIMES)
+
+        # Operations
+        urban_services_unary = unary_union(urban_services.geometry)
+        radio_availability["geometry_wo_ps"] = radio_availability.apply(
+            lambda x: ((x["geometry"]).difference(urban_services_unary)), axis=1
+        )
+        for row, minutes in enumerate(TRAVEL_TIMES):
+            radio_availability[f"geometry_wo_ps_int_iso_{minutes}"] = radio_availability.apply(
+                lambda x: (
+                    (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[row, 1])
+                ).area
+                * (10**10),
+                axis=1,
+            )
+
+        # Surrounding nbs
+        if (isochrone_surrounding_nb := graph_outputs.get("surrounding_isochrone")) is None:
+            surrounding_nb = (
+                radio_availability[radio_availability.geometry_wo_ps_int_iso_5 != 0]
+                .loc[:, "Neighborhood"]
+                .unique()
+            )
+            surrounding_spaces = self._visible_column(self.public_spaces, typologies).query(
+                "visible"
+            )
+            surrounding_spaces = surrounding_spaces[
+                (~surrounding_spaces[process].isin(action_zone))
+                & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
+            ]
+            surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
+            isochrone_surrounding_nb = (
+                isochrone_mapping_intersection(
+                    surrounding_spaces,
+                    speed=speed,
+                )
+                if not surrounding_spaces.empty
+                else gpd.GeoDataFrame()
+            )
+            graph_outputs["surrounding_isochrone"] = isochrone_surrounding_nb
+            st.session_state.graph_outputs = graph_outputs
+        # Operations on isochrone.
+        isochrone_full = (
+            isochrone_overlap(isochrone_surrounding_nb, isochrone_public_space)
+            if not isochrone_surrounding_nb.empty
+            else isochrone_public_space
+        )
+
+        for row, minutes in enumerate(TRAVEL_TIMES):
+            radio_availability[f"geometry_wo_ps_int_iso_{minutes}"] = radio_availability.apply(
+                lambda x: ((x["geometry_wo_ps"]).intersection(isochrone_full.iloc[row, 1])).area
+                * (10**10),
+                axis=1,
+            )
+            radio_availability["geometry_wo_ps_area"] = radio_availability[
+                "geometry_wo_ps"
+            ].area * (10**10)
+            radio_availability[f"ratio_geometry_wo_ps_int_iso_{minutes}"] = (
+                radio_availability[f"geometry_wo_ps_int_iso_{minutes}"]
+                / radio_availability["geometry_wo_ps_area"]
+            )
+            radio_availability[f"cant_hab_afect_iso_{minutes}"] = (
+                radio_availability[f"ratio_geometry_wo_ps_int_iso_{minutes}"]
+                * radio_availability["TOTAL_VIV"]
+            )
+        return radio_availability
 
     def simulation(self) -> None:
         t0_city_container = st.container()
@@ -400,7 +467,82 @@ class UrbanServicesDashboard(ModelingDashboard):
             return
 
         simulated_params = st.session_state.simulated_params
-        st.write(simulated_params)  # DELETE: Only a QA check for now.
+        current_services = self.current_services(
+            simulated_params.typologies,
+            simulated_params.process,
+            simulated_params.action_zone,
+        )
+        services_simulation = self._simulated_services(
+            simulated_params.simulated_surfaces,
+            simulated_params.typologies,
+            public_spaces=current_services,
+        )
+        if current_services.query("amenity.notnull()").empty:
+            st.error(
+                "The combination of Action Zone and Typologies doesn't have any Urban "
+                "Services. Please adjust your simulation."
+            )
+            return
+        # with st.container():
+        #     current_services_social_impact = self._social_impact(
+        #         urban_services=current_services,
+        #         typologies=simulated_params.typologies,
+        #         process=simulated_params.process,
+        #         action_zone=simulated_params.action_zone,
+        #         isochrone_enabled=simulated_params.isochrone_enabled,
+        #         isochrone_key="action_zone_t0",
+        #         speed=simulated_params.movility_type.speed,
+        #         network_type=simulated_params.movility_type.network_type,
+        #     )
+        #     simulated_services_social_impact = self._social_impact(
+        #         urban_services=services_simulation,
+        #         typologies=simulated_params.typologies,
+        #         process=simulated_params.process,
+        #         action_zone=simulated_params.action_zone,
+        #         isochrone_enabled=simulated_params.isochrone_enabled,
+        #         isochrone_key="action_zone_t1",
+        #         speed=simulated_params.movility_type.speed,
+        #         network_type=simulated_params.movility_type.network_type,
+        #     )
+        #     current_services_results = (
+        #         current_services_social_impact[
+        #             [
+        #                 col
+        #                 for col in current_services_social_impact.columns
+        #                 if "cant_hab_afect_iso" in col
+        #             ]
+        #         ]
+        #         .sum()
+        #         .cumsum()
+        #     )
+        #     simulated_services_results = (
+        #         simulated_services_social_impact[
+        #             [
+        #                 col
+        #                 for col in simulated_services_social_impact.columns
+        #                 if "cant_hab_afect_iso" in col
+        #             ]
+        #         ]
+        #         .sum()
+        #         .cumsum()
+        #     )
+
+        #     # Generate data for the bar graph
+        #     x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
+        #     y1 = current_services_results
+        #     y2 = simulated_services_results
+        #     percentage_increase = "+" + ((y2 / y1 - 1) * 100).round(2).astype(str) + "%"
+
+        #     # Create a figure object
+        #     fig = go.Figure()
+
+        #     # Add the bar traces for each group
+        #     fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
+        #     fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase))
+
+        #     # Set the layout
+        #     fig.update_layout(barmode="group", height=600)
+        #     st.plotly_chart(fig, use_container_width=True, height=600)
 
     def dashboard_header(self) -> None:
         section_header(
@@ -419,6 +561,7 @@ if __name__ == "__main__":
     dashboard = UrbanServicesDashboard(
         neighborhoods=get_neighborhoods(),
         communes=get_communes(),
-        default_config_path=f"{PROJECT_DIR}/config/urban_services.json",
+        default_config_path=f"{PROJECT_DIR}/config/urban_services/urban_services.json",
+        isochrones_config_path=f"{PROJECT_DIR}/config/urban_services/isochrones.json",
     )
     dashboard.run_dashboard()
