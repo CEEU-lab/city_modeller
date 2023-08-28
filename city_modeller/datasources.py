@@ -332,7 +332,7 @@ def get_commune_availability(
 
 @st.cache_data
 def get_properaty_data():
-    # TODO Issue 32: define the data schema and how to adjust the properaty data to different dates 
+    # TODO: Update Properaty Dataset 
     root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
     df = pd.read_csv(root)
     return df
@@ -342,12 +342,12 @@ def get_default_zones():
     with open(f"{CONF_DIR}/default_zones.yaml", 'r') as config_zone:
         zone_geoms = yaml.safe_load(config_zone)
         
-        zones_frame = {'Custom Zone': [], 'geometry':[]}
+        zones_frame = {'User defined Polygon': [], 'geometry':[]}
         
         for z in ['Caba South', 'Caba North']:
             zone = zone_geoms[z]
             geom = Polygon(zone["coordinates"][0])
-            zones_frame['Custom Zone'].append(z)
+            zones_frame['User defined Polygon'].append(z)
             zones_frame['geometry'].append(geom)
 
     gdf = gpd.GeoDataFrame(zones_frame, crs=4326)
