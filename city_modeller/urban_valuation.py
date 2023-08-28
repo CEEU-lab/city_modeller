@@ -1,8 +1,14 @@
 import os
-from typing import Optional, Union
+from typing import Optional
 from city_modeller.base import Dashboard
 from city_modeller.utils import parse_config_json
-from city_modeller.widgets import section_header, section_toggles, error_message
+from city_modeller.widgets import (
+    section_header, 
+    section_toggles, 
+    error_message, 
+    read_kepler_geometry,
+    transform_kepler_geomstr
+    )
 from city_modeller.utils import PROJECT_DIR
 from city_modeller.datasources import get_properaty_data
 from city_modeller.real_estate.offer_type import offer_type_predictor_wrapper 
@@ -15,6 +21,7 @@ from city_modeller.datasources import (
     get_user_defined_crs
 )
 
+from typing import Literal
 from city_modeller.schemas.urban_valuation import (
     EXAMPLE_INPUT,
     LandValuatorSimulationParameters,
@@ -27,11 +34,6 @@ import streamlit.components.v1 as components
 
 import pandas as pd
 import geopandas as gpd
-import json
-import geojson
-from shapely import Polygon
-from shapely.geometry import shape
-from shapely.geometry.base import BaseGeometry
 import pyproj
 
 
@@ -42,14 +44,16 @@ class UrbanValuationDashboard(Dashboard):
         self,
         neighborhoods: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
-        custom_zones: gpd.GeoDataFrame,
+        user_polygons: gpd.GeoDataFrame,
+        user_crs: str | int,
         properaty_data: pd.DataFrame,
         main_ref_config: Optional[dict] = None,
         main_ref_config_path: Optional[str] = None,
     ) -> None:
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
-        self.custom_zones: gpd.GeoDataFrame = custom_zones.copy()
+        self.user_polygons: gpd.GeoDataFrame = user_polygons.copy()
+        self.user_crs: str | int = user_crs
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
 
@@ -62,56 +66,9 @@ class UrbanValuationDashboard(Dashboard):
                 "Input Geometry": 'None', #gdf.geometry.apply(geojson.dumps),
             }, index = [0]
         )
-    
-    @staticmethod
-    def _read_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
-        gjson = geojson.loads(geom)
-        if len(gjson["coordinates"][0]) < 4:
-            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
-            return
-        poly = Polygon(shape(gjson))
-        return poly if not poly.is_empty else None
-
-    @staticmethod
-    def _transform_gjson_str_repr(
-        str_geometry: str,
-        crs_code: str | int
-    ) -> gpd.GeoDataFrame:
-        json_polygon = json.loads(str_geometry)
-        if len(json_polygon["coordinates"][0]) < 4:
-            error_message(f"Invalid Geometry ({json_polygon['coordinates'][0]}).")
-            return
-        polygon_geom = Polygon(json_polygon["coordinates"][0])
-        gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326',
-                               geometry=[polygon_geom]).to_crs(crs_code)
-        return gdf
-
-    def _geom_selector(
-        self, selected_process: str, 
-        geom_names: list[str] | None,
-        proj: int | str | None
-    ) -> gpd.GeoDataFrame :
-        
-        gdfs = {"Commune": self.communes, 
-                "Neighborhood": self.neighborhoods, 
-                "Custom Zone": self.custom_zones}
-        
-        gdf = gdfs[selected_process]
-       
-        if proj:
-            # Reproyect layer
-            user_crs = pyproj.CRS.from_user_input(proj)
-            gdf = gdf.to_crs(user_crs)
-        
-        if geom_names is not None:
-            # subset the canvas: S ⊆ R2 - region inside the space
-            return gdf.loc[gdf[selected_process].isin(geom_names)].copy()
-        else:
-            # return all zones - the entire space R2
-            return gdf.copy()
         
     def _zone_selector(
-        self, selected_process: str, default_value: list[str], 
+        self, selected_level: str, default_value: list[str], 
         action_zone: bool = True    
     ) -> list[str] :
         
@@ -119,22 +76,127 @@ class UrbanValuationDashboard(Dashboard):
         
         df = (
             self.communes
-            if selected_process == "Commune"
-            else (self.neighborhoods if selected_process == "Neighborhood" 
-                  else self.custom_zones.loc[self.custom_zones['zone_type']==zone])
+            if selected_level == "Commune"
+            else (self.neighborhoods if selected_level == "Neighborhood" 
+                  else self.user_polygons.loc[self.user_polygons['zone_type']==zone])
         )
         
         return st.multiselect(
-            f"Select {selected_process.lower()}s for your {zone} Zone:",
-            df[selected_process].unique(),
+            f"Select {selected_level.lower()}s for your {zone} Zone:",
+            df[selected_level].unique(),
             default=default_value,
         )
 
-    
+    def _zone_geom_selector(
+        self, selected_level: str, 
+        geom_names: list[str] | None,
+        proj: int | str | None
+    ) -> gpd.GeoDataFrame :
+        
+        gdfs = {"Commune": self.communes, 
+                "Neighborhood": self.neighborhoods, 
+                "User defined Polygon": self.user_polygons}
+        
+        gdf = gdfs[selected_level]
+       
+        if proj:
+            # Reproyect layer
+            user_crs = pyproj.CRS.from_user_input(proj) # TODO: Se puede usar directo el parametro sin pasar por pyproj???
+            gdf = gdf.to_crs(user_crs)
+        
+        if geom_names is not None:
+            # subset the canvas: S ⊆ R2 - region inside the space
+            return gdf.loc[gdf[selected_level].isin(geom_names)].copy()
+        else:
+            # return all zones - the entire space R2
+            return gdf.copy()
+        
+    def _zone_drafter(
+       self, 
+       zone_crs: str | int, 
+       zone_type: str
+
+    ) -> gpd.GeoDataFrame:
+        geom_legend = "draw your zone geometry on the main map and paste it here" 
+        input_geometry = st.text_input(
+            "Simulation area",
+            geom_legend,
+            label_visibility="visible",
+            key='custom-' + f'{zone_type}',
+        )
+
+        if input_geometry != geom_legend: 
+            return transform_kepler_geomstr(
+                input_geometry, zone_crs
+            )
+
+    def analysis_zoom_delimiter(
+        self, zone_crs: str | int,
+        zone_type: Literal['action_zone', 'reference_zone'] 
+    ) -> dict[list[str], gpd.GeoDataFrame]:
+
+        zone_title = zone_type.split('_')[0]
+        st.markdown(f'**Define your {zone_title} zone**')
+        use_default_level = st.checkbox(
+            'Use default area level', 
+            disabled=False, 
+            key=f'{zone_title}-default-level-on'
+        )     
+
+        if use_default_level:
+            st.checkbox(
+                'Use custom area level', 
+                disabled=True, 
+                key=f'{zone_title}-custom-level-off'
+            )
+            area_levels = ["Commune", "Neighborhood", "User defined Polygon"]
+            selected_level = st.selectbox(
+                "Define your granularity level",
+                area_levels,
+                index=int(len(area_levels)-3),
+                key=f'{zone_title}' + 'selectbox'
+            )
+            
+            is_action_zone = True if zone_type == 'action_zone' else False
+
+            try:
+                target_zone = self._zone_selector(
+                    selected_level, 
+                    [],
+                    is_action_zone
+                )
+                
+            except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                simulated_params = dict(st.session_state.get("simulated_params", {}))
+                simulated_params[zone_type] = [] 
+                target_zone = self._zone_selector(
+                    selected_level, 
+                    simulated_params.get(zone_type, []),
+                    is_action_zone
+                )
+
+            # Defines the grid space {A ⊆ S ⊆ Rd}
+            target_geom = self._zone_geom_selector(
+                selected_level, target_zone, zone_crs
+            )
+            return {"target_zone":target_zone, "target_geom":target_geom}
+
+        else:
+            st.checkbox(
+                'Use custom area level', 
+                key=f'{zone_title}-custom-level-on'
+            )
+
+            if st.session_state[f"{zone_title}-custom-level-on"]:
+                target_zone = ["Drawn Zone"]
+                target_geom = self._zone_drafter(zone_crs, zone_title)
+                return {"target_zone":target_zone, "target_geom":target_geom}
+
     def _user_input(
         self, data: pd.DataFrame = EXAMPLE_INPUT
     ) -> gpd.GeoDataFrame:
-        input_cat_type = pd.api.types.CategoricalDtype(categories=['real estate project', 'action zone', 'reference_zone'])
+        input_cat_type = pd.api.types.CategoricalDtype(categories=['residential building types',
+                                                                   'non residential building types' ])
 
         data["Input Type"] = data["Input Type"].astype(input_cat_type)
         data = data if not data.empty else EXAMPLE_INPUT
@@ -142,21 +204,20 @@ class UrbanValuationDashboard(Dashboard):
             data, num_rows="dynamic", use_container_width=True
         )
         user_input["Input Type"] = user_input["Input Type"].fillna(
-            "real estate project"
+            "residential building types"
         )
         user_input = user_input.dropna(subset="Copied Geometry")
         user_input["geometry"] = user_input["Copied Geometry"].apply(
-            self._read_geometry
+            read_kepler_geometry
         )
         user_input = user_input.drop("Copied Geometry", axis=1)
-        # TODO: Si el usuario solo puede usar la tablita para registrar proyectos
-        # Input Name se podría llamar Project Name e Input Type solo tenría el tipo project_footprint 
-        #user_input = user_input.rename(
-         #   columns={
-          #      "Input Name": "nombre", 
-           #     "Input Type": "clasificac",
-            #}
-        #)
+         
+        user_input = user_input.rename(
+            columns={
+                "Input Name": "Project Name", 
+                "Input Type": "Project Type",
+            }
+        )
         gdf = gpd.GeoDataFrame(user_input, crs=4326)
         custom_crs = get_user_defined_crs()
         gdf_rep = gdf.to_crs(custom_crs)
@@ -172,7 +233,7 @@ class UrbanValuationDashboard(Dashboard):
             geom: list[str],
             file_name: str
             ) -> str:
-        #simulated_params = dict(st.session_state.get("simulated_params", {}))
+        
         df['tipo_agr'] = df['property_type'].apply(lambda x: build_project_class(
                 x, target_group=target_group_lst, 
                 comparison_group=comparison_group_lst)
@@ -197,105 +258,65 @@ class UrbanValuationDashboard(Dashboard):
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
-        
+        action_geom = None
+
         # Define the random vars {Z(s):s ⊆ S ⊆ R2}
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
 
-        st.markdown("### Project settings")
-        params_col, kepler_col  = st.columns((0.4,0.6))
+        st.markdown("### Projects settings")
+        params_col, kepler_col  = st.columns((0.35,0.65))
 
         with params_col:
-            project_type, project_units = st.columns((0.5,0.5))
-            project_zone, parcel_selector = st.columns((0.5,0.5))
+            # Action Zone
+            actzone_params = self.analysis_zoom_delimiter(
+                self.user_crs,  
+                "action_zone"
+            )
+
+            if actzone_params is not None:           
+                action_zone = actzone_params["target_zone"]
+                action_geom = actzone_params["target_geom"]  
+
+        with params_col:
+            st.markdown("**Define your projects footprints**")
+            activate_parcels = st.checkbox('Parcel selector')
+
         
-            with project_type:
-                cat_name = st.text_input(label = 'Define your project type')
-            
-            with project_units:
-                building_types = raw_df['property_type'].unique()
-                target_btypes = st.multiselect('Define your unit types', options=building_types)
-
-                # Here we can redifine the non target class (1-p) for the binomial 
-                # rule of the density function. This affects the performance of the model 
-                # because changes the success probability of Z(s) = 0 | Z(s) = 1  
-                user_also_defines_comparison_types = False
-                if user_also_defines_comparison_types:
-                    print("Can write here another multiselect input")
-                else:
-                    # all the other offered typologies
-                    other_btypes = [i for i in building_types if i not in target_btypes]
-                
-                # If more interoperability is needed, users can redifine the urban land typology
-                target_ltypes = ["Lote"] 
-                other_ltypes = [i for i in building_types if i not in target_ltypes]
-            
-            with project_zone:
-                selected_process = st.selectbox(
-                    "Define your project zone",
-                    ["Commune", "Neighborhood", "Custom Zone"],
-                    index=int(simulated_params.get("process") == "Custom Zone"),
+        with user_table_container:
+            table_values = (
+                self._format_gdf_for_table(
+                    simulated_params.get("simulated_project")
                 )
-                
-                try:
-                    action_zone = self._zone_selector(
-                        selected_process, simulated_params.get("action_zone", [])
-                    )
-                    
-                except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
-                    simulated_params["action_zone"] = []
-                    action_zone = self._zone_selector(
-                        selected_process, simulated_params.get("action_zone", [])
-                    )
+                if simulated_params.get("simulated_project") is not None
+                else EXAMPLE_INPUT
+            )
+        user_input = self._user_input(table_values)
 
-                # Defines the grid space {A ⊆ S ⊆ Rd}
-                custom_crs = get_user_defined_crs()
-                compact_region = self._geom_selector(selected_process, action_zone, custom_crs)
+        st.markdown("### Model settings")
+        project_type, project_units = st.columns((0.5,0.5))
 
-                # OPTION 1 for custom zones redefinition (out of the user input table)
-                if selected_process == "Custom Zone":
-                    overwrite_custom_action_zone = st.checkbox('Overwrites custom zone')
-                    
-                    if overwrite_custom_action_zone:
-                        geom_legend = "overwrite your custom zone here" 
-                        input_geometry = st.text_input(
-                            "Simulation area",
-                            geom_legend,
-                            label_visibility="visible",
-                            key="compact-region",
-                        )
+        with project_type:
+            cat_name = st.text_input(label = 'Define your project type')
+        
+        with project_units:
+            building_types = raw_df['property_type'].unique()
+            target_btypes = st.multiselect('Define your unit types', options=building_types)
 
-                        if input_geometry != geom_legend: 
-                            # overwrites the geometry if users decide to customize the action zone
-                            compact_region = self._transform_gjson_str_repr(input_geometry, custom_crs)
-
-            with parcel_selector:
-                st.markdown("Define your project footprint")
-                activate_parcels = st.checkbox('Parcel selector')
-
-            with user_table_container:
-                table_values = (
-                    self._format_gdf_for_table(
-                        simulated_params.get("simulated_project")
-                    )
-                    if simulated_params.get("simulated_project") is not None
-                    else EXAMPLE_INPUT
-                )
-            user_input = self._user_input(table_values)
-
-            # OPTION 2 for custom zones redefinition (inside the user input table)
-            compact_region_ref = None
-            ref_zone_num = user_input['Input Type'].value_counts().loc['reference_zone']
-            
-            if ref_zone_num == 1:
-                compact_region_ref = user_input.loc[user_input['Input Type'] == 'reference_zone']
-            elif ref_zone_num > 1:
-                error_message(
-                            "Users cannot define more than one reference zone. Modify your settings and submit again."
-                        )
+            # Here we can redifine the non target class (1-p) for the binomial 
+            # rule of the density function. This affects the performance of the model 
+            # because changes the success probability of Z(s) = 0 | Z(s) = 1  
+            user_also_defines_comparison_types = False
+            if user_also_defines_comparison_types:
+                print("Can write here another multiselect input")
             else:
-                pass # no new reference zone
+                # all the other offered typologies
+                other_btypes = [i for i in building_types if i not in target_btypes]
+            
+            # If more interoperability is needed, users can redifine the urban land typology
+            target_ltypes = ["Lote"] 
+            other_ltypes = [i for i in building_types if i not in target_ltypes]
+            
 
-            st.markdown("### Model settings")
             land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
             
             with land_size:
@@ -311,17 +332,18 @@ class UrbanValuationDashboard(Dashboard):
                                         options=unit_ammenities+urban_environment_ammenities)
         
         with kepler_col:
-            sim_frame_map = KeplerGl(height=620, width=300, config=self.main_ref_config)
+            sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
             # TODO: new map config + Landing data? 
-            #sim_frame_map.add_data(data=sampledata, name="test")
             landing_map = sim_frame_map
+            
+            if action_geom is not None:
+                sim_frame_map.add_data(data=action_geom)
 
             if activate_parcels:
                 parcels = "load data here"
                 sim_frame_map.add_data(data=parcels)
 
             keplergl_static(landing_map, center_map=True)
-
 
         with submit_container:
             _, button_col = st.columns([3, 1])
@@ -339,19 +361,18 @@ class UrbanValuationDashboard(Dashboard):
                                 project_btypes=target_btypes,
                                 non_project_btypes=other_btypes,
                                 urban_land_typology=target_ltypes,
-                                non_urban_land_typology=other_ltypes,  
-                                process=selected_process,
+                                non_urban_land_typology=other_ltypes,
                                 action_zone=tuple(action_zone),
-                                action_geom=compact_region,
-                                reference_geom=compact_region_ref,
+                                action_geom=action_geom,
                                 parcel_selector=activate_parcels,
-                                CRS = custom_crs,
                                 lot_size = lot_ref_size,
                                 unit_size = unit_ref_size,
                                 planar_point_process = raw_df,
-                                expvars = selected_expvars
+                                expvars = selected_expvars,
+                                landing_map = landing_map
                             )
                         )
+
     def main_results(self) -> None:
         if "simulated_params" not in st.session_state:
             st.warning(
@@ -376,13 +397,12 @@ class UrbanValuationDashboard(Dashboard):
                     df=raw_df, 
                     target_group_lst=simulated_params.urban_land_typology,
                     comparison_group_lst=simulated_params.non_urban_land_typology,
-                    CRS=simulated_params.CRS,
+                    CRS=self.user_crs,
                     geom=simulated_params.action_geom,
                     file_name='/land_offer_type.html'
                 )
                 components.html(p1.read(), width=1000, height=400, scrolling=True)
                 
-            
             with project_offer_type:
                 st.markdown("#### Offered units")
                 st.markdown("""The output map indicates where is more likebale to find similar building types""")
@@ -391,7 +411,7 @@ class UrbanValuationDashboard(Dashboard):
                     df=raw_df, 
                     target_group_lst=simulated_params.project_btypes,
                     comparison_group_lst=simulated_params.non_project_btypes,
-                    CRS=simulated_params.CRS,
+                    CRS=self.user_crs,
                     geom=simulated_params.action_geom,
                     file_name='/project_offer_type.html'
                 )
@@ -406,23 +426,37 @@ class UrbanValuationDashboard(Dashboard):
                 icon="⚠️",
             )
             return
-
+        
+        st.markdown("### Compare against a reference zone")
+        params_col, kepler_col  = st.columns((0.35,0.65))
+        reference_geom = None
         simulated_params = st.session_state.simulated_params
-        reference_zone = self._zone_selector(
-            simulated_params.process,
-            simulated_params.reference_zone,
-            False,
-        )
+        
+        with params_col:
+            zone_params = self.analysis_zoom_delimiter(
+                self.user_crs, 
+                "reference_zone"
+            )
+             
+            if zone_params is not None:           
+                    reference_zone = zone_params["target_zone"]
+                    reference_geom = zone_params["target_geom"]
+            
+                    st.session_state.simulated_params.reference_zone = reference_zone
+                    st.session_state.simulated_params.reference_geom = reference_geom
 
-        st.session_state.simulated_params.reference_zone = reference_zone
+        with kepler_col:
+            action_geom = simulated_params.action_geom
+            sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
+            sim_frame_map.add_data(data=action_geom)
+            landing_map = sim_frame_map
+            
+            if reference_geom is not None:
+                all_zones = pd.concat([action_geom, reference_geom])
+                sim_frame_map.add_data(data=all_zones)
+                
+            keplergl_static(landing_map, center_map=True)
 
-        if reference_zone == "Custom Zone":
-            if simulated_params.reference_geom is None:
-                custom_zones = get_default_zones()
-                reference_geom = custom_zones.loc[custom_zones['zone_type']=='reference_zone']
-            else:
-                reference_geom = simulated_params.reference_geom
-    
     def impact(self) -> None:
         if "simulated_params" not in st.session_state:
             st.warning(
@@ -469,6 +503,7 @@ if __name__ == "__main__":
     dashboard = UrbanValuationDashboard(
         communes=get_communes(),
         neighborhoods=get_neighborhoods(),
-        default_zone=get_default_zones(),
+        user_polygons=get_default_zones(),
+        user_crs=get_user_defined_crs(),
         properaty_data=get_properaty_data()
     )

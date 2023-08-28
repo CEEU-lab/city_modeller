@@ -2,6 +2,7 @@ from typing import Literal, Optional
 
 import geojson
 import geopandas as gpd
+import keplergl
 import pandas as pd
 from pydantic import BaseModel, Extra
 
@@ -33,19 +34,18 @@ class LandValuatorSimulationParameters(BaseModel):
     project_btypes: list[str]
     non_project_btypes: list[str]
     simulated_project: Optional[pd.DataFrame] # switch to mandatory
-    process: Literal["Commune", "Neighborhood", "Custom Zone"]
     action_zone: list[str] 
     action_geom: gpd.GeoDataFrame
     reference_zone: Optional[list[str]]
-    reference_geom: None | gpd.GeoDataFrame 
+    reference_geom: Optional[gpd.GeoDataFrame] 
     parcel_selector: bool 
-    CRS: int | str
     lot_size: tuple[int, int]
     unit_size: tuple[int, int]
     planar_point_process: pd.DataFrame
     expvars: list[str]
     urban_land_typology: list[str]
     non_urban_land_typology: list[str]
+    landing_map: keplergl.keplergl.KeplerGl
 
     class Config:
         arbitrary_types_allowed = True
