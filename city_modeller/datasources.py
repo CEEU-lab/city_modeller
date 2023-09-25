@@ -63,7 +63,7 @@ def get_BsAs_streets(
 
 @st.cache_data
 def get_census_data(
-    filter_jurisdiction = False
+    filter_jurisdiction: bool = False
     ) -> gpd.GeoDataFrame:
     """
     Loads the 2020 argentinian census tracts
@@ -341,10 +341,17 @@ def get_commune_availability(
     return gdf
 
 @st.cache_data
-def get_properaty_data():
-    # TODO: Utility function to update currency 
-    # BsAs offer
-    root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
+def get_properaty_data(
+    filter_jurisdiction: bool = False
+    ) -> pd.DataFrame:
+    # TODO: Write utility function to update currency 
+    if filter_jurisdiction:
+        # Loads Argentina real estate offer
+        root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    
+    else:
+        # Loads BsAs real estate offer
+        root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
     df = pd.read_csv(root)
     return df
 
