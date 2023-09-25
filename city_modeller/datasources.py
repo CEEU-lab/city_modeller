@@ -342,8 +342,8 @@ def get_commune_availability(
 
 @st.cache_data
 def get_properaty_data():
-    # TODO: Update Properaty Dataset 
-    #root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    # TODO: Utility function to update currency 
+    # BsAs offer
     root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
     df = pd.read_csv(root)
     return df
