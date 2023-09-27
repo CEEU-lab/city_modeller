@@ -336,11 +336,12 @@ class UrbanValuationDashboard(Dashboard):
                 print("Can write here another multiselect input")
             else:
                 # all the other offered typologies
-                other_btypes = [i for i in building_types if i not in target_btypes]
+                all_types = market_units[building_types]
+                other_btypes = [i for i in all_types if i not in target_btypes]
             
             # If more interoperability is needed, users can redifine the urban land typology
             target_ltypes = ["Lote"] 
-            other_ltypes = [i for i in building_types if i not in target_ltypes]
+            other_ltypes = [i for i in target_btypes if i not in target_ltypes]
             
             land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
             
@@ -420,7 +421,7 @@ class UrbanValuationDashboard(Dashboard):
             )
             return
         simulated_params = st.session_state.simulated_params
-        raw_df = simulated_params.planar_point_process
+        raw_df = simulated_params.planar_point_process[['property_type', 'lat', 'lon']]
         
         st.markdown("### Real Estate Market Scene")
         st.markdown("""Below, users can find the outputs of the Real Estate Modelling 
