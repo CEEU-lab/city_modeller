@@ -421,7 +421,8 @@ class UrbanValuationDashboard(Dashboard):
             )
             return
         simulated_params = st.session_state.simulated_params
-        raw_df = simulated_params.planar_point_process[['property_type', 'lat', 'lon']]
+        offer_columns = ['property_type', 'lat', 'lon']
+        raw_df = simulated_params.planar_point_process[offer_columns]
         
         st.markdown("### Real Estate Market Scene")
         st.markdown("""Below, users can find the outputs of the Real Estate Modelling 
