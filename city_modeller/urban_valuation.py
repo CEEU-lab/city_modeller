@@ -23,7 +23,7 @@ from city_modeller.datasources import (
 
 from typing import Literal
 from city_modeller.schemas.urban_valuation import (
-    EXAMPLE_INPUT,
+    PROJECTS_INPUT,
     LandValuatorSimulationParameters,
 )
 
@@ -57,15 +57,6 @@ class UrbanValuationDashboard(Dashboard):
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
 
-    @staticmethod
-    def _format_gdf_for_table() -> pd.DataFrame:
-        return pd.DataFrame(
-            {
-                "Input Name": 'None',
-                "Input Type": 'None',
-                "Input Geometry": 'None', #gdf.geometry.apply(geojson.dumps),
-            }, index = [0]
-        )
         
     def _zone_selector(
         self, selected_level: str, default_value: list[str], 
@@ -193,33 +184,26 @@ class UrbanValuationDashboard(Dashboard):
                 return {"target_zone":target_zone, "target_geom":target_geom}
 
     def _user_input(
-        self, data: pd.DataFrame = EXAMPLE_INPUT
+        self, data: pd.DataFrame = PROJECTS_INPUT
     ) -> gpd.GeoDataFrame:
         input_cat_type = pd.api.types.CategoricalDtype(
-            categories=['C.A.', 'C.M.', 'U.S.A.A.', 
-                        'U.S.A.M.', 'U.S.A.B.1', 'U.S.A.B.2']
-                        )
+            categories=["High density", "Low density"])
 
-        data["Input Type"] = data["Input Type"].astype(input_cat_type)
-        data = data if not data.empty else EXAMPLE_INPUT
+        data["Project Type"] = data["Project Type"].astype(input_cat_type)
+        data = data if not data.empty else PROJECTS_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        user_input["Input Type"] = user_input["Input Type"].fillna(
-            "C.A."
+        user_input["Project Type"] = user_input["Project Type"].fillna(
+            "Low density"
         )
-        user_input = user_input.dropna(subset="Copied Geometry")
-        user_input["geometry"] = user_input["Copied Geometry"].apply(
+
+        user_input = user_input.dropna(subset="Footprint Geometry")
+        user_input["geometry"] = user_input["Footprint Geometry"].apply(
             read_kepler_geometry
         )
-        user_input = user_input.drop("Copied Geometry", axis=1)
-         
-        user_input = user_input.rename(
-            columns={
-                "Input Name": "Project Name", 
-                "Input Type": "Project Type",
-            }
-        )
+        user_input = user_input.drop("Footprint Geometry", axis=1)
+        
         gdf = gpd.GeoDataFrame(user_input, crs=4326)
         custom_crs = get_user_defined_crs()
         gdf_rep = gdf.to_crs(custom_crs)
@@ -275,7 +259,7 @@ class UrbanValuationDashboard(Dashboard):
 
         user_table_container = st.container()
         submit_container = st.container()
-        simulated_params = dict(st.session_state.get("simulated_params", {}))
+        #simulated_params = dict(st.session_state.get("simulated_params", {}))
         action_geom = None
 
         # Define the random vars {Z(s):s ⊆ S ⊆ R2}
@@ -305,13 +289,19 @@ class UrbanValuationDashboard(Dashboard):
             activate_parcels = st.checkbox('Parcels viewer')
 
         with user_table_container:
-            table_values = (
-                self._format_gdf_for_table(
-                    simulated_params.get("simulated_project")
-                )
-                if simulated_params.get("simulated_project") is not None
-                else EXAMPLE_INPUT
-            )
+            project_cols = {
+                    "Input Name": "Project Name", 
+                    "Input Type": "Project Type",
+                    "Input Number1": "CA Buildings",
+                    "Input Number2": "CM Buildings",
+                    "Input Number3": "USAA Buildings",
+                    "Input Number4": "USAM Buildings",
+                    "Input Number5": "USAB2 Buildings",
+                    "Input Number6": "USAB1 Buildings",
+                    "Copied Geometry": "Footprint Geometry"
+                }
+            table_values = PROJECTS_INPUT.rename(columns=project_cols)
+            
         user_input = self._user_input(table_values)
 
         st.markdown("### Model settings")
