@@ -195,8 +195,10 @@ class UrbanValuationDashboard(Dashboard):
     def _user_input(
         self, data: pd.DataFrame = EXAMPLE_INPUT
     ) -> gpd.GeoDataFrame:
-        input_cat_type = pd.api.types.CategoricalDtype(categories=['high density',
-                                                                   'low density' ])
+        input_cat_type = pd.api.types.CategoricalDtype(
+            categories=['C.A.', 'C.M.', 'U.S.A.A.', 
+                        'U.S.A.M.', 'U.S.A.B.1', 'U.S.A.B.2']
+                        )
 
         data["Input Type"] = data["Input Type"].astype(input_cat_type)
         data = data if not data.empty else EXAMPLE_INPUT
@@ -204,7 +206,7 @@ class UrbanValuationDashboard(Dashboard):
             data, num_rows="dynamic", use_container_width=True
         )
         user_input["Input Type"] = user_input["Input Type"].fillna(
-            "high density"
+            "C.A."
         )
         user_input = user_input.dropna(subset="Copied Geometry")
         user_input["geometry"] = user_input["Copied Geometry"].apply(
@@ -360,7 +362,21 @@ class UrbanValuationDashboard(Dashboard):
                 #gvi_bsas = get_GVI_treepedia_BsAs().clip(action_geom.to_crs(4326))
         
         with project_capacity:
-            st.write("ALTERAR LA CAPACIDAD CONSTRUCTIVA DE LAS PARCELAS")
+            st.write("**Define your building standards**")
+            left_col, right_col = st.columns([0.5,0.5])
+
+            with left_col:
+                CA_maxh = st.number_input("C.A. max height", value=38)
+                CM_maxh = st.number_input("C.M. max height", value=31.2)
+                USAA_maxh = st.number_input("U.S.A.A. max height", value=22.8)
+
+            with right_col:
+                USAM_maxh = st.number_input("U.S.A.M. max height", value=16.5)
+                USAB2_maxh = st.number_input("U.S.A.B.2 max height", value=11.2)
+                USAB1_maxh = st.number_input("U.S.A.B.1 max height", value=9)
+                
+
+
         
         with kepler_col:
             sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
