@@ -256,9 +256,6 @@ class UrbanValuationDashboard(Dashboard):
         return market_zone   
 
     def simulation(self) -> None: 
-
-        user_table_container = st.container()
-        submit_container = st.container()
         #simulated_params = dict(st.session_state.get("simulated_params", {}))
         action_geom = None
 
@@ -266,6 +263,7 @@ class UrbanValuationDashboard(Dashboard):
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
         
         st.markdown("### Projects settings")
+        user_table_container = st.container()
         params_col, kepler_col  = st.columns((0.25,0.75))
 
         with params_col:
@@ -292,12 +290,7 @@ class UrbanValuationDashboard(Dashboard):
             project_cols = {
                     "Input Name": "Project Name", 
                     "Input Type": "Project Type",
-                    "Input Number1": "CA Buildings",
-                    "Input Number2": "CM Buildings",
-                    "Input Number3": "USAA Buildings",
-                    "Input Number4": "USAM Buildings",
-                    "Input Number5": "USAB2 Buildings",
-                    "Input Number6": "USAB1 Buildings",
+                    "Input Number1": "Buildings",
                     "Copied Geometry": "Footprint Geometry"
                 }
             table_values = PROJECTS_INPUT.rename(columns=project_cols)
@@ -305,10 +298,9 @@ class UrbanValuationDashboard(Dashboard):
         user_input = self._user_input(table_values)
 
         st.markdown("### Model settings")
-        project_units, project_capacity = st.columns((0.5,0.5))
+        project_units, _, project_capacity, _ = st.columns((0.3, 0.1, 0.3, 0.1))
         
         with project_units:
-
             market_units = {"Residential":
                             ["Lote","PH","Casa","Departamento"],
                             "Non residential":
@@ -364,10 +356,13 @@ class UrbanValuationDashboard(Dashboard):
                 USAM_maxh = st.number_input("U.S.A.M. max height", value=16.5)
                 USAB2_maxh = st.number_input("U.S.A.B.2 max height", value=11.2)
                 USAB1_maxh = st.number_input("U.S.A.B.1 max height", value=9)
+
+            building_max_heights = {
+                "CA":CA_maxh, "CM":CM_maxh, 
+                "USAA":USAA_maxh, "USAM":USAM_maxh,
+                "USAB2":USAB2_maxh, "USAB1":USAB1_maxh
+                }
                 
-
-
-        
         with kepler_col:
             sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
             landing_map = sim_frame_map
@@ -391,10 +386,11 @@ class UrbanValuationDashboard(Dashboard):
 
             keplergl_static(landing_map, center_map=True)
 
+        submit_container = st.container()
         with submit_container:
-            _, button_col = st.columns([3, 1])
+            _, _, button_col, _, _ = st.columns([0.2, 0.2, 0.2, 0.2, 0.2])
             with button_col:
-                if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
+                if st.button("Submit"):  
                     if action_zone == []:
                         error_message(
                             "No action zone selected. Select one and submit again."
@@ -403,6 +399,7 @@ class UrbanValuationDashboard(Dashboard):
                         st.session_state.graph_outputs = None
                         st.session_state.simulated_params = (
                             LandValuatorSimulationParameters(
+                                simulated_projects=user_input,
                                 project_type=building_types,
                                 project_btypes=target_btypes,
                                 non_project_btypes=other_btypes,
@@ -411,8 +408,9 @@ class UrbanValuationDashboard(Dashboard):
                                 action_zone=tuple(action_zone),
                                 action_geom=action_geom,
                                 parcel_selector=activate_parcels,
-                                lot_size = lot_ref_size,
-                                unit_size = unit_ref_size,
+                                lot_size=lot_ref_size,
+                                unit_size=unit_ref_size,
+                                max_heights=building_max_heights,
                                 planar_point_process = raw_df,
                                 expvars = selected_expvars,
                                 landing_map = landing_map
