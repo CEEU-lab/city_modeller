@@ -287,7 +287,6 @@ class UrbanValuationDashboard(Dashboard):
 
             if activate_parcels:
                 if action_geom is not None:
-                    print(f"LOADING PARCELS GEOJSON")
                     loaded_parcels = load_parcel(mask=action_geom)
                     if len(loaded_parcels) > 0:
                         self.parcels = loaded_parcels
@@ -348,13 +347,13 @@ class UrbanValuationDashboard(Dashboard):
             # TODO: new map config + Landing data? 
             landing_map = sim_frame_map
             
-            if action_geom is not None:
-                sim_frame_map.add_data(data=action_geom)
-
             if activate_parcels:
                 # parcels = "load data here"
                 if len(self.parcels) > 0:
-                    sim_frame_map.add_data(data=self.parcels)
+                    sim_frame_map.add_data(data=self.parcels, name='Parcels')
+
+            if action_geom is not None:
+                sim_frame_map.add_data(data=action_geom, name='Action Area')
 
             keplergl_static(landing_map, center_map=True)
 
