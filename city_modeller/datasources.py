@@ -1,4 +1,5 @@
 import os
+import json
 from typing import List, Optional
 
 import yaml
@@ -379,3 +380,11 @@ def get_user_defined_crs():
         proj_str = yaml.safe_load(custom_crs)['proj']
 
     return proj_str
+
+def load_parcel(mask) -> gpd.GeoDataFrame:
+    gdf_mask = gpd.GeoDataFrame(mask)
+    gdf_mask = gdf_mask.to_crs(4326)
+    path: str = f"{DATA_DIR}/parcels.shp"
+    gdf = gpd.read_file(path, mask=gdf_mask)
+
+    return gdf

@@ -18,7 +18,8 @@ from city_modeller.datasources import (
     get_communes,
     get_neighborhoods,
     get_default_zones,
-    get_user_defined_crs
+    get_user_defined_crs,
+    load_parcel
 )
 
 from typing import Literal
@@ -40,6 +41,9 @@ import pyproj
 RESULTS_DIR = os.path.join(PROJECT_DIR, "real_estate/results")
 
 class UrbanValuationDashboard(Dashboard):
+
+    parcels: gpd.GeoDataFrame =  gpd.GeoDataFrame([])
+
     def __init__(
         self,
         neighborhoods: gpd.GeoDataFrame,
@@ -285,6 +289,14 @@ class UrbanValuationDashboard(Dashboard):
                 horizontal=True, disabled=False)
             
             activate_parcels = st.checkbox('Parcels viewer')
+      
+            if activate_parcels:
+                if action_geom is not None:
+                    loaded_parcels = load_parcel(mask=action_geom)
+                    if len(loaded_parcels) > 0:
+                        self.parcels = loaded_parcels
+                else:
+                    st.warning("Parcels are loaded within the action zone - First set a geographic filter")
 
         with user_table_container:
             project_cols = {
@@ -381,8 +393,9 @@ class UrbanValuationDashboard(Dashboard):
                 sim_frame_map.add_data(data=geo_market_zone, name='real estate market')
 
             if activate_parcels:
-                parcels = "load data here"
-                sim_frame_map.add_data(data=parcels, name='parcels')
+                # parcels = "load data here"
+                if len(self.parcels) > 0:
+                    sim_frame_map.add_data(data=self.parcels, name='Parcels')
 
             keplergl_static(landing_map, center_map=True)
 
