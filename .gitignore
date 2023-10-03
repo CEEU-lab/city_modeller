@@ -134,3 +134,4 @@ data
 figures
 **.ipynb
 cache
+.vscode
