@@ -180,14 +180,15 @@ def get_bs_as_multipolygon(path: Path = Path(DATA_DIR) / "bs_as.geojson") -> Mul
 
 def get_radio_availability(
     _radios: gpd.GeoDataFrame,
-    _public_spaces: gpd.GeoDataFrame,
+    _locations: gpd.GeoDataFrame,
     _neighborhoods: gpd.GeoDataFrame,
-    _: Optional[gpd.GeoDataFrame] = None,
+    typology_column_name: str,
+    _communes: Optional[gpd.GeoDataFrame] = None,
     selected_typologies: Optional[List[str]] = None,
 ) -> gpd.GeoDataFrame:
     if selected_typologies is not None:
-        _public_spaces = _public_spaces[_public_spaces["clasificac"].isin(selected_typologies)]
-    polygons = list(_public_spaces.geometry)
+        _locations = _locations[_locations[typology_column_name].isin(selected_typologies)]
+    polygons = list(_locations.geometry)
     boundary = gpd.GeoSeries(unary_union(polygons))
     boundary = gpd.GeoDataFrame(geometry=gpd.GeoSeries(boundary), crs="epsg:4326")
     gdf = pd.merge(
@@ -224,16 +225,18 @@ def get_neighborhood_availability(
     radios: gpd.GeoDataFrame,
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
-    _: Optional[gpd.GeoDataFrame] = None,
+    typology_column_name: str,
+    communes: Optional[gpd.GeoDataFrame] = None,
     selected_typologies: Optional[List] = None,
     radio_availability: Optional[gpd.GeoDataFrame] = None,
 ) -> gpd.GeoDataFrame:
     if radio_availability is None:
         radio_availability = get_radio_availability(
             _radios=radios,
-            _public_spaces=public_spaces,
+            _locations=public_spaces,
             _neighborhoods=neighborhoods,
             selected_typologies=selected_typologies,
+            typology_column_name=typology_column_name,
         )
     neighborhoods = neighborhoods.copy()
     neighborhoods.columns = [
@@ -277,6 +280,7 @@ def get_commune_availability(
     public_spaces: gpd.GeoDataFrame,
     neighborhoods: gpd.GeoDataFrame,
     communes: gpd.GeoDataFrame,
+    typology_column_name: str,
     *,
     selected_typologies: Optional[List] = None,
     radio_availability: Optional[gpd.GeoDataFrame] = None,
@@ -284,9 +288,10 @@ def get_commune_availability(
     if radio_availability is None:
         radio_availability = get_radio_availability(
             _radios=radios,
-            _public_spaces=public_spaces,
+            _locations=public_spaces,
             _neighborhoods=neighborhoods,
             selected_typologies=selected_typologies,
+            typology_column_name=typology_column_name,
         )
 
     radios_comm_com = pd.merge(radio_availability, communes, on="Commune")

@@ -39,14 +39,20 @@ def main():
 
     # initialize menu
     page = page_group("page")
+
+    # Initialize datasets.
+    radios = get_census_data()
+    neighborhoods = get_neighborhoods()
+    communes = get_communes()
+
     # Instanciate Dashboard subclasses.
     lp = LandingPageDashboard()
     # Public Spaces
     ps = PublicSpacesDashboard(
-        radios=get_census_data(),
+        radios=radios,
         public_spaces=get_public_space(),
-        neighborhoods=get_neighborhoods(),
-        communes=get_communes(),
+        neighborhoods=neighborhoods,
+        communes=communes,
         default_config_path=f"{PROJECT_DIR}/config/public_spaces.json",
         config_radios_path=f"{PROJECT_DIR}/config/config_radio_av.json",
         config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
@@ -62,10 +68,11 @@ def main():
         stations_config_path=f"{PROJECT_DIR}/config/gvi_stations.json",
     )
     us = UrbanServicesDashboard(
-        neighborhoods=get_neighborhoods(),
-        communes=get_communes(),
+        radios=radios,
+        neighborhoods=neighborhoods,
+        communes=communes,
         default_config_path=f"{PROJECT_DIR}/config/urban_services/urban_services.json",
-        isochrones_config_path=f"{PROJECT_DIR}/config/urban_services/isochrones.json"
+        isochrones_config_path=f"{PROJECT_DIR}/config/urban_services/isochrones.json",
     )
     uv = UrbanValuationDashboard()
 

@@ -68,13 +68,14 @@ class PublicSpacesDashboard(ModelingDashboard):
         self.public_spaces: gpd.GeoDataFrame = public_spaces
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.radio_availability = st.cache_data(get_radio_availability)(
-            radios, public_spaces, neighborhoods
+            radios, public_spaces, neighborhoods, "clasificac"
         )
         self.neighborhood_availability: gpd.GeoDataFrame = get_neighborhood_availability(
             radios,
             public_spaces,
             neighborhoods,
             radio_availability=self.radio_availability,
+            typology_column_name="clasificac",
         )
         self.commune_availability: gpd.GeoDataFrame = get_commune_availability(
             radios,
@@ -82,6 +83,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             neighborhoods,
             communes,
             radio_availability=self.radio_availability,
+            typology_column_name="clasificac",
         )
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.park_types: np.ndarray[str] = np.hstack(
@@ -331,7 +333,8 @@ class PublicSpacesDashboard(ModelingDashboard):
                     radios,
                     public_spaces,
                     self.neighborhoods,
-                    self.communes,
+                    communes=self.communes,
+                    typology_column_name="clasificac",
                     selected_typologies=simulated_params.typologies,
                 )
             plot_kepler(availability_mapping, config)

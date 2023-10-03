@@ -36,7 +36,7 @@ def error_message(msg: str) -> None:
     st.markdown(f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True)
 
 
-def download_csv(gdf_points: gpd.GeoDataFrame) -> None:  # TODO: Make Widgets.
+def download_csv(gdf_points: gpd.GeoDataFrame) -> None:
     """
     Downloads csv.
     Parameters
@@ -87,9 +87,12 @@ def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> No
 
 
 def read_kepler_geometry(geom: dict[str, str]) -> BaseGeometry | None:
-    gjson = geojson.loads(geom)
-    if len(gjson["coordinates"][0]) < 4:
-        error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+    try:
+        gjson = geojson.loads(geom)
+        if len(gjson["coordinates"][0]) < 4:
+            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+            return
+        poly = Polygon(shape(gjson))
+    except Exception:
         return
-    poly = Polygon(shape(gjson))
     return poly if not poly.is_empty else None

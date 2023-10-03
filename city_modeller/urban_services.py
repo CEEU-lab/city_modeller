@@ -9,7 +9,7 @@ import streamlit as st
 from shapely.ops import unary_union
 
 from city_modeller.base import ModelingDashboard
-from city_modeller.datasources import get_communes, get_neighborhoods
+from city_modeller.datasources import get_communes, get_neighborhoods, get_radio_availability
 from city_modeller.models.urban_services import (
     EXAMPLE_INPUT,
     ResultsColumnPlots,
@@ -37,6 +37,7 @@ from city_modeller.widgets import read_kepler_geometry, section_header
 class UrbanServicesDashboard(ModelingDashboard):
     def __init__(
         self,
+        radios: gpd.GeoDataFrame,
         neighborhoods: gpd.GeoDataFrame,
         communes: gpd.GeoDataFrame,
         default_config: Optional[dict[str, Any]] = None,
@@ -46,8 +47,12 @@ class UrbanServicesDashboard(ModelingDashboard):
     ) -> None:
         super().__init__("15' Cities")
         self.city_amenities: gpd.GeoDataFrame = st.cache_data(get_amenities_gdf)()
+        self.radios: gpd.GeoDataFrame = radios.copy()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.communes: gpd.GeoDataFrame = communes.copy()
+        self.radio_availability = st.cache_data(get_radio_availability)(
+            radios, self.city_amenities, neighborhoods, "amenity"
+        )
         self.default_config = parse_config_json(default_config, default_config_path)
         self.isochrones_config = parse_config_json(isochrones_config, isochrones_config_path)
 
@@ -200,9 +205,9 @@ class UrbanServicesDashboard(ModelingDashboard):
         graph_outputs = st.session_state.graph_outputs or {}
         radio_availability = self.radio_availability.copy()
         if isochrone_key is not None and (results := graph_outputs.get(isochrone_key)) is not None:
-            isochrone_public_space = results.isochrone_mapping
+            isochrone_urban_services = results.isochrone_mapping
         else:
-            isochrone_public_space = get_amenities_isochrones(urban_services.copy(), TRAVEL_TIMES)
+            isochrone_urban_services = get_amenities_isochrones(urban_services.copy(), TRAVEL_TIMES)
 
         # Operations
         urban_services_unary = unary_union(urban_services.geometry)
@@ -212,7 +217,7 @@ class UrbanServicesDashboard(ModelingDashboard):
         for row, minutes in enumerate(TRAVEL_TIMES):
             radio_availability[f"geometry_wo_ps_int_iso_{minutes}"] = radio_availability.apply(
                 lambda x: (
-                    (x["geometry_wo_ps"]).intersection(isochrone_public_space.iloc[row, 1])
+                    (x["geometry_wo_ps"]).intersection(isochrone_urban_services.iloc[row, 1])
                 ).area
                 * (10**10),
                 axis=1,
@@ -225,19 +230,14 @@ class UrbanServicesDashboard(ModelingDashboard):
                 .loc[:, "Neighborhood"]
                 .unique()
             )
-            surrounding_spaces = self._visible_column(self.public_spaces, typologies).query(
-                "visible"
-            )
+            surrounding_spaces = self._visible_data(self.city_amenities, typologies)
             surrounding_spaces = surrounding_spaces[
                 (~surrounding_spaces[process].isin(action_zone))
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
             isochrone_surrounding_nb = (
-                isochrone_mapping_intersection(
-                    surrounding_spaces,
-                    speed=speed,
-                )
+                isochrone_mapping_intersection(surrounding_spaces)
                 if not surrounding_spaces.empty
                 else gpd.GeoDataFrame()
             )
@@ -245,9 +245,9 @@ class UrbanServicesDashboard(ModelingDashboard):
             st.session_state.graph_outputs = graph_outputs
         # Operations on isochrone.
         isochrone_full = (
-            isochrone_overlap(isochrone_surrounding_nb, isochrone_public_space)
+            isochrone_overlap(isochrone_surrounding_nb, isochrone_urban_services)
             if not isochrone_surrounding_nb.empty
-            else isochrone_public_space
+            else isochrone_urban_services
         )
 
         for row, minutes in enumerate(TRAVEL_TIMES):
@@ -467,15 +467,15 @@ class UrbanServicesDashboard(ModelingDashboard):
             return
 
         simulated_params = st.session_state.simulated_params
-        current_services = self.current_services(
+        current_services = self._current_services(
             simulated_params.typologies,
             simulated_params.process,
             simulated_params.action_zone,
         )
         services_simulation = self._simulated_services(
-            simulated_params.simulated_surfaces,
+            simulated_params.simulated_services,
             simulated_params.typologies,
-            public_spaces=current_services,
+            current_services=current_services,
         )
         if current_services.query("amenity.notnull()").empty:
             st.error(
@@ -483,66 +483,60 @@ class UrbanServicesDashboard(ModelingDashboard):
                 "Services. Please adjust your simulation."
             )
             return
-        # with st.container():
-        #     current_services_social_impact = self._social_impact(
-        #         urban_services=current_services,
-        #         typologies=simulated_params.typologies,
-        #         process=simulated_params.process,
-        #         action_zone=simulated_params.action_zone,
-        #         isochrone_enabled=simulated_params.isochrone_enabled,
-        #         isochrone_key="action_zone_t0",
-        #         speed=simulated_params.movility_type.speed,
-        #         network_type=simulated_params.movility_type.network_type,
-        #     )
-        #     simulated_services_social_impact = self._social_impact(
-        #         urban_services=services_simulation,
-        #         typologies=simulated_params.typologies,
-        #         process=simulated_params.process,
-        #         action_zone=simulated_params.action_zone,
-        #         isochrone_enabled=simulated_params.isochrone_enabled,
-        #         isochrone_key="action_zone_t1",
-        #         speed=simulated_params.movility_type.speed,
-        #         network_type=simulated_params.movility_type.network_type,
-        #     )
-        #     current_services_results = (
-        #         current_services_social_impact[
-        #             [
-        #                 col
-        #                 for col in current_services_social_impact.columns
-        #                 if "cant_hab_afect_iso" in col
-        #             ]
-        #         ]
-        #         .sum()
-        #         .cumsum()
-        #     )
-        #     simulated_services_results = (
-        #         simulated_services_social_impact[
-        #             [
-        #                 col
-        #                 for col in simulated_services_social_impact.columns
-        #                 if "cant_hab_afect_iso" in col
-        #             ]
-        #         ]
-        #         .sum()
-        #         .cumsum()
-        #     )
+        with st.container():
+            current_services_social_impact = self._social_impact(
+                urban_services=current_services,
+                typologies=simulated_params.typologies,
+                process=simulated_params.process,
+                action_zone=simulated_params.action_zone,
+                isochrone_key="action_zone_t0",
+            )
+            simulated_services_social_impact = self._social_impact(
+                urban_services=services_simulation,
+                typologies=simulated_params.typologies,
+                process=simulated_params.process,
+                action_zone=simulated_params.action_zone,
+                isochrone_key="action_zone_t1",
+            )
+            current_services_results = (
+                current_services_social_impact[
+                    [
+                        col
+                        for col in current_services_social_impact.columns
+                        if "cant_hab_afect_iso" in col
+                    ]
+                ]
+                .sum()
+                .cumsum()
+            )
+            simulated_services_results = (
+                simulated_services_social_impact[
+                    [
+                        col
+                        for col in simulated_services_social_impact.columns
+                        if "cant_hab_afect_iso" in col
+                    ]
+                ]
+                .sum()
+                .cumsum()
+            )
 
-        #     # Generate data for the bar graph
-        #     x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
-        #     y1 = current_services_results
-        #     y2 = simulated_services_results
-        #     percentage_increase = "+" + ((y2 / y1 - 1) * 100).round(2).astype(str) + "%"
+            # Generate data for the bar graph
+            x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
+            y1 = current_services_results
+            y2 = simulated_services_results
+            percentage_increase = "+" + ((y2 / y1 - 1) * 100).round(2).astype(str) + "%"
 
-        #     # Create a figure object
-        #     fig = go.Figure()
+            # Create a figure object
+            fig = go.Figure()
 
-        #     # Add the bar traces for each group
-        #     fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
-        #     fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase))
+            # Add the bar traces for each group
+            fig.add_trace(go.Bar(x=x, y=y1, name="Current Isochrone"))
+            fig.add_trace(go.Bar(x=x, y=y2, name="Simulated Isochrone", text=percentage_increase))
 
-        #     # Set the layout
-        #     fig.update_layout(barmode="group", height=600)
-        #     st.plotly_chart(fig, use_container_width=True, height=600)
+            # Set the layout
+            fig.update_layout(barmode="group", height=600)
+            st.plotly_chart(fig, use_container_width=True, height=600)
 
     def dashboard_header(self) -> None:
         section_header(
