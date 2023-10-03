@@ -1,4 +1,5 @@
 import os
+import json
 from typing import List, Optional
 
 import yaml
@@ -106,9 +107,10 @@ def get_public_space(
             "secretaria-de-desarrollo-urbano/espacios-verdes/"
             "espacio_verde_publico.geojson"
         )
-        resp = requests.get(url)
-        with open(path, "w") as f:
-            f.write(resp.text)
+        resp = requests.get(url) 
+        with open(path, "w") as f: 
+            f.write(resp.json())
+
     gdf = gpd.read_file(path)
     # a partir del csv y data frame, convertimos en GeoDataFrame con un crs
     gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs="epsg:4326")
@@ -333,7 +335,8 @@ def get_commune_availability(
 @st.cache_data
 def get_properaty_data():
     # TODO: Update Properaty Dataset 
-    root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    # root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    root = "D:/JOB/CEEU/2023 - App/city_modeller/city_modeller/data/ar_properties.csv.gz"
     df = pd.read_csv(root)
     return df
 
@@ -361,3 +364,11 @@ def get_user_defined_crs():
         proj_str = yaml.safe_load(custom_crs)['proj']
 
     return proj_str
+
+def load_parcel(mask) -> gpd.GeoDataFrame:
+    gdf_mask = gpd.GeoDataFrame(mask)
+    gdf_mask = gdf_mask.to_crs(4326)
+    path: str = f"{DATA_DIR}/parcels.shp"
+    gdf = gpd.read_file(path, mask=gdf_mask)
+
+    return gdf
