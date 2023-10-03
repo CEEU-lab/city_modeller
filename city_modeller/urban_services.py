@@ -207,7 +207,9 @@ class UrbanServicesDashboard(ModelingDashboard):
         if isochrone_key is not None and (results := graph_outputs.get(isochrone_key)) is not None:
             isochrone_urban_services = results.isochrone_mapping
         else:
-            isochrone_urban_services = get_amenities_isochrones(urban_services.copy(), TRAVEL_TIMES)
+            isochrone_urban_services = get_amenities_isochrones(
+                urban_services.copy(), TRAVEL_TIMES
+            )
 
         # Operations
         urban_services_unary = unary_union(urban_services.geometry)
