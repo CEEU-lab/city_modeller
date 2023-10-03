@@ -161,7 +161,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 f"Percentage of population {minutes} minutes or less from a public "
                 "space based on area"
             ),
-            xaxis_title="Minimum Green Surface Size",
+            xaxis_title="Minimum Public Space Size",
             yaxis_title=f"Population within {minutes} minutes (%)",
             title_x=0.5,
             title_xanchor="center",
@@ -734,7 +734,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 if df.query("visible and clasificac.notnull()").empty:
                     st.error(
                         f"The combination of {zone_name} and Typologies doesn't have "
-                        "any green surfaces. Please adjust your simulation."
+                        "any public spaces. Please adjust your simulation."
                     )
                     return
 
@@ -855,8 +855,8 @@ class PublicSpacesDashboard(ModelingDashboard):
 
     def dashboard_header(self) -> None:
         section_header(
-            "Green Surfaces 🏞️",
-            "Welcome to the Green Surfaces section! "
+            "Public Spaces 🏞️",
+            "Welcome to the Public Spaces section! "
             "Here, you will be able to simulate modifications to the public spaces "
             "available, controlled against the current distribution, or against "
             "reference zones. It is recommended to start in the Simulation Frame, and "

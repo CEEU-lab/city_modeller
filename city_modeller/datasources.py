@@ -46,7 +46,6 @@ def get_BsAs_streets() -> gpd.GeoDataFrame:
 
 @st.cache_data
 def get_census_data() -> gpd.GeoDataFrame:
-    """Obtiene data de radios censales."""
     # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
     radios = gpd.read_file(f"{DATA_DIR}/radios.zip")
     # leemos la informacion censal de poblacion por radio
@@ -61,22 +60,22 @@ def get_census_data() -> gpd.GeoDataFrame:
     return radios
 
 
-def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame:
-    """Filtra el gdf por numero de comuna.
+def filter_census_data(radios: pd.DataFrame, commune_number: int) -> pd.DataFrame:
+    """Gets a Dataframe filtered by commune number.
 
     Parameters
     ----------
     radios : pd.DataFrame
-        DataFrame con informacion geometrica de radios censales.
-    numero_comuna : int
-        int indicando numero de comuna.
+        DataFrame with geometry information about census radiuses.
+    commune_number : int
+        the number of a given commune.
 
     Returns
     -------
     pd.DataFrame
         DataFrame con informacion geometrica de radios censales para la comuna dada.
     """
-    radios_filt = radios[radios["Commune"] == "Comuna " + str(numero_comuna)].copy()
+    radios_filt = radios[radios["Commune"] == "Comuna " + str(commune_number)].copy()
     return radios_filt
 
 

@@ -84,8 +84,8 @@ def main():
 
         st.markdown("## Modelling sections 📉")
         with st.expander("**Micromodelling**", True):
-            page.item("Green surfaces", ps.run_dashboard)
-            page.item("Streets greenery", gvi.run_dashboard)
+            page.item("Public Spaces", ps.run_dashboard)
+            page.item("Streets Greenery", gvi.run_dashboard)
             page.item("Urban Services", us.run_dashboard)
 
         with st.expander("**Macromodelling**", True):
