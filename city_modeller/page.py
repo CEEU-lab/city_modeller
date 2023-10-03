@@ -69,8 +69,4 @@ class PageGroup:
         st.experimental_set_query_params(**params)
 
     def _normalize_label(self, label: str) -> str:
-        return (
-            "".join(char.lower() for char in label if char.isascii())
-            .strip()
-            .replace(" ", "-")
-        )
+        return "".join(char.lower() for char in label if char.isascii()).strip().replace(" ", "-")

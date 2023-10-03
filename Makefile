@@ -24,7 +24,7 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 
 lint: ## check style and typing
-	flake8 setup.py city_modeller tests
+	flake8 --config .flake8 setup.py city_modeller tests
 	# mypy city_modeller
 
 format: ## Format files using black

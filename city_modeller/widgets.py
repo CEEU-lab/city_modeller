@@ -1,8 +1,11 @@
 from typing import Optional
 
+import geojson
 import geopandas as gpd
 import pandas as pd
 import streamlit as st
+from shapely.geometry import Polygon, shape
+from shapely.geometry.base import BaseGeometry
 from streamlit_toggle import st_toggle_switch
 
 from city_modeller.utils import convert_df, gdf_to_shz
@@ -30,12 +33,10 @@ def section_toggles(page: str, sections: list[str]) -> list[bool]:
 
 
 def error_message(msg: str) -> None:
-    st.markdown(
-        f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True
-    )
+    st.markdown(f"<p style='color: red; font-size: 12px;'>*{msg}</p>", unsafe_allow_html=True)
 
 
-def download_csv(gdf_points: gpd.GeoDataFrame) -> None:  # TODO: Make Widgets.
+def download_csv(gdf_points: gpd.GeoDataFrame) -> None:
     """
     Downloads csv.
     Parameters
@@ -83,3 +84,15 @@ def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> No
     st.subheader(title)
     if tooltip is not None:
         st.write(tooltip, **kwargs)
+
+
+def read_kepler_geometry(geom: dict[str, str]) -> BaseGeometry | None:
+    try:
+        gjson = geojson.loads(geom)
+        if len(gjson["coordinates"][0]) < 4:
+            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+            return
+        poly = Polygon(shape(gjson))
+    except Exception:
+        return
+    return poly if not poly.is_empty else None

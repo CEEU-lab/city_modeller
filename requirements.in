@@ -18,5 +18,5 @@ rtree
 folium
 geojson
 osmnx
-pydantic
+pydantic<2.0.0
 # pymeanshift==0.2.2 in extras_require
