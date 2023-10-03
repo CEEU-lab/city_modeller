@@ -24,7 +24,7 @@ from city_modeller.datasources import (
 
 from typing import Literal
 from city_modeller.schemas.urban_valuation import (
-    EXAMPLE_INPUT,
+    PROJECTS_INPUT,
     LandValuatorSimulationParameters,
 )
 
@@ -61,15 +61,6 @@ class UrbanValuationDashboard(Dashboard):
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
         self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
 
-    @staticmethod
-    def _format_gdf_for_table() -> pd.DataFrame:
-        return pd.DataFrame(
-            {
-                "Input Name": 'None',
-                "Input Type": 'None',
-                "Input Geometry": 'None', #gdf.geometry.apply(geojson.dumps),
-            }, index = [0]
-        )
         
     def _zone_selector(
         self, selected_level: str, default_value: list[str], 
@@ -121,7 +112,7 @@ class UrbanValuationDashboard(Dashboard):
        zone_type: str
 
     ) -> gpd.GeoDataFrame:
-        geom_legend = "draw your zone geometry on the main map and paste it here" 
+        geom_legend = "draw your zone geometry and paste it here" 
         input_geometry = st.text_input(
             "Simulation area",
             geom_legend,
@@ -197,31 +188,26 @@ class UrbanValuationDashboard(Dashboard):
                 return {"target_zone":target_zone, "target_geom":target_geom}
 
     def _user_input(
-        self, data: pd.DataFrame = EXAMPLE_INPUT
+        self, data: pd.DataFrame = PROJECTS_INPUT
     ) -> gpd.GeoDataFrame:
-        input_cat_type = pd.api.types.CategoricalDtype(categories=['residential building types',
-                                                                   'non residential building types' ])
+        input_cat_type = pd.api.types.CategoricalDtype(
+            categories=["High density", "Low density"])
 
-        data["Input Type"] = data["Input Type"].astype(input_cat_type)
-        data = data if not data.empty else EXAMPLE_INPUT
+        data["Project Type"] = data["Project Type"].astype(input_cat_type)
+        data = data if not data.empty else PROJECTS_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        user_input["Input Type"] = user_input["Input Type"].fillna(
-            "residential building types"
+        user_input["Project Type"] = user_input["Project Type"].fillna(
+            "Low density"
         )
-        user_input = user_input.dropna(subset="Copied Geometry")
-        user_input["geometry"] = user_input["Copied Geometry"].apply(
+
+        user_input = user_input.dropna(subset="Footprint Geometry")
+        user_input["geometry"] = user_input["Footprint Geometry"].apply(
             read_kepler_geometry
         )
-        user_input = user_input.drop("Copied Geometry", axis=1)
-         
-        user_input = user_input.rename(
-            columns={
-                "Input Name": "Project Name", 
-                "Input Type": "Project Type",
-            }
-        )
+        user_input = user_input.drop("Footprint Geometry", axis=1)
+        
         gdf = gpd.GeoDataFrame(user_input, crs=4326)
         custom_crs = get_user_defined_crs()
         gdf_rep = gdf.to_crs(custom_crs)
@@ -256,19 +242,33 @@ class UrbanValuationDashboard(Dashboard):
         offer_type_predictor_wrapper(df_, path)
         p = open(path)
         return p
+    
+    def clip_real_estate_offer(
+            self,
+            df: pd.DataFrame, 
+            gdf:gpd.GeoDataFrame, 
+            colnames: list
+            ) -> pd.DataFrame:
+        
+        current_market_offer = df.loc[df['property_type'].isin(colnames)]
+        geo_market_offer = gpd.GeoDataFrame(current_market_offer, crs=4326, 
+                                            geometry=gpd.points_from_xy(
+                                                current_market_offer['lon'], 
+                                                current_market_offer['lat']))
+        columns = ['surface_total', 'property_type', 'lon', 'lat']
+        market_zone = geo_market_offer.clip(gdf.to_crs(4326))[columns]
+        return market_zone   
 
     def simulation(self) -> None: 
-
-        user_table_container = st.container()
-        submit_container = st.container()
-        simulated_params = dict(st.session_state.get("simulated_params", {}))
+        #simulated_params = dict(st.session_state.get("simulated_params", {}))
         action_geom = None
 
         # Define the random vars {Z(s):s ⊆ S ⊆ R2}
         raw_df = self.properaty_data.dropna(subset=['lat', 'lon'])
-
+        
         st.markdown("### Projects settings")
-        params_col, kepler_col  = st.columns((0.35,0.65))
+        user_table_container = st.container()
+        params_col, kepler_col  = st.columns((0.25,0.75))
 
         with params_col:
             # Action Zone
@@ -281,10 +281,15 @@ class UrbanValuationDashboard(Dashboard):
                 action_zone = actzone_params["target_zone"]
                 action_geom = actzone_params["target_geom"]  
 
-        with params_col:
             st.markdown("**Define your projects footprints**")
-            activate_parcels = st.checkbox('Parcel selector')
 
+            building_types = st.radio(
+                "**Building types**",
+                ('Residential', 'Non residential'), 
+                horizontal=True, disabled=False)
+            
+            activate_parcels = st.checkbox('Parcels viewer')
+      
             if activate_parcels:
                 if action_geom is not None:
                     loaded_parcels = load_parcel(mask=action_geom)
@@ -292,26 +297,32 @@ class UrbanValuationDashboard(Dashboard):
                         self.parcels = loaded_parcels
                 else:
                     st.warning("Parcels are loaded within the action zone - First set a geographic filter")
-        
+
         with user_table_container:
-            table_values = (
-                self._format_gdf_for_table(
-                    simulated_params.get("simulated_project")
-                )
-                if simulated_params.get("simulated_project") is not None
-                else EXAMPLE_INPUT
-            )
+            project_cols = {
+                    "Input Name": "Project Name", 
+                    "Input Type": "Project Type",
+                    "Input Number1": "Buildings",
+                    "Copied Geometry": "Footprint Geometry"
+                }
+            table_values = PROJECTS_INPUT.rename(columns=project_cols)
+            
         user_input = self._user_input(table_values)
 
         st.markdown("### Model settings")
-        project_type, project_units = st.columns((0.5,0.5))
-
-        with project_type:
-            cat_name = st.text_input(label = 'Define your project type')
+        project_units, _, project_capacity, _ = st.columns((0.3, 0.1, 0.3, 0.1))
         
         with project_units:
-            building_types = raw_df['property_type'].unique()
-            target_btypes = st.multiselect('Define your unit types', options=building_types)
+            market_units = {"Residential":
+                            ["Lote","PH","Casa","Departamento"],
+                            "Non residential":
+                            ["Lote", "Oficina", "Local comercial", "Depósito"]}
+                
+            target_btypes = st.multiselect(
+                'Define your unit types', 
+                options=market_units[building_types]
+                )
+            activate_market_offer = st.checkbox('Show current market offer')
 
             # Here we can redifine the non target class (1-p) for the binomial 
             # rule of the density function. This affects the performance of the model 
@@ -321,13 +332,13 @@ class UrbanValuationDashboard(Dashboard):
                 print("Can write here another multiselect input")
             else:
                 # all the other offered typologies
-                other_btypes = [i for i in building_types if i not in target_btypes]
+                all_types = market_units[building_types]
+                other_btypes = [i for i in all_types if i not in target_btypes]
             
             # If more interoperability is needed, users can redifine the urban land typology
             target_ltypes = ["Lote"] 
-            other_ltypes = [i for i in building_types if i not in target_ltypes]
+            other_ltypes = [i for i in target_btypes if i not in target_ltypes]
             
-
             land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
             
             with land_size:
@@ -341,26 +352,58 @@ class UrbanValuationDashboard(Dashboard):
                 urban_environment_ammenities = ["streets greenery"]
                 selected_expvars = st.multiselect('Define your explanatory variables', 
                                         options=unit_ammenities+urban_environment_ammenities)
+                #from city_modeller.datasources import get_GVI_treepedia_BsAs
+                #gvi_bsas = get_GVI_treepedia_BsAs().clip(action_geom.to_crs(4326))
         
+        with project_capacity:
+            st.write("**Define your building standards**")
+            left_col, right_col = st.columns([0.5,0.5])
+
+            with left_col:
+                CA_maxh = st.number_input("C.A. max height", value=38)
+                CM_maxh = st.number_input("C.M. max height", value=31.2)
+                USAA_maxh = st.number_input("U.S.A.A. max height", value=22.8)
+
+            with right_col:
+                USAM_maxh = st.number_input("U.S.A.M. max height", value=16.5)
+                USAB2_maxh = st.number_input("U.S.A.B.2 max height", value=11.2)
+                USAB1_maxh = st.number_input("U.S.A.B.1 max height", value=9)
+
+            building_max_heights = {
+                "CA":CA_maxh, "CM":CM_maxh, 
+                "USAA":USAA_maxh, "USAM":USAM_maxh,
+                "USAB2":USAB2_maxh, "USAB1":USAB1_maxh
+                }
+                
         with kepler_col:
             sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
-            # TODO: new map config + Landing data? 
             landing_map = sim_frame_map
-            
+
+            if action_geom is not None:
+                sim_frame_map.add_data(data=action_geom, name='action zone')
+
+            if user_input['area'].sum() > 0:    
+                footprints = user_input.to_crs(4326)
+                sim_frame_map.add_data(data=footprints, name='projects footprint')
+
+            if activate_market_offer:
+                geo_market_zone = self.clip_real_estate_offer(
+                    df=raw_df, gdf=action_geom, colnames=target_btypes
+                    )
+                sim_frame_map.add_data(data=geo_market_zone, name='real estate market')
+
             if activate_parcels:
                 # parcels = "load data here"
                 if len(self.parcels) > 0:
                     sim_frame_map.add_data(data=self.parcels, name='Parcels')
 
-            if action_geom is not None:
-                sim_frame_map.add_data(data=action_geom, name='Action Area')
-
             keplergl_static(landing_map, center_map=True)
 
+        submit_container = st.container()
         with submit_container:
-            _, button_col = st.columns([3, 1])
+            _, _, button_col, _, _ = st.columns([0.2, 0.2, 0.2, 0.2, 0.2])
             with button_col:
-                if st.button("Submit"):  # NOTE: button appears anyway bc error helps.
+                if st.button("Submit"):  
                     if action_zone == []:
                         error_message(
                             "No action zone selected. Select one and submit again."
@@ -369,7 +412,8 @@ class UrbanValuationDashboard(Dashboard):
                         st.session_state.graph_outputs = None
                         st.session_state.simulated_params = (
                             LandValuatorSimulationParameters(
-                                project_type=cat_name,
+                                simulated_projects=user_input,
+                                project_type=building_types,
                                 project_btypes=target_btypes,
                                 non_project_btypes=other_btypes,
                                 urban_land_typology=target_ltypes,
@@ -377,8 +421,9 @@ class UrbanValuationDashboard(Dashboard):
                                 action_zone=tuple(action_zone),
                                 action_geom=action_geom,
                                 parcel_selector=activate_parcels,
-                                lot_size = lot_ref_size,
-                                unit_size = unit_ref_size,
+                                lot_size=lot_ref_size,
+                                unit_size=unit_ref_size,
+                                max_heights=building_max_heights,
                                 planar_point_process = raw_df,
                                 expvars = selected_expvars,
                                 landing_map = landing_map
@@ -393,7 +438,8 @@ class UrbanValuationDashboard(Dashboard):
             )
             return
         simulated_params = st.session_state.simulated_params
-        raw_df = simulated_params.planar_point_process
+        offer_columns = ['property_type', 'lat', 'lon']
+        raw_df = simulated_params.planar_point_process[offer_columns]
         
         st.markdown("### Real Estate Market Scene")
         st.markdown("""Below, users can find the outputs of the Real Estate Modelling 

@@ -7,59 +7,93 @@ from shapely import Polygon
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import requests
 import streamlit as st
 from shapely.ops import unary_union
 
 from city_modeller.utils import PROJECT_DIR
 
+GCS_DIR = "https://storage.googleapis.com/python_mdg/city_modeller/data"
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CONF_DIR = os.path.join(PROJECT_DIR, "config")
 
-
 @st.cache_data
-def get_GVI_treepedia_BsAs() -> gpd.GeoDataFrame:
-    path = f"{DATA_DIR}/greenview_buenosaires.geojson"
+def get_GVI_treepedia_BsAs(
+    path: str = f"{DATA_DIR}/greenview_buenosaires.geojson"
+    ) -> gpd.GeoDataFrame:
+
+    if not os.path.exists(path):
+        path = f"{GCS_DIR}/greenview_buenosaires.geojson"
+
     gdf = gpd.read_file(path, driver="GeoJSON")
     gdf.rename(columns={"panoID": "panoId"}, inplace=True)
     return gdf
 
 
 @st.cache_data
-def get_air_quality_stations_BsAs() -> gpd.GeoDataFrame:
-    path = f"{DATA_DIR}/air_quality_stations.geojson"
+def get_air_quality_stations_BsAs(
+    path: str = f"{DATA_DIR}/air_quality_stations.geojson"
+    ) -> gpd.GeoDataFrame:
+    
+    if not os.path.exists(path):
+        path = f"{GCS_DIR}/air_quality_stations.geojson"
+    
     gdf = gpd.read_file(path, driver="GeoJSON")
     return gdf
 
-
 @st.cache_data
-def get_air_quality_data_BsAs() -> pd.DataFrame:
-    path = f"{DATA_DIR}/air_quality_data.csv"
+def get_air_quality_data_BsAs(
+    path: str = f"{DATA_DIR}/air_quality_data.csv"
+    ) -> pd.DataFrame:
+
+    if not os.path.exists(path):
+        path = f"{GCS_DIR}/air_quality_data.csv"
+    
     df = pd.read_csv(path, index_col=0)
     return df
 
-
 @st.cache_data
-def get_BsAs_streets() -> gpd.GeoDataFrame:
-    path = f"{DATA_DIR}/CabaStreet_wgs84.zip"
+def get_BsAs_streets(
+    path: str = f"{DATA_DIR}/CabaStreet_wgs84.zip"
+    ) -> gpd.GeoDataFrame:
+    
+    if not os.path.exists(path):
+        path = f"{GCS_DIR}/CabaStreet_wgs84.zip"
+
     gdf = gpd.read_file(path)
     return gdf
 
-
 @st.cache_data
-def get_census_data() -> gpd.GeoDataFrame:
-    """Obtiene data de radios censales."""
-    # # descargar shp de https://precensodeviviendas.indec.gob.ar/descargas#
-    radios = gpd.read_file(f"{DATA_DIR}/radios.zip")
-    # leemos la informacion censal de poblacion por radio
-    radios = (
-        radios.query("nomloc == 'Ciudad Autónoma de Buenos Aires'")  # HCAF
-        .reindex(columns=["ind01", "nomdepto", "geometry"])
-        .reset_index()
-        .iloc[:, 1:]
-    )
-    radios.columns = ["TOTAL_VIV", "Commune", "geometry"]
-    radios["TOTAL_VIV"] = radios.apply(lambda x: int(x["TOTAL_VIV"]), axis=1)
+def get_census_data(
+    filter_jurisdiction: bool = False
+    ) -> gpd.GeoDataFrame:
+    """
+    Loads the 2020 argentinian census tracts
+    """
+    if filter_jurisdiction:
+        try:
+            path = f"{DATA_DIR}/radios.zip"
+            radios = gpd.read_file(path)
+        except:
+            path = f"{GCS_DIR}/radios.zip"
+            radios = gpd.read_file(path)
+        
+        target_jurisdiction = 'Ciudad Autónoma de Buenos Aires'
+        radios = (
+            radios.query(f"nomloc == {target_jurisdiction}")  # HCAF
+            .reindex(columns=["ind01", "nomdepto", "geometry"])
+            .reset_index()
+            .iloc[:, 1:]
+        )
+        radios.columns = ["TOTAL_VIV", "Commune", "geometry"]
+        radios["TOTAL_VIV"] = radios.apply(lambda x: int(x["TOTAL_VIV"]), axis=1)
+    else:
+        try:
+            path = f"{DATA_DIR}/radios_caba.zip"
+            radios = gpd.read_file(path)
+        except:
+            path = f"{GCS_DIR}/radios_caba.zip"
+            radios = gpd.read_file(path)
+
     return radios
 
 
@@ -86,34 +120,23 @@ def filter_census_data(radios: pd.DataFrame, numero_comuna: int) -> pd.DataFrame
 def get_public_space(
     path: str = f"{DATA_DIR}/public_space.geojson",
 ) -> gpd.GeoDataFrame:
-    """Obtiene un GeoDataFrame de Espacio Verde Público de un path dado, o lo descarga.
+    """Gets public green spaces geodataset.
 
     Parameters
     ----------
-    path : str, optional
-        Ubicación deseada del archivo. Si no se encuentra, se lo creará.
-        por default "./data/public_space.geojson".
+    path : str
+        Desired file location. If it is not found, it will 
+        be downloaded from GCS.
 
     Returns
     -------
     gpd.GeoDataFrame
-        GeoDataFrame de espacio verde público.
+        Public green spaces GeoDataFrame.
     """
     if not os.path.exists(path):
-        url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
-        url = (
-            f"{url_home}datosabiertos/datasets/"
-            "secretaria-de-desarrollo-urbano/espacios-verdes/"
-            "espacio_verde_publico.geojson"
-        )
-        resp = requests.get(url) 
-        with open(path, "w") as f: 
-            f.write(resp.json())
-
-    gdf = gpd.read_file(path)
-    # a partir del csv y data frame, convertimos en GeoDataFrame con un crs
-    gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs="epsg:4326")
+        path = f"{GCS_DIR}/public_space.geojson"
+    
+    gdf = gpd.read_file(path, crs="epsg:4326")
     gdf = gdf.reindex(
         columns=["nombre", "clasificac", "area", "BARRIO", "COMUNA", "geometry"]
     )
@@ -146,39 +169,25 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
 
 
 @st.cache_data
-def get_neighborhoods() -> gpd.GeoDataFrame:
+def get_neighborhoods(
+    path: str = f"{DATA_DIR}/neighbourhoods.geojson"
+    ) -> gpd.GeoDataFrame:
     """Load neighborhoods data."""
-    path = f"{DATA_DIR}/neighbourhoods.geojson"
+    
     if not os.path.exists(path):
-        url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
-        url = (
-            f"{url_home}datosabiertos/datasets/"
-            "ministerio-de-educacion/barrios/"
-            "barrios.geojson"
-        )
-        resp = requests.get(url)
-        with open(path, "w") as f:
-            f.write(resp.text)
-    neighborhoods = gpd.read_file(path)
-    neighborhoods = gpd.GeoDataFrame(
-        neighborhoods, geometry="geometry", crs="epsg:4326"
-    ).rename(columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"})
+        path = f"{GCS_DIR}/neighbourhoods.geojson"
+        
+    neighborhoods = gpd.read_file(
+        path).rename(columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"})
     return neighborhoods
 
 
 @st.cache_data
-def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame:
+def get_communes(
+    path: str = f"{DATA_DIR}/communes.geojson"
+    ) -> gpd.GeoDataFrame:
     if not os.path.exists(path):
-        url_home = "https://cdn.buenosaires.gob.ar/"
-        print(f"{path} is not a valid geojson. Downloading from: {url_home}...")
-        url = (
-            f"{url_home}datosabiertos/datasets/"
-            "ministerio-de-educacion/comunas/comunas.geojson"
-        )
-        resp = requests.get(url)
-        with open(path, "w") as f:
-            f.write(resp.text)
+        path = f"{GCS_DIR}/communes.geojson"
     communes = gpd.read_file(path).loc[:, ["COMUNAS", "PERIMETRO", "AREA", "geometry"]]
     communes.columns = ["Commune", "Perimeter", "Area", "geometry"]
     communes.Commune = "Comuna " + communes.Commune.astype(int).astype(str)
@@ -333,10 +342,17 @@ def get_commune_availability(
     return gdf
 
 @st.cache_data
-def get_properaty_data():
-    # TODO: Update Properaty Dataset 
-    # root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
-    root = "D:/JOB/CEEU/2023 - App/city_modeller/city_modeller/data/ar_properties.csv.gz"
+def get_properaty_data(
+    filter_jurisdiction: bool = False
+    ) -> pd.DataFrame:
+    # TODO: Write utility function to update currency 
+    if filter_jurisdiction:
+        # Loads Argentina real estate offer
+        root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+    
+    else:
+        # Loads BsAs real estate offer
+        root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
     df = pd.read_csv(root)
     return df
 
