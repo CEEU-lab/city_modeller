@@ -23,7 +23,7 @@ from city_modeller.datasources import (
 )
 
 from typing import Literal
-from city_modeller.schemas.urban_valuation import (
+from city_modeller.models.urban_valuation import (
     PROJECTS_INPUT,
     LandValuatorSimulationParameters,
 )
@@ -379,9 +379,6 @@ class UrbanValuationDashboard(Dashboard):
             sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
             landing_map = sim_frame_map
 
-            if action_geom is not None:
-                sim_frame_map.add_data(data=action_geom, name='action zone')
-
             if user_input['area'].sum() > 0:    
                 footprints = user_input.to_crs(4326)
                 sim_frame_map.add_data(data=footprints, name='projects footprint')
@@ -396,6 +393,9 @@ class UrbanValuationDashboard(Dashboard):
                 # parcels = "load data here"
                 if len(self.parcels) > 0:
                     sim_frame_map.add_data(data=self.parcels, name='Parcels')
+
+            if action_geom is not None:
+                sim_frame_map.add_data(data=action_geom, name='action zone')
 
             keplergl_static(landing_map, center_map=True)
 
