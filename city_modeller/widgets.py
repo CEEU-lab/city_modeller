@@ -117,8 +117,11 @@ def kepler_geomstr_to_gdf(
 def read_kepler_geometry(
     geom: dict[str, str]
 ) -> Union[BaseGeometry, None]:
-    gjson = loads_kepler_geomstr(geom)
-    poly = Polygon(shape(gjson))
+    try:
+        gjson = loads_kepler_geomstr(geom)
+        poly = Polygon(shape(gjson))
+    except Exception:
+        return
     return poly if not poly.is_empty else None
     
 def transform_kepler_geomstr(
