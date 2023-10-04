@@ -40,9 +40,7 @@ def distancia_mas_cercano(point: Point, target_points: MultiPoint) -> float:
     return par[0].distance(par[1])
 
 
-def pob_a_distancia(
-    distancias: pd.Series, minutos: Number, velocidad_promedio: Number = 5
-) -> int:
+def pob_a_distancia(distancias: pd.Series, minutos: Number, velocidad_promedio: Number = 5) -> int:
     """Determina registros con tiempos de viaje menores o iguales a un valor.
 
 
@@ -66,9 +64,7 @@ def pob_a_distancia(
     return round(cercanos.mean() * 100)
 
 
-def bound_multipol_by_bbox(
-    gdf: gpd.GeoDataFrame, bbox: ndarray[float]
-) -> gpd.GeoDataFrame:
+def bound_multipol_by_bbox(gdf: gpd.GeoDataFrame, bbox: ndarray[float]) -> gpd.GeoDataFrame:
     """Devuelve la interseccion entre un bounding box (bbox) y la columna
     geometry de un GeoDataFrame.
 
@@ -98,13 +94,9 @@ def bound_multipol_by_bbox(
     return intersections
 
 
-def parse_config_json(
-    config: Optional[dict] = None, config_path: Optional[str] = None
-) -> dict:
+def parse_config_json(config: Optional[dict] = None, config_path: Optional[str] = None) -> dict:
     if config is None and config_path is None:
-        raise AttributeError(
-            "Either a Kepler config or the path to a config JSON must be passed."
-        )
+        raise AttributeError("Either a Kepler config or the path to a config JSON must be passed.")
     elif config is not None:
         config = config
     else:
@@ -193,7 +185,7 @@ def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
 
 def plot_kepler(data: gpd.GeoDataFrame, config: dict) -> None:
     data_ = kepler_df(data)
-    kepler = KeplerGl(height=500, data={"data": data_}, config=config, show_docs=False)
+    kepler = KeplerGl(height=500, data={"data": data_}, config=config)
     keplergl_static(kepler)
     kepler.add_data(data=data_)
 

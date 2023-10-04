@@ -134,6 +134,7 @@ data
 figures
 **.ipynb
 cache
+.vscode
 
 # model temporary files
 real_estate/results/

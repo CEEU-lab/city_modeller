@@ -10,17 +10,11 @@ def parse_requirements(filename):
     with open(current_dir / filename) as requirements_file:
         requirements = requirements_file.readlines()
         # Remove all lines that are comments
-        requirements = [
-            line for line in requirements if not line.strip().startswith("#")
-        ]
+        requirements = [line for line in requirements if not line.strip().startswith("#")]
         # Remove pip flags
-        requirements = [
-            line for line in requirements if not line.strip().startswith("--")
-        ]
+        requirements = [line for line in requirements if not line.strip().startswith("--")]
         # Remove inline comments
-        requirements = [
-            line.split("#", 1)[0] if "#" in line else line for line in requirements
-        ]
+        requirements = [line.split("#", 1)[0] if "#" in line else line for line in requirements]
         # Remove empty lines
         requirements = list(filter(None, requirements))
         # Remove whitespaces
@@ -56,7 +50,6 @@ setup(
     },
     install_requires=[parse_requirements("requirements.in")],
     extras_require={
-        "pymeanshift": "pymeanshift "
-        + "@ git+https://github.com/fjean/pymeanshift.git@0.2.2"
+        "pymeanshift": "pymeanshift " + "@ git+https://github.com/fjean/pymeanshift.git@0.2.2"
     },
 )
