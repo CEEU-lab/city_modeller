@@ -11,6 +11,9 @@ from city_modeller.datasources import (
     get_GVI_treepedia_BsAs,
     get_neighborhoods,
     get_public_space,
+    get_properaty_data,
+    get_default_zones,
+    get_user_defined_crs
 )
 from city_modeller.landing_page import LandingPageDashboard
 from city_modeller.page import page_group
@@ -67,6 +70,7 @@ def main():
         main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
         stations_config_path=f"{PROJECT_DIR}/config/gvi_stations.json",
     )
+
     us = UrbanServicesDashboard(
         radios=radios,
         neighborhoods=neighborhoods,
@@ -74,7 +78,14 @@ def main():
         default_config_path=f"{PROJECT_DIR}/config/urban_services/urban_services.json",
         isochrones_config_path=f"{PROJECT_DIR}/config/urban_services/isochrones.json",
     )
-    uv = UrbanValuationDashboard()
+    uv = UrbanValuationDashboard(
+        neighborhoods=get_neighborhoods(),
+        communes=get_communes(),
+        user_polygons=get_default_zones(),
+        user_crs=get_user_defined_crs(),
+        properaty_data=get_properaty_data(),
+        main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
+            )
 
     # SIDE BAR CONFIG
     st.sidebar.markdown("# Navigation 📍")

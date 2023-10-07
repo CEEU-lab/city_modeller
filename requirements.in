@@ -19,4 +19,5 @@ folium
 geojson
 osmnx
 pydantic<2.0.0
+rpy2==3.5.13
 # pymeanshift==0.2.2 in extras_require
