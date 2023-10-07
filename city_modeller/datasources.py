@@ -18,11 +18,11 @@ GCS_DIR = "https://storage.googleapis.com/python_mdg/city_modeller/data"
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
 CONF_DIR = os.path.join(PROJECT_DIR, "config")
 
+
 @st.cache_data
 def get_GVI_treepedia_BsAs(
-    path: str = f"{DATA_DIR}/greenview_buenosaires.geojson"
-    ) -> gpd.GeoDataFrame:
-
+    path: str = f"{DATA_DIR}/greenview_buenosaires.geojson",
+) -> gpd.GeoDataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/greenview_buenosaires.geojson"
 
@@ -33,41 +33,35 @@ def get_GVI_treepedia_BsAs(
 
 @st.cache_data
 def get_air_quality_stations_BsAs(
-    path: str = f"{DATA_DIR}/air_quality_stations.geojson"
-    ) -> gpd.GeoDataFrame:
-    
+    path: str = f"{DATA_DIR}/air_quality_stations.geojson",
+) -> gpd.GeoDataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/air_quality_stations.geojson"
-    
+
     gdf = gpd.read_file(path, driver="GeoJSON")
     return gdf
 
-@st.cache_data
-def get_air_quality_data_BsAs(
-    path: str = f"{DATA_DIR}/air_quality_data.csv"
-    ) -> pd.DataFrame:
 
+@st.cache_data
+def get_air_quality_data_BsAs(path: str = f"{DATA_DIR}/air_quality_data.csv") -> pd.DataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/air_quality_data.csv"
-    
+
     df = pd.read_csv(path, index_col=0)
     return df
 
+
 @st.cache_data
-def get_BsAs_streets(
-    path: str = f"{DATA_DIR}/CabaStreet_wgs84.zip"
-    ) -> gpd.GeoDataFrame:
-    
+def get_BsAs_streets(path: str = f"{DATA_DIR}/CabaStreet_wgs84.zip") -> gpd.GeoDataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/CabaStreet_wgs84.zip"
 
     gdf = gpd.read_file(path)
     return gdf
 
+
 @st.cache_data
-def get_census_data(
-    filter_jurisdiction: bool = False
-    ) -> gpd.GeoDataFrame:
+def get_census_data(filter_jurisdiction: bool = False) -> gpd.GeoDataFrame:
     """
     Loads the 2020 argentinian census tracts
     """
@@ -78,8 +72,8 @@ def get_census_data(
         except Exception:  # Bare except should not be used, even this is not great.
             path = f"{GCS_DIR}/radios.zip"
             radios = gpd.read_file(path)
-        
-        target_jurisdiction = 'Ciudad Autónoma de Buenos Aires'
+
+        target_jurisdiction = "Ciudad Autónoma de Buenos Aires"
         radios = (
             radios.query(f"nomloc == {target_jurisdiction}")  # HCAF
             .reindex(columns=["ind01", "nomdepto", "geometry"])
@@ -127,7 +121,7 @@ def get_public_space(
     Parameters
     ----------
     path : str
-        Desired file location. If it is not found, it will 
+        Desired file location. If it is not found, it will
         be downloaded from GCS.
 
     Returns
@@ -137,11 +131,9 @@ def get_public_space(
     """
     if not os.path.exists(path):
         path = f"{GCS_DIR}/public_space.geojson"
-    
+
     gdf = gpd.read_file(path, crs="epsg:4326")
-    gdf = gdf.reindex(
-        columns=["nombre", "clasificac", "area", "BARRIO", "COMUNA", "geometry"]
-    )
+    gdf = gdf.reindex(columns=["nombre", "clasificac", "area", "BARRIO", "COMUNA", "geometry"])
     gdf = gdf.rename(columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"})
     return gdf
 
@@ -169,27 +161,23 @@ def get_bbox(comunas_idx: List[int]) -> np.ndarray:
 
 
 @st.cache_data
-def get_neighborhoods(
-    path: str = f"{DATA_DIR}/neighbourhoods.geojson"
-    ) -> gpd.GeoDataFrame:
+def get_neighborhoods(path: str = f"{DATA_DIR}/neighbourhoods.geojson") -> gpd.GeoDataFrame:
     """Load neighborhoods data."""
-    
+
     if not os.path.exists(path):
         path = f"{GCS_DIR}/neighbourhoods.geojson"
-        
-    neighborhoods = gpd.read_file(
-        path).rename(columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"})
+
+    neighborhoods = gpd.read_file(path).rename(
+        columns={"BARRIO": "Neighborhood", "COMUNA": "Commune"}
+    )
     return neighborhoods
 
 
 @st.cache_data
-def get_communes(
-    path: str = f"{DATA_DIR}/communes.geojson"
-    ) -> gpd.GeoDataFrame:
-    
+def get_communes(path: str = f"{DATA_DIR}/communes.geojson") -> gpd.GeoDataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/communes.geojson"
-        
+
     communes = gpd.read_file(path).loc[:, ["COMUNAS", "PERIMETRO", "AREA", "geometry"]]
     communes.columns = ["Commune", "Perimeter", "Area", "geometry"]
     communes.Commune = "Comuna " + communes.Commune.astype(int).astype(str)
@@ -227,7 +215,9 @@ def get_radio_availability(
     gdf = pd.merge(
         _radios.reset_index(),
         gpd.overlay(
-            _radios.reset_index().iloc[:,],
+            _radios.reset_index().iloc[
+                :,
+            ],
             boundary,
             how="intersection",
         ),
@@ -352,45 +342,47 @@ def get_commune_availability(
     gdf = gpd.GeoDataFrame(radios_comm_com_gb_geom)
     return gdf
 
+
 @st.cache_data
-def get_properaty_data(
-    filter_jurisdiction: bool = False
-    ) -> pd.DataFrame:
-    # TODO: Write utility function to update currency 
+def get_properaty_data(filter_jurisdiction: bool = False) -> pd.DataFrame:
+    # TODO: Write utility function to update currency
     if filter_jurisdiction:
         # Loads Argentina real estate offer
         root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
-    
+
     else:
         # Loads BsAs real estate offer
         root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
     df = pd.read_csv(root)
     return df
 
+
 @st.cache_data
 def get_default_zones():
-    with open(f"{CONF_DIR}/default_zones.yaml", 'r') as config_zone:
+    with open(f"{CONF_DIR}/default_zones.yaml", "r") as config_zone:
         zone_geoms = yaml.safe_load(config_zone)
-        
-        zones_frame = {'User defined Polygon': [], 'geometry':[]}
-        
-        for z in ['Caba South', 'Caba North']:
+
+        zones_frame = {"User defined Polygon": [], "geometry": []}
+
+        for z in ["Caba South", "Caba North"]:
             zone = zone_geoms[z]
             geom = Polygon(zone["coordinates"][0])
-            zones_frame['User defined Polygon'].append(z)
-            zones_frame['geometry'].append(geom)
+            zones_frame["User defined Polygon"].append(z)
+            zones_frame["geometry"].append(geom)
 
     gdf = gpd.GeoDataFrame(zones_frame, crs=4326)
 
-    gdf['zone_type'] = ['Action', 'Reference']
+    gdf["zone_type"] = ["Action", "Reference"]
     return gdf
+
 
 @st.cache_data
 def get_user_defined_crs():
-    with open(f"{CONF_DIR}/proj.yaml", 'r') as custom_crs:
-        proj_str = yaml.safe_load(custom_crs)['proj']
+    with open(f"{CONF_DIR}/proj.yaml", "r") as custom_crs:
+        proj_str = yaml.safe_load(custom_crs)["proj"]
 
     return proj_str
+
 
 def load_parcel(mask) -> gpd.GeoDataFrame:
     gdf_mask = gpd.GeoDataFrame(mask)

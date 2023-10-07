@@ -13,7 +13,7 @@ from city_modeller.datasources import (
     get_public_space,
     get_properaty_data,
     get_default_zones,
-    get_user_defined_crs
+    get_user_defined_crs,
 )
 from city_modeller.landing_page import LandingPageDashboard
 from city_modeller.page import page_group
@@ -85,7 +85,7 @@ def main():
         user_crs=get_user_defined_crs(),
         properaty_data=get_properaty_data(),
         main_ref_config_path=f"{PROJECT_DIR}/config/gvi_main.json",
-            )
+    )
 
     # SIDE BAR CONFIG
     st.sidebar.markdown("# Navigation 📍")
