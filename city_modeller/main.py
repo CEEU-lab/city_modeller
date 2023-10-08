@@ -44,7 +44,7 @@ def main():
     page = page_group("page")
 
     # Initialize datasets.
-    radios = get_census_data()
+    radios = get_census_data(filter_jurisdiction=True)
     neighborhoods = get_neighborhoods()
     communes = get_communes()
 
