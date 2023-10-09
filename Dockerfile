@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libatlas-base-dev \
   libgdal-dev \
   gfortran \
+  r-base \
   git
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
