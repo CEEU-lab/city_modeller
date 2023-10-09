@@ -4,7 +4,7 @@ from rpy2.robjects import conversion, default_converter
 
 
 # TODO: docstring + how terra predicts over the grid (wiki)
-predict_offer_class = '''real_estate_offer <- function(offer_area, prediction_method, intervals, colorsvec, dir) {
+predict_offer_class = """real_estate_offer <- function(offer_area, prediction_method, intervals, colorsvec, dir) {
             # 1. data type checks
             stopifnot("Offer area must be tabular" = is(offer_area, "data.frame"))
             stopifnot("Prediction must be linear, orthogonal or spline" = is.character(
@@ -104,7 +104,7 @@ predict_offer_class = '''real_estate_offer <- function(offer_area, prediction_me
             
             require(htmlwidgets)
             saveWidget(widget = outmap, file = dir)
-            }'''
+            }"""
 
 
 def offer_type_predictor_wrapper(df, path) -> None:
@@ -121,22 +121,22 @@ def offer_type_predictor_wrapper(df, path) -> None:
     Returns
     -------
     None
-        Writes leaflet html widget 
+        Writes leaflet html widget
     """
-        
+
     with conversion.localconverter(default_converter):
         # loads pandas as data.frame r object
         with (ro.default_converter + pandas2ri.converter).context():
             r_from_pd_df = ro.conversion.get_conversion().py2rpy(df)
-        
+
         # parameters
         # TODO: use histogram to chek the observed distribution of the target class?
-        prediction_method = "splines" # DENSITY FUNCTION.  
-        intervals = 10 
-        colorsvec = ro.StrVector(['lightblue', 'yellow', 'purple'])
+        prediction_method = "splines"  # DENSITY FUNCTION.
+        intervals = 10
+        colorsvec = ro.StrVector(["lightblue", "yellow", "purple"])
 
         # predict offer type
         ro.r(predict_offer_class)
-        predominant_offer = ro.globalenv['real_estate_offer']
+        predominant_offer = ro.globalenv["real_estate_offer"]
         # exports html result
         predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec, path)

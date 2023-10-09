@@ -30,19 +30,20 @@ PROJECTS_INPUT = pd.DataFrame(
     ]
 )
 
+
 class LandValuatorSimulationParameters(BaseModel):
-    project_type: str 
+    project_type: str
     project_btypes: list[str]
     non_project_btypes: list[str]
-    simulated_projects: pd.DataFrame 
-    action_zone: list[str] 
+    simulated_projects: pd.DataFrame
+    action_zone: list[str]
     action_geom: gpd.GeoDataFrame
     reference_zone: Optional[list[str]]
-    reference_geom: Optional[gpd.GeoDataFrame] 
-    parcel_selector: bool 
+    reference_geom: Optional[gpd.GeoDataFrame]
+    parcel_selector: bool
     lot_size: tuple[int, int]
     unit_size: tuple[int, int]
-    max_heights: dict[str,float]
+    max_heights: dict[str, float]
     planar_point_process: pd.DataFrame
     expvars: list[str]
     urban_land_typology: list[str]

@@ -84,53 +84,40 @@ def download_gdf(gdf_points: gpd.GeoDataFrame) -> None:
     )
 
 
-def section_header(
-        title: str, tooltip: Optional[str] = None, 
-        kwargs=None
-    ) -> None:
+def section_header(title: str, tooltip: Optional[str] = None, kwargs=None) -> None:
     kwargs = kwargs or {}
     st.subheader(title)
     if tooltip is not None:
         st.write(tooltip, **kwargs)
 
-def loads_kepler_geomstr(
-            str_geom: dict[str, str]
-    ) -> dict:
-        gjson = geojson.loads(str_geom)
-        if len(gjson["coordinates"][0]) < 4:
-            error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
-            return
-        else:
-            return gjson
-        
-def kepler_geomstr_to_gdf(
-          json_polygon: dict,
-          crs_code: str|int
-        
-) -> gpd.GeoDataFrame:
+
+def loads_kepler_geomstr(str_geom: dict[str, str]) -> dict:
+    gjson = geojson.loads(str_geom)
+    if len(gjson["coordinates"][0]) < 4:
+        error_message(f"Invalid Geometry ({gjson['coordinates'][0]}).")
+        return
+    else:
+        return gjson
+
+
+def kepler_geomstr_to_gdf(json_polygon: dict, crs_code: str | int) -> gpd.GeoDataFrame:
     polygon_geom = Polygon(json_polygon["coordinates"][0])
-    gdf = gpd.GeoDataFrame(
-        index=[0], crs='epsg:4326',
-        geometry=[polygon_geom]
-    ).to_crs(crs_code)
+    gdf = gpd.GeoDataFrame(index=[0], crs="epsg:4326", geometry=[polygon_geom]).to_crs(crs_code)
     return gdf
 
-def read_kepler_geometry(
-    geom: dict[str, str]
-) -> Union[BaseGeometry, None]:
+
+def read_kepler_geometry(geom: dict[str, str]) -> Union[BaseGeometry, None]:
     try:
         gjson = loads_kepler_geomstr(geom)
         poly = Polygon(shape(gjson))
     except Exception:
         return
     return poly if not poly.is_empty else None
-    
-def transform_kepler_geomstr(
-    str_geometry: str,
-    crs_code: str | int
-) -> gpd.GeoDataFrame:
+
+
+def transform_kepler_geomstr(str_geometry: str, crs_code: str | int) -> gpd.GeoDataFrame:
     json_polygon = loads_kepler_geomstr(str_geometry)
 
     if json_polygon is not None:
-        gdf = kepler_geomstr_to_gdf(json_polygon,crs_code)
+        gdf = kepler_geomstr_to_gdf(json_polygon, crs_code)
         return gdf
