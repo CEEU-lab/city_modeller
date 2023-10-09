@@ -15,12 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   r-base-dev \
   git
     
-
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install relevant pip packages
 RUN pip3 install --upgrade pip && \
   pip3 install --no-cache-dir -r requirements.txt
+
+RUN R -e "install.packages('tidyverse', repos='https://cloud.r-project.org/')"
 
 COPY . .
 
