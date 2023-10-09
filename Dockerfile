@@ -21,7 +21,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --upgrade pip && \
   pip3 install --no-cache-dir -r requirements.txt
 
-RUN R -e "install.packages('tidyverse', repos='https://cloud.r-project.org/')"
+RUN R -e "install.packages(c('tidyverse','sf','splines','raster','tmap','leaflet','htmlwidgets'), repos='https://cloud.r-project.org/')"
 
 COPY . .
 
