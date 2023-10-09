@@ -61,18 +61,23 @@ def get_BsAs_streets(path: str = f"{DATA_DIR}/CabaStreet_wgs84.zip") -> gpd.GeoD
 
 
 @st.cache_data
-def get_census_data(filter_jurisdiction: bool = False) -> gpd.GeoDataFrame:
+def get_census_data(use_filtered_jurisdiction: bool = True) -> gpd.GeoDataFrame:
     """
     Loads the 2020 argentinian census tracts
     """
-    if filter_jurisdiction:
-        try:
-            path = f"{DATA_DIR}/radios.zip"
-            radios = gpd.read_file(path)
-        except Exception:  # Bare except should not be used, even this is not great.
+    if use_filtered_jurisdiction:
+        path = f"{DATA_DIR}/radios_caba.zip"
+        if not os.path.exists(path):
+            path = f"{GCS_DIR}/radios_caba.zip"
+        radios = gpd.read_file(path)
+        
+    else:
+        # Loads entire dataset and filter jurisdiction
+        path = f"{DATA_DIR}/radios.zip"
+        if not os.path.exists(path):
             path = f"{GCS_DIR}/radios.zip"
-            radios = gpd.read_file(path)
 
+        radios = gpd.read_file(path)
         target_jurisdiction = "Ciudad Autónoma de Buenos Aires"
         radios = (
             radios.query(f"nomloc == {target_jurisdiction}")  # HCAF
@@ -82,13 +87,6 @@ def get_census_data(filter_jurisdiction: bool = False) -> gpd.GeoDataFrame:
         )
         radios.columns = ["TOTAL_VIV", "Commune", "geometry"]
         radios["TOTAL_VIV"] = radios.apply(lambda x: int(x["TOTAL_VIV"]), axis=1)
-    else:
-        try:
-            path = f"{DATA_DIR}/radios_caba.zip"
-            radios = gpd.read_file(path)
-        except Exception:  # Bare except should not be used, even this is not great.
-            path = f"{GCS_DIR}/radios_caba.zip"
-            radios = gpd.read_file(path)
 
     return radios
 
@@ -344,15 +342,16 @@ def get_commune_availability(
 
 
 @st.cache_data
-def get_properaty_data(filter_jurisdiction: bool = False) -> pd.DataFrame:
+def get_properaty_data(use_filtered_jurisdiction: bool = True) -> pd.DataFrame:
     # TODO: Write utility function to update currency
-    if filter_jurisdiction:
-        # Loads Argentina real estate offer
-        root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
-
-    else:
+    if use_filtered_jurisdiction:
         # Loads BsAs real estate offer
         root = "https://storage.googleapis.com/python_mdg/city_modeller/data/ar_properties.zip"
+
+    else:
+        # Loads Argentina real estate offer
+        root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
+        
     df = pd.read_csv(root)
     return df
 
