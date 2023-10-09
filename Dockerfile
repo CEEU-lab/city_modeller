@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libatlas-base-dev \
   libgdal-dev \
   gfortran \
+  r-base \
+  r-base-dev \
   git
-
-RUN sudo apt-get install -y \
-    r-base r-base-dev
+    
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
