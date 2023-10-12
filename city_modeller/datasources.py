@@ -70,7 +70,7 @@ def get_census_data(use_filtered_jurisdiction: bool = True) -> gpd.GeoDataFrame:
         if not os.path.exists(path):
             path = f"{GCS_DIR}/radios_caba.zip"
         radios = gpd.read_file(path)
-        
+
     else:
         # Loads entire dataset and filter jurisdiction
         path = f"{DATA_DIR}/radios.zip"
@@ -213,9 +213,7 @@ def get_radio_availability(
     gdf = pd.merge(
         _radios.reset_index(),
         gpd.overlay(
-            _radios.reset_index().iloc[
-                :,
-            ],
+            _radios.reset_index().iloc[:,],
             boundary,
             how="intersection",
         ),
@@ -351,7 +349,7 @@ def get_properaty_data(use_filtered_jurisdiction: bool = True) -> pd.DataFrame:
     else:
         # Loads Argentina real estate offer
         root = "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
-        
+
     df = pd.read_csv(root)
     return df
 
