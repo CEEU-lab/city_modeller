@@ -42,7 +42,6 @@ RESULTS_DIR = os.path.join(PROJECT_DIR, "real_estate/results")
 
 
 class UrbanValuationDashboard(Dashboard):
-
     parcels: gpd.GeoDataFrame = gpd.GeoDataFrame([])
 
     def __init__(
@@ -65,7 +64,6 @@ class UrbanValuationDashboard(Dashboard):
     def _zone_selector(
         self, selected_level: str, default_value: list[str], action_zone: bool = True
     ) -> list[str]:
-
         zone = "Action" if action_zone else "Reference"
 
         df = (
@@ -87,7 +85,6 @@ class UrbanValuationDashboard(Dashboard):
     def _zone_geom_selector(
         self, selected_level: str, geom_names: list[str] | None, proj: int | str | None
     ) -> gpd.GeoDataFrame:
-
         gdfs = {
             "Commune": self.communes,
             "Neighborhood": self.neighborhoods,
@@ -125,7 +122,6 @@ class UrbanValuationDashboard(Dashboard):
     def analysis_zoom_delimiter(
         self, zone_crs: str | int, zone_type: Literal["action_zone", "reference_zone"]
     ) -> dict[list[str], gpd.GeoDataFrame]:
-
         zone_title = zone_type.split("_")[0]
         st.markdown(f"**Define your {zone_title} zone**")
         use_default_level = st.checkbox(
@@ -197,7 +193,6 @@ class UrbanValuationDashboard(Dashboard):
         geom: list[str],
         file_name: str,
     ) -> str:
-
         df["tipo_agr"] = df["property_type"].apply(
             lambda x: build_project_class(
                 x, target_group=target_group_lst, comparison_group=comparison_group_lst
@@ -219,7 +214,6 @@ class UrbanValuationDashboard(Dashboard):
     def clip_real_estate_offer(
         self, df: pd.DataFrame, gdf: gpd.GeoDataFrame, colnames: list
     ) -> pd.DataFrame:
-
         current_market_offer = df.loc[df["property_type"].isin(colnames)]
         geo_market_offer = gpd.GeoDataFrame(
             current_market_offer,

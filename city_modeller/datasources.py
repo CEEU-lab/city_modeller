@@ -215,9 +215,7 @@ def get_radio_availability(
     gdf = pd.merge(
         _radios.reset_index(),
         gpd.overlay(
-            _radios.reset_index().iloc[
-                :,
-            ],
+            _radios.reset_index().iloc[:,],
             boundary,
             how="intersection",
         ),
