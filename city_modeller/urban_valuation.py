@@ -210,7 +210,7 @@ class UrbanValuationDashboard(Dashboard):
         points_gdf = gdf.to_crs(CRS)
         market_area = points_gdf.clip(geom)
         df_ = pd.DataFrame(market_area.drop(columns="geometry"))
-        path = RESULTS_DIR + file_name
+        path = RESULTS_DIR + file_name 
 
         offer_type_predictor_wrapper(df_, path)
         p = open(path)
@@ -420,38 +420,49 @@ class UrbanValuationDashboard(Dashboard):
         )
 
         available_urban_land, project_offer_type = st.columns((0.5, 0.5))
-
+        
+        congif_map = self.main_ref_config
+        congif_map['config']['mapStyle']['styleType'] = 'light'
+        congif_map['config']['visState']['layers'][0]['config']['visConfig']= {"opacity":0.39,"strokeOpacity":0.8,"thickness":0,"strokeColor":[255,254,230],"colorRange":{"name":"Global Warming","type":"sequential","category":"Uber","colors":["#5A1846","#900C3F","#C70039","#E3611C","#F1920E","#FFC300"]},"strokeColorRange":{"name":"Global Warming","type":"sequential","category":"Uber","colors":["#5A1846","#900C3F","#C70039","#E3611C","#F1920E","#FFC300"]},"radius":10,"sizeRange":[0,10],"radiusRange":[0,50],"heightRange":[0,500],"elevationScale":5,"enableElevationZoomFactor":True,"stroked":True,"filled":True,"enable3d":False,"wireframe":False}
+        congif_map['config']['visState']['layers'][0]['visualChannels'] = {"colorField":{"name":"raster_val","type":"real"},"colorScale":"quantile","strokeColorField":None,"strokeColorScale":"quantile","sizeField":None,"sizeScale":"linear","heightField":None,"heightScale":"linear","radiusField":None,"radiusScale":"linear"}
+        congif_map['config']['visState']['interactionConfig'] = {"tooltip":{"fieldsToShow":{"GVI":[{"name":"raster_val","format":None}]},"compareMode":False,"compareType":"absolute","enabled":True},"brush":{"size":0.5,"enabled":False},"geocoder":{"enabled":False},"coordinate":{"enabled":False}}
+        
         with st.spinner("⏳ Loading..."):
             with available_urban_land:
-                st.markdown("#### Offered urban land")
-                st.markdown(
-                    """The output map indicates where is more likebale to find available lots"""
-                )
-                p1 = self.render_spatial_density_function(
+                self.render_spatial_density_function( 
                     df=raw_df,
                     target_group_lst=simulated_params.urban_land_typology,
                     comparison_group_lst=simulated_params.non_urban_land_typology,
                     CRS=self.user_crs,
                     geom=simulated_params.action_geom,
-                    file_name="/land_offer_type.html",
+                    file_name="/raster_pred_land_offer_type.tif",
                 )
-                components.html(p1.read(), width=1000, height=400, scrolling=True)
+                st.markdown("#### Offered urban land")
+                st.markdown(
+                    """The output map indicates where is more likebale to find available lots"""
+                )
+                data_available_urban_land = gpd.read_file("./real_estate/results/raster_pred_land_offer_type.geojson")
+                data_available_urban_land.raster_val = round(data_available_urban_land.raster_val, 2)
+                available_urban_land_map = KeplerGl(height=400, width=1000, data={"GVI":data_available_urban_land}, config=congif_map)
+                keplergl_static(available_urban_land_map, center_map=True)
 
             with project_offer_type:
-                st.markdown("#### Offered units")
-                st.markdown(
-                    """The output map indicates where is more likebale to find similar building types"""
-                )
-
-                p2 = self.render_spatial_density_function(
+                self.render_spatial_density_function(
                     df=raw_df,
                     target_group_lst=simulated_params.project_btypes,
                     comparison_group_lst=simulated_params.non_project_btypes,
                     CRS=self.user_crs,
                     geom=simulated_params.action_geom,
-                    file_name="/project_offer_type.html",
+                    file_name="/raster_pred_project_offer_type.tif",
                 )
-                components.html(p2.read(), width=1000, height=400, scrolling=True)
+                st.markdown("#### Offered units")
+                st.markdown(
+                    """The output map indicates where is more likebale to find similar building types"""
+                )
+                data_project_offer_type = gpd.read_file("./real_estate/results/raster_pred_project_offer_type.geojson")
+                data_project_offer_type.raster_val = round(data_project_offer_type.raster_val, 2)
+                project_offer_type_map = KeplerGl(height=400, width=1000, data={"GVI":data_project_offer_type}, config=congif_map)
+                keplergl_static(project_offer_type_map, center_map=True)
 
     def zones(self) -> None:
         if "simulated_params" not in st.session_state:

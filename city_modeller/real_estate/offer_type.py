@@ -2,6 +2,9 @@ from rpy2 import robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import conversion, default_converter
 
+import geopandas as gpd
+import rasterio
+from rasterio.features import shapes
 
 # TODO: docstring + how terra predicts over the grid (wiki)
 predict_offer_class = """real_estate_offer <- function(offer_area, prediction_method, intervals, colorsvec, dir) {
@@ -80,31 +83,7 @@ predict_offer_class = """real_estate_offer <- function(offer_area, prediction_me
             raster_mask <- raster::mask(raster_pred, as_Spatial(study_area))
             raster_vals <- raster::values(raster_mask)
 
-            # 5. Plot prediction results
-            require(tmap)
-            require(leaflet)
-
-            cat_breaks <- seq(min(raster_vals, na.rm = TRUE),
-            max(raster_vals, na.rm = TRUE), length.out = intervals)
-
-            col_bins <- colorBin(
-                palette = colorsvec,
-                bins = cat_breaks,
-                domain = cat_breaks,
-                na.color = "#00000000")
-                    
-            # export result
-            outmap <- leaflet(width = 600, height = 400,
-                options = leafletOptions(zoomControl = TRUE,
-                                    minZoom = 10, maxZoom = 15)) %>%
-                addTiles() %>%
-                addProviderTiles(providers$CartoDB.Positron) %>%
-                addRasterImage(raster_mask, opacity = 0.75, colors = colorsvec) %>%
-                addLegend(pal = col_bins, values = cat_breaks)
-            
-            require(htmlwidgets)
-            saveWidget(widget = outmap, file = dir)
-            }"""
+            writeRaster(raster_pred,dir,format="GTiff", overwrite=TRUE) }"""
 
 
 def offer_type_predictor_wrapper(df, path) -> None:
@@ -124,6 +103,8 @@ def offer_type_predictor_wrapper(df, path) -> None:
         Writes leaflet html widget
     """
 
+    json_name = path.split("/")[-1].split(".")[0]
+
     with conversion.localconverter(default_converter):
         # loads pandas as data.frame r object
         with (ro.default_converter + pandas2ri.converter).context():
@@ -140,3 +121,18 @@ def offer_type_predictor_wrapper(df, path) -> None:
         predominant_offer = ro.globalenv["real_estate_offer"]
         # exports html result
         predominant_offer(r_from_pd_df, prediction_method, intervals, colorsvec, path)
+
+        mask = None
+        with rasterio.Env():
+            with rasterio.open(path) as src:
+                image = src.read(1) # first band
+                results = (
+                    {'properties': {'raster_val': v}, 'geometry': s}
+                    for i, (s, v) in enumerate(
+                        shapes(image, mask=mask, transform=src.transform))
+                )
+        src.close()
+        gpd_polygonized_raster = gpd.GeoDataFrame.from_features(list(results)) 
+        gpd_polygonized_raster = gpd_polygonized_raster.set_crs("epsg:4326")
+        gpd_polygonized_raster.raster_val = round(gpd_polygonized_raster.raster_val, 2)
+        gpd_polygonized_raster.to_file(f"./real_estate/results/{json_name}.geojson", driver='GeoJSON')
