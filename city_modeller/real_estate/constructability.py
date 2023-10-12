@@ -11,7 +11,6 @@ parcel looks like the following collection
 
 
 def estimate_parcel_constructability(parcel) -> float:
-
     if parcel["edificabl"] == "CA":
         sup = (
             parcel["area"] * parcel["max_height"]
