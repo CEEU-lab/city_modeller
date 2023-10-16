@@ -202,7 +202,7 @@ def get_radio_availability(
     _locations: gpd.GeoDataFrame,
     _neighborhoods: gpd.GeoDataFrame,
     typology_column_name: str,
-    _communes: Optional[gpd.GeoDataFrame] = None,
+    communes: Optional[gpd.GeoDataFrame] = None,
     selected_typologies: Optional[List[str]] = None,
 ) -> gpd.GeoDataFrame:
     if selected_typologies is not None:
