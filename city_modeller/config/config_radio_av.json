@@ -8,8 +8,8 @@
                     "id": "r9mrfac",
                     "type": "geojson",
                     "config": {
-                        "dataId": "data",
-                        "label": "data",
+                        "dataId": "data_0",
+                        "label": "data_0",
                         "color": [
                             255,
                             203,
