@@ -207,9 +207,8 @@ class UrbanValuationDashboard(Dashboard):
         df_ = pd.DataFrame(market_area.drop(columns="geometry"))
         path = RESULTS_DIR + file_name
 
-        offer_type_predictor_wrapper(df_, market_area, path)
-        p = open(path)
-        return p
+        gdf_pred = offer_type_predictor_wrapper(df_, market_area, path)
+        return gdf_pred 
 
     def clip_real_estate_offer(
         self, df: pd.DataFrame, gdf: gpd.GeoDataFrame, colnames: list
@@ -423,7 +422,7 @@ class UrbanValuationDashboard(Dashboard):
 
         with st.spinner("⏳ Loading..."):
             with available_urban_land:
-                self.render_spatial_density_function(
+                data_available_urban_land = self.render_spatial_density_function(
                     df=raw_df,
                     target_group_lst=simulated_params.urban_land_typology,
                     comparison_group_lst=simulated_params.non_urban_land_typology,
@@ -431,17 +430,18 @@ class UrbanValuationDashboard(Dashboard):
                     geom=simulated_params.action_geom,
                     file_name="/raster_pred_land_offer_type.tif",
                 )
+                
                 st.markdown("#### Offered urban land")
                 st.markdown(
                     """The output map indicates where is more likebale to find available lots"""
                 )
-                data_available_urban_land = gpd.read_file("./real_estate/results/raster_pred_land_offer_type.geojson")
+                #data_available_urban_land = gpd.read_file("./real_estate/results/raster_pred_land_offer_type.geojson")
                 data_available_urban_land.raster_val = round(data_available_urban_land.raster_val, 2)
                 available_urban_land_map = KeplerGl(height=400, width=1000, data={"GVI":data_available_urban_land}, config=congif_map)
                 keplergl_static(available_urban_land_map, center_map=True)
 
             with project_offer_type:
-                self.render_spatial_density_function(
+                data_project_offer_type = self.render_spatial_density_function(
                     df=raw_df,
                     target_group_lst=simulated_params.project_btypes,
                     comparison_group_lst=simulated_params.non_project_btypes,
@@ -453,7 +453,7 @@ class UrbanValuationDashboard(Dashboard):
                 st.markdown(
                     """The output map indicates where is more likebale to find built land"""
                 )
-                data_project_offer_type = gpd.read_file("./real_estate/results/raster_pred_project_offer_type.geojson")
+                #data_project_offer_type = gpd.read_file("./real_estate/results/raster_pred_project_offer_type.geojson")
                 data_project_offer_type.raster_val = round(data_project_offer_type.raster_val, 2)
                 project_offer_type_map = KeplerGl(height=400, width=1000, data={"GVI":data_project_offer_type}, config=congif_map)
                 keplergl_static(project_offer_type_map, center_map=True)
