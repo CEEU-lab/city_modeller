@@ -55,7 +55,7 @@ predict_offer_class = """real_estate_offer <- function(offer_area, prediction_me
                 lat = seq(min(ppp_data$lat),
                 max(ppp_data$lat),
                 length.out = cant))
-            # require("terra")
+            
             pred <- predict(logistic_adj, newdata = grid_canvas, type = "response")
             summary(pred)
 
@@ -88,12 +88,9 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
 
     Returns
     -------
-    None
-        Writes leaflet html widget
-    """
-
-    json_name = path.split("/")[-1].split(".")[0]
-    
+    gpd_polygonized_raster : gpd.GeoDataFrame
+        grid prediction in vector format
+    """    
     with conversion.localconverter(default_converter):
         # loads pandas as data.frame r object
         with (ro.default_converter + pandas2ri.converter).context():
@@ -122,9 +119,8 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
     src.close()
     gpd_polygonized_raster = gpd.GeoDataFrame.from_features(list(results)) 
     gpd_polygonized_raster = gpd_polygonized_raster.set_crs("epsg:4326")
-    #import streamlit as st
-    #gpd_polygonized_raster_ = gpd_polygonized_raster.clip(geom)
-    #st.write(gpd_polygonized_raster_)
-    #st.write(geom) # HACER UN CONVEX HULL CON ESTA geom
+    market_area_mask = geom.to_crs(4326).unary_union.convex_hull   
+    gpd_polygonized_raster = gpd_polygonized_raster.clip(market_area_mask)
     gpd_polygonized_raster.raster_val = round(gpd_polygonized_raster.raster_val, 2)
-    gpd_polygonized_raster.to_file(f"./real_estate/results/{json_name}.geojson", driver='GeoJSON')
+    return gpd_polygonized_raster
+    
