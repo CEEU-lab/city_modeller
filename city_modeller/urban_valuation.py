@@ -31,7 +31,6 @@ from city_modeller.models.urban_valuation import (
 import streamlit as st
 from keplergl import KeplerGl
 from streamlit_keplergl import keplergl_static
-import streamlit.components.v1 as components
 
 import pandas as pd
 import geopandas as gpd
