@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   sudo \
   gpg \
   software-properties-common \
+  dirmngr \
   libatlas-base-dev \
   libgdal-dev \
   gfortran \
