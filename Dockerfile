@@ -6,21 +6,29 @@ COPY requirements.txt .
 
 # Install relevant system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  build-essential \
   sudo \
   gpg \
+  build-essential \
   software-properties-common \
   dirmngr \
   libatlas-base-dev \
   libgdal-dev \
   gfortran \
-  git \
-  && gpg --keyserver keyserver.ubuntu.com \
-    --recv-key '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' \
-  && gpg --armor --export '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' | \
-    sudo tee /etc/apt/trusted.gpg.d/cran_debian_key.asc \
-  && add-apt-repository "deb http://cloud.r-project.org/bin/linux/debian buster-cran40/" \ 
-  && apt-get install r-base r-base-dev r-recommended r-base-core
+  git 
+
+# R config 4.3.1
+RUN gpg --keyserver keyserver.ubuntu.com \
+    --recv-key '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7'
+RUN gpg --armor --export '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' | \
+    sudo tee /etc/apt/trusted.gpg.d/cran_debian_key.asc
+
+RUN add-apt-repository "deb http://cloud.r-project.org/bin/linux/debian buster-cran40/"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  r-base \  
+  r-base-dev \
+  r-recommended \
+  r-base-core 
 
 # R pckgs
 RUN R -e "install.packages('raster', dependencies=TRUE, Ncpus=16)"
