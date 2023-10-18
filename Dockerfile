@@ -7,14 +7,23 @@ COPY requirements.txt .
 # Install relevant system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
+  sudo \
+  gpg \
   software-properties-common \
   libatlas-base-dev \
   libgdal-dev \
   gfortran \
-  r-base \
-  r-base-dev \
-  git
-    
+  git \
+  && gpg --keyserver keyserver.ubuntu.com \
+    --recv-key '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' \
+  && gpg --armor --export '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' | \
+    sudo tee /etc/apt/trusted.gpg.d/cran_debian_key.asc \
+  && apt-get install r-base r-base-dev r-recommended r-base-core
+
+# R pckgs
+RUN R -e "install.packages('raster', dependencies=TRUE, Ncpus=16)"
+RUN R -e "install.packages(c('dplyr','magrittr','splines'), repos='https://cloud.r-project.org/', Ncpus=6)"
+
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install relevant pip packages
