@@ -50,15 +50,18 @@ class UrbanValuationDashboard(Dashboard):
         user_polygons: gpd.GeoDataFrame,
         user_crs: str | int,
         properaty_data: pd.DataFrame,
-        main_ref_config: Optional[dict] = None,
-        main_ref_config_path: Optional[str] = None,
+        default_config: Optional[dict] = None,
+        default_config_path: Optional[str] = None,
+        config_offertype: Optional[dict] = None,
+        config_offertype_path: Optional[str] = None,
     ) -> None:
         self.communes: gpd.GeoDataFrame = communes.copy()
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.user_polygons: gpd.GeoDataFrame = user_polygons.copy()
         self.user_crs: str | int = user_crs
         self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
-        self.main_ref_config = parse_config_json(main_ref_config, main_ref_config_path)
+        self.default_config = parse_config_json(default_config, default_config_path)
+        self.config_offertype = parse_config_json(config_offertype, config_offertype_path)
 
     def _zone_selector(
         self, selected_level: str, default_value: list[str], action_zone: bool = True
@@ -344,7 +347,7 @@ class UrbanValuationDashboard(Dashboard):
             }
 
         with kepler_col:
-            sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
+            sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
             landing_map = sim_frame_map
 
             if user_input["area"].sum() > 0:
@@ -413,11 +416,7 @@ class UrbanValuationDashboard(Dashboard):
 
         available_urban_land, project_offer_type = st.columns((0.5, 0.5))
 
-        congif_map = self.main_ref_config
-        congif_map['config']['mapStyle']['styleType'] = 'light'
-        congif_map['config']['visState']['layers'][0]['config']['visConfig']= {"opacity":0.39,"strokeOpacity":0.8,"thickness":0,"strokeColor":[255,254,230],"colorRange":{"name":"Global Warming","type":"sequential","category":"Uber","colors":["#5A1846","#900C3F","#C70039","#E3611C","#F1920E","#FFC300"]},"strokeColorRange":{"name":"Global Warming","type":"sequential","category":"Uber","colors":["#5A1846","#900C3F","#C70039","#E3611C","#F1920E","#FFC300"]},"radius":10,"sizeRange":[0,10],"radiusRange":[0,50],"heightRange":[0,500],"elevationScale":5,"enableElevationZoomFactor":True,"stroked":True,"filled":True,"enable3d":False,"wireframe":False}
-        congif_map['config']['visState']['layers'][0]['visualChannels'] = {"colorField":{"name":"raster_val","type":"real"},"colorScale":"quantile","strokeColorField":None,"strokeColorScale":"quantile","sizeField":None,"sizeScale":"linear","heightField":None,"heightScale":"linear","radiusField":None,"radiusScale":"linear"}
-        congif_map['config']['visState']['interactionConfig'] = {"tooltip":{"fieldsToShow":{"GVI":[{"name":"raster_val","format":None}]},"compareMode":False,"compareType":"absolute","enabled":True},"brush":{"size":0.5,"enabled":False},"geocoder":{"enabled":False},"coordinate":{"enabled":False}}
+        config_offertype = self.config_offertype
 
         with st.spinner("⏳ Loading..."):
             with available_urban_land:
@@ -434,9 +433,11 @@ class UrbanValuationDashboard(Dashboard):
                 st.markdown(
                     """The output map indicates where is more likebale to find available lots"""
                 )
-                #data_available_urban_land = gpd.read_file("./real_estate/results/raster_pred_land_offer_type.geojson")
+
                 data_available_urban_land.raster_val = round(data_available_urban_land.raster_val, 2)
-                available_urban_land_map = KeplerGl(height=400, width=1000, data={"GVI":data_available_urban_land}, config=congif_map)
+                available_urban_land_map = KeplerGl(height=400, width=1000, 
+                                                    data={"OfferType":data_available_urban_land}, 
+                                                    config=config_offertype)
                 keplergl_static(available_urban_land_map, center_map=True)
 
             with project_offer_type:
@@ -452,9 +453,11 @@ class UrbanValuationDashboard(Dashboard):
                 st.markdown(
                     """The output map indicates where is more likebale to find built land"""
                 )
-                #data_project_offer_type = gpd.read_file("./real_estate/results/raster_pred_project_offer_type.geojson")
+                
                 data_project_offer_type.raster_val = round(data_project_offer_type.raster_val, 2)
-                project_offer_type_map = KeplerGl(height=400, width=1000, data={"GVI":data_project_offer_type}, config=congif_map)
+                project_offer_type_map = KeplerGl(height=400, width=1000, 
+                                                  data={"OfferType":data_project_offer_type}, 
+                                                  config=config_offertype)
                 keplergl_static(project_offer_type_map, center_map=True)
 
     def zones(self) -> None:
@@ -482,7 +485,7 @@ class UrbanValuationDashboard(Dashboard):
 
         with kepler_col:
             action_geom = simulated_params.action_geom
-            sim_frame_map = KeplerGl(height=500, width=400, config=self.main_ref_config)
+            sim_frame_map = KeplerGl(height=500, width=400, config=self.defaultconfig)
             sim_frame_map.add_data(data=action_geom)
             landing_map = sim_frame_map
 
@@ -542,4 +545,6 @@ if __name__ == "__main__":
         user_polygons=get_default_zones(),
         user_crs=get_user_defined_crs(),
         properaty_data=get_properaty_data(),
+        default_config_path=f"{PROJECT_DIR}/config/urban_valuation.json",
+        config_offertype_path=f"{PROJECT_DIR}/config/config_offertype.json"
     )
