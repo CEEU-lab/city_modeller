@@ -5,9 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install relevant system packages
+RUN apt-get update && \
+    apt-get -y install sudo \
+    gpg
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  sudo \
-  gpg \
   build-essential \
   software-properties-common \
   dirmngr \
