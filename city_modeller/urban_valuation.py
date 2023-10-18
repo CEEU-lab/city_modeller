@@ -210,7 +210,7 @@ class UrbanValuationDashboard(Dashboard):
         path = RESULTS_DIR + file_name
 
         gdf_pred = offer_type_predictor_wrapper(df_, market_area, path)
-        return gdf_pred 
+        return gdf_pred
 
     def clip_real_estate_offer(
         self, df: pd.DataFrame, gdf: gpd.GeoDataFrame, colnames: list
@@ -428,16 +428,21 @@ class UrbanValuationDashboard(Dashboard):
                     geom=simulated_params.action_geom,
                     file_name="/raster_pred_land_offer_type.tif",
                 )
-                
+
                 st.markdown("#### Offered urban land")
                 st.markdown(
                     """The output map indicates where is more likebale to find available lots"""
                 )
 
-                data_available_urban_land.raster_val = round(data_available_urban_land.raster_val, 2)
-                available_urban_land_map = KeplerGl(height=400, width=1000, 
-                                                    data={"OfferType":data_available_urban_land}, 
-                                                    config=config_offertype)
+                data_available_urban_land.raster_val = round(
+                    data_available_urban_land.raster_val, 2
+                )
+                available_urban_land_map = KeplerGl(
+                    height=400,
+                    width=1000,
+                    data={"OfferType": data_available_urban_land},
+                    config=config_offertype,
+                )
                 keplergl_static(available_urban_land_map, center_map=True)
 
             with project_offer_type:
@@ -453,11 +458,14 @@ class UrbanValuationDashboard(Dashboard):
                 st.markdown(
                     """The output map indicates where is more likebale to find built land"""
                 )
-                
+
                 data_project_offer_type.raster_val = round(data_project_offer_type.raster_val, 2)
-                project_offer_type_map = KeplerGl(height=400, width=1000, 
-                                                  data={"OfferType":data_project_offer_type}, 
-                                                  config=config_offertype)
+                project_offer_type_map = KeplerGl(
+                    height=400,
+                    width=1000,
+                    data={"OfferType": data_project_offer_type},
+                    config=config_offertype,
+                )
                 keplergl_static(project_offer_type_map, center_map=True)
 
     def zones(self) -> None:
@@ -546,5 +554,5 @@ if __name__ == "__main__":
         user_crs=get_user_defined_crs(),
         properaty_data=get_properaty_data(),
         default_config_path=f"{PROJECT_DIR}/config/urban_valuation.json",
-        config_offertype_path=f"{PROJECT_DIR}/config/config_offertype.json"
+        config_offertype_path=f"{PROJECT_DIR}/config/config_offertype.json",
     )

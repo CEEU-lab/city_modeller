@@ -85,7 +85,7 @@ def main():
         user_crs=get_user_defined_crs(),
         properaty_data=get_properaty_data(),
         default_config_path=f"{PROJECT_DIR}/config/urban_valuation.json",
-        config_offertype_path=f"{PROJECT_DIR}/config/config_offertype.json"
+        config_offertype_path=f"{PROJECT_DIR}/config/config_offertype.json",
     )
 
     # SIDE BAR CONFIG

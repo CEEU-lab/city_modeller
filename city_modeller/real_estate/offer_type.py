@@ -82,7 +82,7 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
     -----------
     df : pd.DataFrame
         Real Estate Offer with adjusted classes for prediction
-    geom: 
+    geom:
     path : str
         Source route of the predicted output (html widget)
 
@@ -90,7 +90,7 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
     -------
     gpd_polygonized_raster : gpd.GeoDataFrame
         grid prediction in vector format
-    """    
+    """
     with conversion.localconverter(default_converter):
         # loads pandas as data.frame r object
         with (ro.default_converter + pandas2ri.converter).context():
@@ -109,18 +109,16 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
     mask = None
     with rasterio.Env():
         with rasterio.open(path) as src:
-            image = src.read(1) # first band
+            image = src.read(1)  # first band
             results = (
-                {'properties': {'raster_val': v}, 'geometry': s}
-                for i, (s, v) in enumerate(
-                    shapes(image, mask=mask, transform=src.transform))
+                {"properties": {"raster_val": v}, "geometry": s}
+                for i, (s, v) in enumerate(shapes(image, mask=mask, transform=src.transform))
             )
-            
+
     src.close()
-    gpd_polygonized_raster = gpd.GeoDataFrame.from_features(list(results)) 
+    gpd_polygonized_raster = gpd.GeoDataFrame.from_features(list(results))
     gpd_polygonized_raster = gpd_polygonized_raster.set_crs("epsg:4326")
-    market_area_mask = geom.to_crs(4326).unary_union.convex_hull   
+    market_area_mask = geom.to_crs(4326).unary_union.convex_hull
     gpd_polygonized_raster = gpd_polygonized_raster.clip(market_area_mask)
     gpd_polygonized_raster.raster_val = round(gpd_polygonized_raster.raster_val, 2)
     return gpd_polygonized_raster
-    
