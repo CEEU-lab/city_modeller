@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     --recv-key '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' \
   && gpg --armor --export '95C0FAF38DB3CCAD0C080A7BDC78B2DDEABC47B7' | \
     sudo tee /etc/apt/trusted.gpg.d/cran_debian_key.asc \
+  && add-apt-repository "deb http://cloud.r-project.org/bin/linux/debian buster-cran40/" \ 
   && apt-get install r-base r-base-dev r-recommended r-base-core
 
 # R pckgs
