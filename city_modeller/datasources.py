@@ -380,26 +380,28 @@ def get_user_defined_crs():
 
     return proj_str
 
+
 def load_parcel(mask) -> gpd.GeoDataFrame:
     gdf_mask = gpd.GeoDataFrame(mask)
     gdf_mask = gdf_mask.to_crs(4326)
-    
+
     path = f"{DATA_DIR}/caba_parcels_geom.shp"
-    
+
     if not os.path.exists(path):
         path = f"{GCS_DIR}/caba_parcels_geom.shp"
-    
+
     gdf = gpd.read_file(path, mask=gdf_mask)
 
     return gdf
 
+
 def populate_parcels(parcels_geoms: gpd.GeoDataFrame):
     path = f"{DATA_DIR}/caba_parcels_feat.zip"
-    
+
     if not os.path.exists(path):
         path = f"{GCS_DIR}/caba_parcels_feat.zip"
 
-    parcels_feat = pd.read_csv(path).set_index('smp')
-    parcels_data = parcels_geoms.set_index('smp').join(parcels_feat)
-    columns = [i for i in parcels_data.columns if i != 'geometry']+['geometry']
+    parcels_feat = pd.read_csv(path).set_index("smp")
+    parcels_data = parcels_geoms.set_index("smp").join(parcels_feat)
+    columns = [i for i in parcels_data.columns if i != "geometry"] + ["geometry"]
     return parcels_data[columns].copy()
