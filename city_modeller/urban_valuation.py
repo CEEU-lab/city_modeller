@@ -41,8 +41,6 @@ RESULTS_DIR = os.path.join(PROJECT_DIR, "real_estate/results")
 
 
 class UrbanValuationDashboard(Dashboard):
-    parcels: gpd.GeoDataFrame = gpd.GeoDataFrame([])
-
     def __init__(
         self,
         neighborhoods: gpd.GeoDataFrame,
@@ -259,7 +257,7 @@ class UrbanValuationDashboard(Dashboard):
                 if action_geom is not None:
                     loaded_parcels = load_parcel(mask=action_geom)
                     if len(loaded_parcels) > 0:
-                        self.parcels = loaded_parcels
+                        action_parcels = loaded_parcels
                 else:
                     st.warning(
                         "Parcels are loaded within the action zone - First set a geographic filter"
@@ -361,9 +359,8 @@ class UrbanValuationDashboard(Dashboard):
                 sim_frame_map.add_data(data=geo_market_zone, name="real estate market")
 
             if activate_parcels:
-                # parcels = "load data here"
-                if len(self.parcels) > 0:
-                    sim_frame_map.add_data(data=self.parcels, name="Parcels")
+                if len(action_parcels) > 0:
+                    sim_frame_map.add_data(data=action_parcels, name="Parcels")
 
             if action_geom is not None:
                 sim_frame_map.add_data(data=action_geom, name="action zone")
@@ -388,7 +385,7 @@ class UrbanValuationDashboard(Dashboard):
                             non_urban_land_typology=other_ltypes,
                             action_zone=tuple(action_zone),
                             action_geom=action_geom,
-                            parcel_selector=activate_parcels,
+                            action_parcels=action_parcels,
                             lot_size=lot_ref_size,
                             unit_size=unit_ref_size,
                             max_heights=building_max_heights,
@@ -493,7 +490,7 @@ class UrbanValuationDashboard(Dashboard):
 
         with kepler_col:
             action_geom = simulated_params.action_geom
-            sim_frame_map = KeplerGl(height=500, width=400, config=self.defaultconfig)
+            sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
             sim_frame_map.add_data(data=action_geom)
             landing_map = sim_frame_map
 

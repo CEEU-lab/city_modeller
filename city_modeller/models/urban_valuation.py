@@ -38,9 +38,9 @@ class LandValuatorSimulationParameters(BaseModel):
     simulated_projects: pd.DataFrame
     action_zone: list[str]
     action_geom: gpd.GeoDataFrame
+    action_parcels: gpd.GeoDataFrame
     reference_zone: Optional[list[str]]
     reference_geom: Optional[gpd.GeoDataFrame]
-    parcel_selector: bool
     lot_size: tuple[int, int]
     unit_size: tuple[int, int]
     max_heights: dict[str, float]
