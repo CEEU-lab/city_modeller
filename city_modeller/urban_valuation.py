@@ -59,7 +59,7 @@ class UrbanValuationDashboard(Dashboard):
         self.neighborhoods: gpd.GeoDataFrame = neighborhoods.copy()
         self.user_polygons: gpd.GeoDataFrame = user_polygons.copy()
         self.user_crs: str | int = user_crs
-        self.properaty_data: pd.GeoDataFrame = properaty_data.copy()
+        self.properaty_data: pd.DataFrame = properaty_data.copy()
         self.default_config = parse_config_json(default_config, default_config_path)
         self.config_offertype = parse_config_json(config_offertype, config_offertype_path)
 
