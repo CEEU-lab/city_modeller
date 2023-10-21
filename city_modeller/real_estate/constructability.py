@@ -53,8 +53,9 @@ def calc_volumen(r_parcela, h_basa, h_cuerpo, h_r1, h_r2):
     vol_cuerpo = r_parcela.area_lfi * h_cuerpo
     volumen = vol_cuerpo
 
+    sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2) ##BUGFIX
     if (r_parcela.edificabil != 'USAB1') & (r_parcela.edificabil != 'otro'):
-        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)
+        #sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2) ##TODO: Chequear si no hace falta un sup_retiro global
         if sup_retiro_1 < 0:
             sup_retiro_1 = 0
         vol_retiro_1 = sup_retiro_1 * h_r1
