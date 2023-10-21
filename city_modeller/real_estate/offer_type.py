@@ -82,7 +82,8 @@ def offer_type_predictor_wrapper(df, geom, path) -> None:
     -----------
     df : pd.DataFrame
         Real Estate Offer with adjusted classes for prediction
-    geom:
+    geom: gpd.GeoDataFrame
+        Real Estate Offer Point geometries
     path : str
         Source route of the predicted output (html widget)
 
