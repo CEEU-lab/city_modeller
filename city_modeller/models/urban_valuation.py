@@ -11,8 +11,8 @@ PROJECTS_INPUT = pd.DataFrame(
     [
         {
             "Input Name": "example_project",
-            "Input Type": "project footprint",
-            "Input Number1": 0,
+            "Input Number1": 0.2,
+            "Input Number2": 2.8,
             "Copied Geometry": geojson.dumps(
                 {
                     "type": "Polygon",

@@ -53,24 +53,24 @@ def calc_volumen(r_parcela, h_basa, h_cuerpo, h_r1, h_r2):
     vol_cuerpo = r_parcela.area_lfi * h_cuerpo
     volumen = vol_cuerpo
 
-    sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)  ##BUGFIX
     if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "otro"):
+        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)  ##BUGFIX
         # sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2) ##TODO: Chequear si no hace falta un sup_retiro global
         if sup_retiro_1 < 0:
             sup_retiro_1 = 0
         vol_retiro_1 = sup_retiro_1 * h_r1
         volumen += vol_retiro_1
 
-    if r_parcela.edificabil != "USAB2":
-        sup_retiro_2 = sup_retiro_1 - (r_parcela.frente * 6)
-        if sup_retiro_2 < 0:
-            sup_retiro_2 = 0
-        vol_retiro_2 = sup_retiro_2 * h_r2
-        volumen += vol_retiro_2
+        if r_parcela.edificabil != "USAB2":
+            sup_retiro_2 = sup_retiro_1 - (r_parcela.frente * 6)
+            if sup_retiro_2 < 0:
+                sup_retiro_2 = 0
+            vol_retiro_2 = sup_retiro_2 * h_r2
+            volumen += vol_retiro_2
 
-        if (r_parcela.edificabil != "USAA") & (r_parcela.edificabil != "USAM"):
-            vol_basamento = r_parcela.area_lib * h_basa
-            volumen += vol_basamento
+            if (r_parcela.edificabil != "USAA") & (r_parcela.edificabil != "USAM"):
+                vol_basamento = r_parcela.area_lib * h_basa
+                volumen += vol_basamento
 
     if volumen != None:
         return round(volumen, 1)
@@ -144,7 +144,7 @@ def filter_project_parcels(gdf_parcels, gdf_project):
     gdf_project = gdf_project.to_crs("EPSG:4326")
     df_pc_filtered = df_pc.sjoin(gdf_project)
     df_projects = gdf_parcels[gdf_parcels.index.isin(df_pc_filtered.index)]
-    df_projects = df_projects.merge(df_pc_filtered[["smp", "Project Name"]], on="smp", how="left")
+    df_projects = df_projects.merge(df_pc_filtered[["smp", "Project Name", "Percentage of Common Space", "Floor Height"]], on="smp", how="left")
     return df_projects
 
 
@@ -170,6 +170,7 @@ def clean_dataset(df_data):
             "r_h",
             "r_vol",
             "r_plt_area",
+            "r_plt_area_private",
             "r_plt",
         ]
     ]
@@ -186,7 +187,8 @@ def clean_dataset(df_data):
             "frente": "Frente",
             "r_h": "Altura",
             "r_vol": "Volumen",
-            "r_plt_area": "Sup. Plantas",
+            "r_plt_area": "Sup. Plantas", 
+            "r_plt_area_private": "Sup. Plantas Privada", 
             "r_plt": "Cant. Plantas",
         },
         inplace=True,
@@ -197,7 +199,7 @@ def clean_dataset(df_data):
 # *****************************
 
 
-def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif, h_floor=2.8):
+def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif):
     parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project)
     parcels.reset_index(inplace=True)
     col_list = list(parcels.columns)
@@ -205,18 +207,21 @@ def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif, h_fl
 
     projects_list = []
     for p in range(len(parcels)):
-        inp_parcel = parcels.loc[p]
+        inp_parcel = parcels.loc[p] 
         heights = list_h_edif[inp_parcel.edificabil]
+        h_floor = parcels.loc[p, "Floor Height"]
         volumne, superficie_plantas, total_plantas = calc_parcel_data(inp_parcel, heights, h_floor)
 
+        per_commonspace = parcels.loc[p, "Percentage of Common Space"]
+        superficie_privadas_plantas = int((1 - per_commonspace) * superficie_plantas)
+
         value_list = list(parcels.loc[p, col_list])
-        value_list += [heights, volumne, superficie_plantas, total_plantas]
+        value_list += [heights, volumne, superficie_plantas, total_plantas, superficie_privadas_plantas]
         projects_list.append(value_list)
 
-    col_list += ["r_h", "r_vol", "r_plt_area", "r_plt"]
+    col_list += ["r_h", "r_vol", "r_plt_area", "r_plt", "r_plt_area_private"]
     df_projects = pd.DataFrame(projects_list, columns=col_list)
     df_projects = clean_dataset(df_projects)
-
     return df_projects
 
 
@@ -244,6 +249,7 @@ def agregate_data(df_data, agg_field, data_field):
         df.rename(columns={"count": data_field}, inplace=True)
     else:
         df = pd.DataFrame(df_data.groupby(agg_field)[data_field].sum()).reset_index()
+    df.sort_values(by='Proyecto', inplace=True)
     return df
 
 
@@ -281,13 +287,14 @@ def plot_bar_chart(df_data, agg_field, data_field, unit):
     return fig
 
 
-def plot_bar_chart_overlaped(df_data, agg_field, data_field, unit):
-    df_data_agg = agregate_data(df_data, agg_field, data_field)
+def plot_bar_chart_overlaped(df_data, agg_field, data_field_1, data_field_2, unit):
+    df_data_agg_1 = agregate_data(df_data, agg_field, data_field_1)
+    df_data_agg_2 = agregate_data(df_data, agg_field, data_field_2)
 
     # Generate data for the bar graph
-    x = list(df_data_agg[agg_field])
-    y1 = list(df_data_agg[data_field])
-    y2 = [x * 0.8 for x in list(df_data_agg[data_field])]
+    x = list(df_data_agg_1[agg_field])
+    y1 = list(df_data_agg_1[data_field_1])
+    y2 = list(df_data_agg_2[data_field_2]) 
 
     color_dict = {}
     color_light_dict = {}

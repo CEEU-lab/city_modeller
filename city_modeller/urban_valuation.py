@@ -173,12 +173,12 @@ class UrbanValuationDashboard(Dashboard):
     def _user_input(self, data: pd.DataFrame = PROJECTS_INPUT) -> gpd.GeoDataFrame:
         input_cat_type = pd.api.types.CategoricalDtype(categories=["High density", "Low density"])
 
-        data["Project Type"] = data["Project Type"].astype(input_cat_type)
+        # data["Project Type"] = data["Project Type"].astype(input_cat_type)
         data = data if not data.empty else PROJECTS_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        user_input["Project Type"] = user_input["Project Type"].fillna("Low density")
+        # user_input["Project Type"] = user_input["Project Type"].fillna("Low density")
 
         user_input = user_input.dropna(subset="Footprint Geometry")
         user_input["geometry"] = user_input["Footprint Geometry"].apply(read_kepler_geometry)
@@ -272,8 +272,8 @@ class UrbanValuationDashboard(Dashboard):
         with user_table_container:
             project_cols = {
                 "Input Name": "Project Name",
-                "Input Type": "Project Type",
-                "Input Number1": "Buildings",
+                "Input Number1": "Percentage of Common Space",
+                "Input Number2": "Floor Height",
                 "Copied Geometry": "Footprint Geometry",
             }
             table_values = PROJECTS_INPUT.rename(columns=project_cols)
@@ -525,8 +525,7 @@ class UrbanValuationDashboard(Dashboard):
                 df_parcels_constructability_estimations = estimate_parcel_constructability(
                     simulated_params.action_parcels,
                     projects_geom,
-                    simulated_params.max_heights,
-                    2.8,
+                    simulated_params.max_heights
                 )  # Modificar el 2.8 por la altura de la planta
 
                 fig_anno_cant_parcela = plot_global_indicator(
@@ -561,11 +560,11 @@ class UrbanValuationDashboard(Dashboard):
                 fig_volumen = plot_bar_chart(
                     df_parcels_constructability_estimations, "Proyecto", "Volumen", "m³"
                 )
-                fig_sup_plantas = plot_bar_chart(
+                """ fig_sup_plantas = plot_bar_chart(
                     df_parcels_constructability_estimations, "Proyecto", "Sup. Plantas", "m²"
-                )
+                ) """
                 fig_sup_plantas_propio = plot_bar_chart_overlaped(
-                    df_parcels_constructability_estimations, "Proyecto", "Sup. Plantas", "m²"
+                    df_parcels_constructability_estimations, "Proyecto", "Sup. Plantas", "Sup. Plantas Privada", "m²"
                 )  # plot_bar_chart(df_parcels_constructability_estimations, 'Proyecto', 'Sup. Plantas', 'm²')
                 fig_cantidad_plantas = plot_bar_chart(
                     df_parcels_constructability_estimations, "Proyecto", "Cant. Plantas", ""
@@ -616,19 +615,19 @@ class UrbanValuationDashboard(Dashboard):
                         fig_frente, use_container_width=True, height=500, config=plotly_config
                     )
 
-                bar_chart_col_4, bar_chart_col_5, bar_chart_col_6, bar_chart_col_7 = st.columns(
-                    (0.25, 0.25, 0.25, 0.25)
+                bar_chart_col_4, bar_chart_col_6, bar_chart_col_7 = st.columns(  # bar_chart_col_5
+                    (0.33, 0.34, 0.33)
                 )
                 with bar_chart_col_4:
                     st.markdown("### Volumen Edificable Total")
                     st.plotly_chart(
                         fig_volumen, use_container_width=True, height=500, config=plotly_config
                     )
-                with bar_chart_col_5:
+                """ with bar_chart_col_5:
                     st.markdown("### Sup. Edificable Total")
                     st.plotly_chart(
                         fig_sup_plantas, use_container_width=True, height=500, config=plotly_config
-                    )
+                    ) """
                 with bar_chart_col_6:
                     st.markdown("#### Sup. Edificable Privada Total")
                     st.plotly_chart(
