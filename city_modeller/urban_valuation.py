@@ -8,11 +8,18 @@ from city_modeller.widgets import (
     error_message,
     read_kepler_geometry,
     transform_kepler_geomstr,
+    show_calendar
 )
 from city_modeller.utils import PROJECT_DIR
-from city_modeller.datasources import get_properaty_data
+from city_modeller.datasources import (
+    get_properaty_data, 
+    get_uvas_tseries
+    )
 from city_modeller.real_estate.offer_type import offer_type_predictor_wrapper
-from city_modeller.real_estate.utils import build_project_class
+from city_modeller.real_estate.utils import (
+    build_project_class,
+    estimate_uva_pct_growth
+    )
 from city_modeller.real_estate.constructability import (
     estimate_parcel_constructability,
     plot_bar_chart,
@@ -37,10 +44,13 @@ from city_modeller.models.urban_valuation import (
 import streamlit as st
 from keplergl import KeplerGl
 from streamlit_keplergl import keplergl_static
+import  streamlit_vertical_slider  as svs
 
 import pandas as pd
 import geopandas as gpd
 import pyproj
+
+from calendar import month_abbr
 
 
 RESULTS_DIR = os.path.join(PROJECT_DIR, "real_estate/results")
@@ -171,14 +181,12 @@ class UrbanValuationDashboard(Dashboard):
                 return {"target_zone": target_zone, "target_geom": target_geom}
 
     def _user_input(self, data: pd.DataFrame = PROJECTS_INPUT) -> gpd.GeoDataFrame:
-        input_cat_type = pd.api.types.CategoricalDtype(categories=["High density", "Low density"])
-
-        # data["Project Type"] = data["Project Type"].astype(input_cat_type)
+        
         data = data if not data.empty else PROJECTS_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        # user_input["Project Type"] = user_input["Project Type"].fillna("Low density")
+        
 
         user_input = user_input.dropna(subset="Footprint Geometry")
         user_input["geometry"] = user_input["Footprint Geometry"].apply(read_kepler_geometry)
@@ -281,19 +289,20 @@ class UrbanValuationDashboard(Dashboard):
         user_input = self._user_input(table_values)
 
         if (user_input["area"].sum() > 0) & (activate_parcels == False):
-            st.warning("Activar capa de parcelas en checkbox!!")
+            st.warning("Activate the parcels viewer to register parcel footprints")
 
         st.markdown("### Model settings")
-        project_units, _, project_capacity, _ = st.columns((0.3, 0.1, 0.3, 0.1))
+        zone_features, _, project_capacity, _ = st.columns((0.3, 0.1, 0.3, 0.1))
 
-        with project_units:
+        with zone_features:
+            # Land use 
             market_units = {
                 "Residential": ["Lote", "PH", "Casa", "Departamento"],
                 "Non residential": ["Lote", "Oficina", "Local comercial", "Depósito"],
             }
 
             target_btypes = st.multiselect(
-                "Define your unit types", options=market_units[building_types]
+                "Define your land use types", options=market_units[building_types]
             )
             activate_market_offer = st.checkbox("Show current market offer")
 
@@ -310,49 +319,77 @@ class UrbanValuationDashboard(Dashboard):
 
             # If more interoperability is needed, users can redifine the urban land typology
             target_ltypes = ["Lote"]
-            other_ltypes = [i for i in target_btypes if i not in target_ltypes]
+            other_ltypes = [i for i in target_btypes if i not in target_ltypes]          
+            
+            # Land taxes
+            uva_historic_vals = get_uvas_tseries()
+            uva_last_avbl_date = uva_historic_vals.tail(1)['date'].item()
 
-            land_size, _, covered_size, _ = st.columns((0.4, 0.05, 0.4, 0.05))
+            legend = "Define the permission date"
+            permission_year, permission_month = show_calendar(legend, uva_last_avbl_date, month_abbr)
+            uva_pct_growth = estimate_uva_pct_growth(permission_month, permission_year, uva_last_avbl_date)
 
-            with land_size:
-                lot_ref_size = st.slider("Define your reference lot size", 0, 1000, (125, 575))
+            
+            st.write("Define the zones tax rates")
+            col_Z1, col_Z2, col_Z3, col_Z4 = st.columns([0.25, 0.25, 0.25, 0.25])
 
-            with covered_size:
-                unit_ref_size = st.slider("Define your reference covered size", 0, 500, (35, 275))
+            with col_Z1:
+                taxZ1 = st.number_input("Zone 1", value=0.1)
+            
+            with col_Z2:
+                taxZ2 = st.number_input("Zone 2", value=0.18)
 
-            with st.container():
-                unit_ammenities = ["bedrooms", "bathrooms"]
-                urban_environment_ammenities = ["streets greenery"]
-                selected_expvars = st.multiselect(
-                    "Define your explanatory variables",
-                    options=unit_ammenities + urban_environment_ammenities,
-                )
-                # from city_modeller.datasources import get_GVI_treepedia_BsAs
-                # gvi_bsas = get_GVI_treepedia_BsAs().clip(action_geom.to_crs(4326))
+            with col_Z3:
+                taxZ3 = st.number_input("Zone 3", value=0.27)
+
+            with col_Z4:
+                taxZ4 = st.number_input("Zone 4", value=0.35)
+            
+            tax_rates = {
+                "Zone 1": taxZ1,
+                "Zone 2": taxZ2,
+                "Zone 3": taxZ3, 
+                "Zone 4": taxZ4
+            }
 
         with project_capacity:
-            st.write("**Define your building standards**")
-            left_col, right_col = st.columns([0.5, 0.5])
+            st.write("Define your building standards")
+            left_col, center_col, _ ,right_col = st.columns([0.35, 0.35, 0.05, 0.3])
 
             with left_col:
                 CA_maxh = st.number_input("C.A. max height", value=38)
                 CM_maxh = st.number_input("C.M. max height", value=31.2)
                 USAA_maxh = st.number_input("U.S.A.A. max height", value=22.8)
 
-            with right_col:
+            with center_col:
                 USAM_maxh = st.number_input("U.S.A.M. max height", value=16.5)
                 USAB2_maxh = st.number_input("U.S.A.B.2 max height", value=11.2)
                 USAB1_maxh = st.number_input("U.S.A.B.1 max height", value=9)
 
+            with right_col:   
+                new_title = '<p style="font-family:sans-serif; color:black; font-size: 12.5px;">OTHER max height</p>'
+                st.markdown(new_title, unsafe_allow_html=True)
+                OTHER_maxh = svs.vertical_slider(key='valor', 
+                                    default_value=0, 
+                                    step=1, 
+                                    min_value=0, 
+                                    max_value=100,
+                                    slider_color= 'gray', 
+                                    track_color='lightgray', 
+                                    thumb_color = 'lightblue'
+                                )
+                if OTHER_maxh == None:
+                    OTHER_maxh = 0
+                
             building_max_heights = {
                 "CA": CA_maxh,
                 "CM": CM_maxh,
                 "USAA": USAA_maxh,
-                "USAM": USAM_maxh,
+                "USAM": USAM_maxh,  
                 "USAB2": USAB2_maxh,
                 "USAB1": USAB1_maxh,
-                "otro": USAB1_maxh,
-            }
+                "OTHER": OTHER_maxh
+                }
 
         with kepler_col:
             sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
@@ -396,11 +433,10 @@ class UrbanValuationDashboard(Dashboard):
                             action_zone=tuple(action_zone),
                             action_geom=action_geom,
                             action_parcels=action_parcels,
-                            lot_size=lot_ref_size,
-                            unit_size=unit_ref_size,
+                            uva_evolution=uva_pct_growth,
+                            zone_taxes=tax_rates,
                             max_heights=building_max_heights,
                             planar_point_process=raw_df,
-                            expvars=selected_expvars,
                             landing_map=landing_map,
                         )
 
