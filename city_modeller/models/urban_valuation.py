@@ -41,11 +41,10 @@ class LandValuatorSimulationParameters(BaseModel):
     action_parcels: gpd.GeoDataFrame
     reference_zone: Optional[list[str]]
     reference_geom: Optional[gpd.GeoDataFrame]
-    lot_size: tuple[int, int]
-    unit_size: tuple[int, int]
+    uva_evolution: float
+    zone_taxes: dict[str, float]
     max_heights: dict[str, float]
     planar_point_process: pd.DataFrame
-    expvars: list[str]
     urban_land_typology: list[str]
     non_urban_land_typology: list[str]
     landing_map: keplergl.keplergl.KeplerGl
