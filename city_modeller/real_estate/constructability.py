@@ -20,13 +20,13 @@ altura_primer_planta = {
     "USAM": 3,
     "USAB2": 2.6,
     "USAB1": 2.6,
-    "otro": 2.6,
+    "OTHER": 2.6,
 }
 
 
 def calc_h_edif(r_parcela, input_h):
     h_retiro = 0
-    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "otro"):
+    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "OTHER"):
         h_r1 = r_parcela.alt_r1
         h_retiro = r_parcela.alt_cuerpo - r_parcela.alt_r1
         if r_parcela.edificabil != "USAB2":
@@ -53,9 +53,8 @@ def calc_volumen(r_parcela, h_basa, h_cuerpo, h_r1, h_r2):
     vol_cuerpo = r_parcela.area_lfi * h_cuerpo
     volumen = vol_cuerpo
 
-    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "otro"):
-        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)  ##BUGFIX
-        # sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2) ##TODO: Chequear si no hace falta un sup_retiro global
+    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "OTHER"):
+        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)  
         if sup_retiro_1 < 0:
             sup_retiro_1 = 0
         vol_retiro_1 = sup_retiro_1 * h_r1
@@ -88,7 +87,7 @@ def calc_cantidad_plantas(r_parcela, h_basa, h_cuerpo, h_r1, h_r2, h_planta):
         plantas_lib = 0
         plantas_lfi = int(h_sin_pb / h_planta)
 
-    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "otro"):
+    if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "OTHER"):
         plantas_r1 = int(h_r1 / h_planta)
         if r_parcela.edificabil != "USAB2":
             plantas_r2 = int(h_r2 / h_planta)
@@ -150,7 +149,7 @@ def filter_project_parcels(gdf_parcels, gdf_project):
 
 def generate_project_parcels_gdf(gdf_parcels, gdf_project):
     gdf_project_parcels = filter_project_parcels(gdf_parcels, gdf_project)
-    gdf_project_parcels_with_data = populate_parcels(gdf_project_parcels)
+    gdf_project_parcels_with_data = populate_parcels(gdf_project_parcels, 'caba_parcels_feat.zip')
     return gdf_project_parcels_with_data
 
 
