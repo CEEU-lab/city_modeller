@@ -22,10 +22,13 @@ from city_modeller.real_estate.utils import (
     )
 from city_modeller.real_estate.constructability import (
     estimate_parcel_constructability,
+    estimate_parcel_valuation,
     plot_bar_chart,
+    plot_bar_chart_overlaped,
+    plot_bar_chart_stacked,
     plot_global_indicator,
     plot_proj_indicator,
-    plot_bar_chart_overlaped,
+    plot_proj_valuatory_indicator
 )
 from city_modeller.datasources import (
     get_communes,
@@ -282,6 +285,9 @@ class UrbanValuationDashboard(Dashboard):
                 "Input Name": "Project Name",
                 "Input Number1": "Percentage of Common Space",
                 "Input Number2": "Floor Height",
+                "Input Number3": "Land Price",
+                "Input Number4": "Building Price",
+                "Input Number5": "Selling Price",
                 "Copied Geometry": "Footprint Geometry",
             }
             table_values = PROJECTS_INPUT.rename(columns=project_cols)
@@ -564,68 +570,84 @@ class UrbanValuationDashboard(Dashboard):
                     simulated_params.max_heights
                 )  # Modificar el 2.8 por la altura de la planta
 
-                fig_anno_cant_parcela = plot_global_indicator(
-                    df_parcels_constructability_estimations,
-                    "parcelas",
-                    "Inmuebles",
-                    "Cantidad total de parcelas",
-                )
-                fig_anno_volumen = plot_global_indicator(
-                    df_parcels_constructability_estimations,
-                    "Volumen",
-                    "Volumen",
-                    "Volumen total edificable",
-                )
-                fig_anno_sup_plantas_propio = plot_global_indicator(
-                    df_parcels_constructability_estimations,
-                    "Sup. Plantas",
-                    "Edificabilidad",
-                    "Sup. total de plantas",
+                df_parcels_valuation_estimations = estimate_parcel_valuation(
+                    simulated_params.action_parcels, 
+                    projects_geom, 
+                    df_parcels_constructability_estimations, 
+                    simulated_params.zone_taxes, 
+                    simulated_params.uva_evolution
                 )
 
-                fig_cant_parcela = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "parcelas", ""
+                fig_anno_parcels_count = plot_global_indicator(
+                    df_parcels_constructability_estimations,
+                    "parcels",
+                    "Parcels",
+                    "Total parcels count",
                 )
-                fig_sup_parcela = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "Superficie", "m²"
+                fig_anno_volume = plot_global_indicator(
+                    df_parcels_valuation_estimations,
+                    "Profit",
+                    "Profit",
+                    "Total Profit",
                 )
-                fig_frente = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "Frente", "m"
+                fig_anno_floor_area = plot_global_indicator(
+                    df_parcels_constructability_estimations,
+                    "Floors Area",
+                    "Building",
+                    "Total Floors Area",
                 )
 
-                fig_volumen = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "Volumen", "m³"
+                fig_parcels_count = plot_bar_chart(
+                    df_parcels_constructability_estimations, "Project", "parcels", ""
                 )
-                """ fig_sup_plantas = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "Sup. Plantas", "m²"
-                ) """
-                fig_sup_plantas_propio = plot_bar_chart_overlaped(
-                    df_parcels_constructability_estimations, "Proyecto", "Sup. Plantas", "Sup. Plantas Privada", "m²"
-                )  # plot_bar_chart(df_parcels_constructability_estimations, 'Proyecto', 'Sup. Plantas', 'm²')
-                fig_cantidad_plantas = plot_bar_chart(
-                    df_parcels_constructability_estimations, "Proyecto", "Cant. Plantas", ""
+                fig_parcels_area = plot_bar_chart(
+                    df_parcels_constructability_estimations, "Project", "Parcel Area", "m²"
                 )
+                fig_front = plot_bar_chart(
+                    df_parcels_constructability_estimations, "Project", "Front", "m"
+                )
+
+                fig_volume = plot_bar_chart(
+                    df_parcels_constructability_estimations, "Project", "Volume", "m³"
+                )
+                fig_floor_area = plot_bar_chart_overlaped(
+                    df_parcels_constructability_estimations, "Project", "Floors Area", "Private Floors Area", "m²"
+                ) 
+                fig_floor_count = plot_bar_chart(
+                    df_parcels_constructability_estimations, "Project", "Floors Count", ""
+                )
+
+
+                fig_price = plot_bar_chart_stacked(
+                    df_parcels_valuation_estimations, "Project", "Total Building Price", "Total Land Price", "$"
+                ) 
+                fig_tax = plot_bar_chart_overlaped(
+                    df_parcels_valuation_estimations, "Project", "Expenses","Tax", "$"
+                )
+                fig_profit = plot_bar_chart_overlaped(
+                    df_parcels_valuation_estimations, "Project", "Total Selling Price", "Expenses", "$"
+                ) 
 
                 plotly_config = {"displayModeBar": False}
 
                 anno_col_1, anno_col_2, anno_col_3 = st.columns((0.33, 0.33, 0.34))
                 with anno_col_1:
                     st.plotly_chart(
-                        fig_anno_cant_parcela,
+                        fig_anno_parcels_count,
                         use_container_width=True,
                         height=200,
                         config=plotly_config,
                     )
                 with anno_col_2:
                     st.plotly_chart(
-                        fig_anno_volumen,
+                        fig_anno_volume,
                         use_container_width=True,
                         height=200,
                         config=plotly_config,
                     )
                 with anno_col_3:
                     st.plotly_chart(
-                        fig_anno_sup_plantas_propio,
+                        fig_anno_floor_area,
                         use_container_width=True,
                         height=200,
                         config=plotly_config,
@@ -633,71 +655,107 @@ class UrbanValuationDashboard(Dashboard):
 
                 bar_chart_col_1, bar_chart_col_2, bar_chart_col_3 = st.columns((0.35, 0.35, 0.30))
                 with bar_chart_col_1:
-                    st.markdown("### Cant. Total de Parcelas")
+                    st.markdown("### Floors Count")
                     st.plotly_chart(
-                        fig_cant_parcela,
+                        fig_parcels_count,
                         use_container_width=True,
                         height=500,
                         config=plotly_config,
                     )
                 with bar_chart_col_2:
-                    st.markdown("### Superficie de Terreno Total")
+                    st.markdown("### Total Parcel Area")
                     st.plotly_chart(
-                        fig_sup_parcela, use_container_width=True, height=500, config=plotly_config
+                        fig_parcels_area, use_container_width=True, height=500, config=plotly_config
                     )
                 with bar_chart_col_3:
-                    st.markdown("### Frente Total")
+                    st.markdown("### Total Front")
                     st.plotly_chart(
-                        fig_frente, use_container_width=True, height=500, config=plotly_config
+                        fig_front, use_container_width=True, height=500, config=plotly_config
                     )
 
-                bar_chart_col_4, bar_chart_col_6, bar_chart_col_7 = st.columns(  # bar_chart_col_5
+                bar_chart_col_4, bar_chart_col_5, bar_chart_col_6 = st.columns(  # bar_chart_col_5
                     (0.33, 0.34, 0.33)
                 )
                 with bar_chart_col_4:
-                    st.markdown("### Volumen Edificable Total")
+                    st.markdown("### Total Building Volume")
                     st.plotly_chart(
-                        fig_volumen, use_container_width=True, height=500, config=plotly_config
+                        fig_volume, use_container_width=True, height=500, config=plotly_config
                     )
-                """ with bar_chart_col_5:
-                    st.markdown("### Sup. Edificable Total")
+
+                with bar_chart_col_5:
+                    st.markdown("#### Total Private Floors Area")
                     st.plotly_chart(
-                        fig_sup_plantas, use_container_width=True, height=500, config=plotly_config
-                    ) """
-                with bar_chart_col_6:
-                    st.markdown("#### Sup. Edificable Privada Total")
-                    st.plotly_chart(
-                        fig_sup_plantas_propio,
+                        fig_floor_area,
                         use_container_width=True,
                         height=500,
                         config=plotly_config,
                     )
-                with bar_chart_col_7:
-                    st.markdown("### Cant. Total de Plantas")
+                with bar_chart_col_6:
+                    st.markdown("### Total Floors Count")
                     st.plotly_chart(
-                        fig_cantidad_plantas,
+                        fig_floor_count,
                         use_container_width=True,
                         height=500,
                         config=plotly_config,
                     )
 
-                project_list = list(df_parcels_constructability_estimations.Proyecto.unique())
+                bar_chart_col_7, bar_chart_col_8, bar_chart_col_9 = st.columns(  # bar_chart_col_5
+                    (0.33, 0.34, 0.33)
+                )
+                with bar_chart_col_7:
+                    st.markdown("### Land & Building Price")
+                    st.plotly_chart(
+                        fig_price, use_container_width=True, height=500, config=plotly_config
+                    )
+
+                with bar_chart_col_8:
+                    st.markdown("#### Tax (vs Expenses)")
+                    st.plotly_chart(
+                        fig_tax,
+                        use_container_width=True,
+                        height=500,
+                        config=plotly_config,
+                    )
+                with bar_chart_col_9:
+                    st.markdown("### Profit (Gain-Expenses)")
+                    st.plotly_chart(
+                        fig_profit,
+                        use_container_width=True,
+                        height=500,
+                        config=plotly_config,
+                    )
+
+                project_list = list(df_parcels_constructability_estimations.Project.unique())
                 for p in project_list:
-                    proj_ind_volumen = plot_proj_indicator(
+                    proj_ind_volume = plot_proj_indicator(
                         df_parcels_constructability_estimations, p
                     )
-                    st.markdown(f"### Proyecto {p}")
+                    proj_ind_value = plot_proj_valuatory_indicator(
+                        df_parcels_valuation_estimations, p
+                        )
+                    st.markdown(f"### Project {p}")
                     st.plotly_chart(
-                        proj_ind_volumen,
+                        proj_ind_volume,
+                        use_container_width=True,
+                        height=100,
+                        config=plotly_config,
+                    )
+                    st.plotly_chart(
+                        proj_ind_value,
                         use_container_width=True,
                         height=100,
                         config=plotly_config,
                     )
 
-                st.markdown("### Tabla de datos")
+
+                
+                st.markdown("### Data Tables")
                 # st.dataframe(data=df_parcels_constructability_estimations)
-                with st.expander("View projects table"):
+                with st.expander("View constructivity projects table"):
                     st.write(df_parcels_constructability_estimations)
+                with st.expander("View valuation projects table"):
+                    st.write(df_parcels_valuation_estimations)
+                    
             else:
                 st.markdown("## Coming soon!")
 
