@@ -232,7 +232,7 @@ def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif):
     return df_projects
 
 def estimate_parcel_valuation(gdf_parcels, gdf_project, df_areas, dic_zones, uva_hoy_perc):
-    parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project, "city_modeller_data_caba_parcels_ucode.zip")
+    parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project, "caba_parcels_ucode.zip")
     parcels.reset_index(inplace=True)
     col_list = list(parcels.columns)
     for col_name in ["fot_em_2", "fot_pl_1", "fot_pl_2", "fot_sl_1", "fot_sl_2", "geometry", "Percentage of Common Space", "Floor Height", 'Land Price', 'Building Price', 'Selling Price']:
