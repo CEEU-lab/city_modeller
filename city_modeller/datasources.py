@@ -389,8 +389,12 @@ def load_parcel(mask) -> gpd.GeoDataFrame:
 
     if not os.path.exists(path):
         path = f"{GCS_DIR}/caba_parcels_geom.shp"
-
-    gdf = gpd.read_file(path, mask=gdf_mask)
+        gdf = gpd.read_file(path, mask=gdf_mask)
+        gdf.to_file(f"{DATA_DIR}/caba_parcels_geom.shp")
+    else:
+        st.write(path)
+        st.warning("Reading parcels from GCS")
+        gdf = gpd.read_file(path, mask=gdf_mask)
 
     return gdf
 
