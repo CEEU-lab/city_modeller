@@ -399,9 +399,7 @@ def load_parcel(mask) -> gpd.GeoDataFrame:
     return gdf
 
 
-def populate_parcels(
-        parcels_geoms: gpd.GeoDataFrame,
-        file_name: str) -> gpd.GeoDataFrame:
+def populate_parcels(parcels_geoms: gpd.GeoDataFrame, file_name: str) -> gpd.GeoDataFrame:
     """
     Populates the parcels geometries with
     'caba_parcels_feat.zip' or 'caba_parcels_ucode.zip'
@@ -419,12 +417,10 @@ def populate_parcels(
 
 
 @st.cache_data
-def get_uvas_tseries(
-    path: str = f"{DATA_DIR}/uva_tseries.csv"
-) -> pd.DataFrame:
+def get_uvas_tseries(path: str = f"{DATA_DIR}/uva_tseries.csv") -> pd.DataFrame:
     if not os.path.exists(path):
         path = f"{GCS_DIR}/uva_tseries.csv"
-    
+
     df = pd.read_csv(path)
-    df['date'] = pd.to_datetime(df['date'], dayfirst=True)
+    df["date"] = pd.to_datetime(df["date"], dayfirst=True)
     return df

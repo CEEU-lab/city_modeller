@@ -54,7 +54,7 @@ def calc_volume(r_parcela, h_basa, h_cuerpo, h_r1, h_r2):
     volume = vol_cuerpo
 
     if (r_parcela.edificabil != "USAB1") & (r_parcela.edificabil != "OTHER"):
-        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)  
+        sup_retiro_1 = h_cuerpo - (r_parcela.frente * 2)
         if sup_retiro_1 < 0:
             sup_retiro_1 = 0
         vol_retiro_1 = sup_retiro_1 * h_r1
@@ -133,11 +133,13 @@ def calc_parcel_data(r_parcela, input_h, h_planta):
 
     return volumne, superficie_plantas, total_plantas
 
+
 # (superficie valor calc por nosotros - sup parcela * FOT) * incidencia * alicuota
 def calc_valuation(sup_total, sup_parcel, fot, incid, ali):
     area_exd = sup_total - sup_parcel * fot
     value = area_exd * incid * ali
     return round(value, 2)
+
 
 # *************************************
 
@@ -148,15 +150,28 @@ def filter_project_parcels(gdf_parcels, gdf_project):
     gdf_project = gdf_project.to_crs("EPSG:4326")
     df_pc_filtered = df_pc.sjoin(gdf_project)
     df_projects = gdf_parcels[gdf_parcels.index.isin(df_pc_filtered.index)]
-    df_projects = df_projects.merge(df_pc_filtered[["smp", "Project Name", "Percentage of Common Space", "Floor Height", "Land Price", "Building Price", 'Selling Price']], on="smp", how="left")
+    df_projects = df_projects.merge(
+        df_pc_filtered[
+            [
+                "smp",
+                "Project Name",
+                "Percentage of Common Space",
+                "Floor Height",
+                "Land Price",
+                "Building Price",
+                "Selling Price",
+            ]
+        ],
+        on="smp",
+        how="left",
+    )
     return df_projects
 
 
 def generate_project_parcels_gdf(gdf_parcels, gdf_project, file_data):
     gdf_project_parcels = filter_project_parcels(gdf_parcels, gdf_project)
     gdf_project_parcels_with_data = populate_parcels(gdf_project_parcels, file_data)
-    
-    
+
     return gdf_project_parcels_with_data
 
 
@@ -193,8 +208,8 @@ def clean_dataset(df_data):
             "frente": "Front",
             "r_h": "Height",
             "r_vol": "Volume",
-            "r_plt_area": "Floors Area", 
-            "r_plt_area_private": "Private Floors Area", 
+            "r_plt_area": "Floors Area",
+            "r_plt_area_private": "Private Floors Area",
             "r_plt": "Floors Count",
         },
         inplace=True,
@@ -206,15 +221,15 @@ def clean_dataset(df_data):
 
 
 def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif):
-    parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project, 'caba_parcels_feat.zip')
-    parcels.loc[parcels.edificabil == 'otro', 'edificabil'] = 'OTHER'
+    parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project, "caba_parcels_feat.zip")
+    parcels.loc[parcels.edificabil == "otro", "edificabil"] = "OTHER"
     parcels.reset_index(inplace=True)
     col_list = list(parcels.columns)
     col_list.remove("geometry")
 
     projects_list = []
     for p in range(len(parcels)):
-        inp_parcel = parcels.loc[p] 
+        inp_parcel = parcels.loc[p]
         heights = list_h_edif[inp_parcel.edificabil]
         h_floor = parcels.loc[p, "Floor Height"]
         volumne, superficie_plantas, total_plantas = calc_parcel_data(inp_parcel, heights, h_floor)
@@ -223,7 +238,13 @@ def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif):
         superficie_privadas_plantas = int((1 - per_commonspace) * superficie_plantas)
 
         value_list = list(parcels.loc[p, col_list])
-        value_list += [heights, volumne, superficie_plantas, total_plantas, superficie_privadas_plantas]
+        value_list += [
+            heights,
+            volumne,
+            superficie_plantas,
+            total_plantas,
+            superficie_privadas_plantas,
+        ]
         projects_list.append(value_list)
 
     col_list += ["r_h", "r_vol", "r_plt_area", "r_plt", "r_plt_area_private"]
@@ -231,49 +252,106 @@ def estimate_parcel_constructability(gdf_parcels, gdf_project, list_h_edif):
     df_projects = clean_dataset(df_projects)
     return df_projects
 
+
 def estimate_parcel_valuation(gdf_parcels, gdf_project, df_areas, dic_zones, uva_hoy_perc):
     parcels = generate_project_parcels_gdf(gdf_parcels, gdf_project, "caba_parcels_ucode.zip")
     parcels.reset_index(inplace=True)
     col_list = list(parcels.columns)
-    for col_name in ["fot_em_2", "fot_pl_1", "fot_pl_2", "fot_sl_1", "fot_sl_2", "geometry", "Percentage of Common Space", "Floor Height", 'Land Price', 'Building Price', 'Selling Price']:
+    for col_name in [
+        "fot_em_2",
+        "fot_pl_1",
+        "fot_pl_2",
+        "fot_sl_1",
+        "fot_sl_2",
+        "geometry",
+        "Percentage of Common Space",
+        "Floor Height",
+        "Land Price",
+        "Building Price",
+        "Selling Price",
+    ]:
         col_list.remove(col_name)
 
     # parcels = pd.merge(parcels, df_areas, on='smp', how='left')
-    parcels['alicuota'] = parcels['zone'].map(lambda x: dic_zones[x])
+    parcels["alicuota"] = parcels["zone"].map(lambda x: dic_zones[x])
 
     projects_list = []
     for p in range(len(parcels)):
-        smp_parcel = parcels.loc[p, 'smp']
+        smp_parcel = parcels.loc[p, "smp"]
         sup_total = list(df_areas.loc[df_areas.SMP == smp_parcel, "Floors Area"])[0]
-        sup_total_private = list(df_areas.loc[df_areas.SMP == smp_parcel, "Private Floors Area"])[0]
+        sup_total_private = list(df_areas.loc[df_areas.SMP == smp_parcel, "Private Floors Area"])[
+            0
+        ]
         sup_parcel = list(df_areas.loc[df_areas.SMP == smp_parcel, "Parcel Area"])[0]
-        FOT = parcels.loc[p, 'fot_em_1']
+        FOT = parcels.loc[p, "fot_em_1"]
         if FOT == 0:
             FOT = 1
-        incidencia = parcels.loc[p, 'inc_uva_19'] * uva_hoy_perc
-        alicuota = parcels.loc[p, 'alicuota']
+        incidencia = parcels.loc[p, "inc_uva_19"] * uva_hoy_perc
+        alicuota = parcels.loc[p, "alicuota"]
         tax = calc_valuation(sup_total, sup_parcel, FOT, incidencia, alicuota)
         if tax < 0:
             tax = 0
 
-        land_price = parcels.loc[p, 'Land Price']
+        land_price = parcels.loc[p, "Land Price"]
         land_price_total = land_price * sup_parcel
-        building_price = parcels.loc[p, 'Building Price']
+        building_price = parcels.loc[p, "Building Price"]
         building_price_total = building_price * sup_total
-        selling_price = parcels.loc[p, 'Selling Price']
+        selling_price = parcels.loc[p, "Selling Price"]
         selling_price_total = selling_price * sup_total_private
 
         total_expenses = tax + land_price_total + building_price_total
         total_income = selling_price_total - total_expenses
 
         value_list = list(parcels.loc[p, col_list])
-        value_list += [sup_parcel, sup_total, sup_total_private, sup_parcel * FOT, tax, land_price_total, building_price_total, total_expenses, selling_price_total,  total_income]
+        value_list += [
+            sup_parcel,
+            sup_total,
+            sup_total_private,
+            sup_parcel * FOT,
+            tax,
+            land_price_total,
+            building_price_total,
+            total_expenses,
+            selling_price_total,
+            total_income,
+        ]
         projects_list.append(value_list)
 
-    col_list += ["r_parcel_area", "r_plt_area", "r_plt_area_private", "r_fot_area", "r_tax", "r_land_price", "r_building_price", "r_expenses","selling_price_total",  "r_income"]
+    col_list += [
+        "r_parcel_area",
+        "r_plt_area",
+        "r_plt_area_private",
+        "r_fot_area",
+        "r_tax",
+        "r_land_price",
+        "r_building_price",
+        "r_expenses",
+        "selling_price_total",
+        "r_income",
+    ]
     df_projects = pd.DataFrame(projects_list, columns=col_list)
-    df_projects.rename(columns={"Project Name": "Project", 'inc_uva_19': 'UVA 19', 'alicuota':'Aliquot', 'zone':'Zone', 'fot_em_1':'FOT', "r_parcel_area":"Parcel Area","r_plt_area":"Building Area", "r_plt_area_private":"Private Building Area", "r_fot_area":'FOT Area', 'r_tax':'Tax', "r_land_price":'Total Land Price', "r_building_price":'Total Building Price', "r_expenses":"Expenses", 'selling_price_total':'Total Selling Price',  "r_income":'Profit'}, inplace=True)
+    df_projects.rename(
+        columns={
+            "Project Name": "Project",
+            "inc_uva_19": "UVA 19",
+            "alicuota": "Aliquot",
+            "zone": "Zone",
+            "fot_em_1": "FOT",
+            "r_parcel_area": "Parcel Area",
+            "r_plt_area": "Building Area",
+            "r_plt_area_private": "Private Building Area",
+            "r_fot_area": "FOT Area",
+            "r_tax": "Tax",
+            "r_land_price": "Total Land Price",
+            "r_building_price": "Total Building Price",
+            "r_expenses": "Expenses",
+            "selling_price_total": "Total Selling Price",
+            "r_income": "Profit",
+        },
+        inplace=True,
+    )
     return df_projects
+
 
 # *****************************
 
@@ -299,7 +377,7 @@ def agregate_data(df_data, agg_field, data_field):
         df.rename(columns={"count": data_field}, inplace=True)
     else:
         df = pd.DataFrame(df_data.groupby(agg_field)[data_field].sum()).reset_index()
-    df.sort_values(by='Project', inplace=True)
+    df.sort_values(by="Project", inplace=True)
     return df
 
 
@@ -349,7 +427,7 @@ def plot_bar_chart_overlaped(df_data, agg_field, data_field_1, data_field_2, uni
     # Generate data for the bar graph
     x = list(df_data_agg_1[agg_field])
     y1 = list(df_data_agg_1[data_field_1])
-    y2 = list(df_data_agg_2[data_field_2]) 
+    y2 = list(df_data_agg_2[data_field_2])
 
     color_dict = {}
     color_light_dict = {}
@@ -401,6 +479,7 @@ def plot_bar_chart_overlaped(df_data, agg_field, data_field_1, data_field_2, uni
 
     return fig
 
+
 def plot_bar_chart_stacked(df_data, agg_field, data_field_1, data_field_2, unit):
     df_data_agg_1 = agregate_data(df_data, agg_field, data_field_1)
     df_data_agg_2 = agregate_data(df_data, agg_field, data_field_2)
@@ -408,7 +487,7 @@ def plot_bar_chart_stacked(df_data, agg_field, data_field_1, data_field_2, unit)
     # Generate data for the bar graph
     x = list(df_data_agg_1[agg_field])
     y1 = list(df_data_agg_1[data_field_1])
-    y2 = list(df_data_agg_2[data_field_2]) 
+    y2 = list(df_data_agg_2[data_field_2])
 
     color_dict = {}
     color_light_dict = {}
@@ -496,9 +575,7 @@ def plot_proj_indicator(df_data, project):
 
     data_volume = agregate_data(df_data, "Project", "Floors Area")
     data_volume_mean = data_volume["Floors Area"].mean()
-    data_volume_proj = data_volume.loc[
-        data_volume.Project == project, "Floors Area"
-    ].to_list()[0]
+    data_volume_proj = data_volume.loc[data_volume.Project == project, "Floors Area"].to_list()[0]
     fig.add_trace(
         go.Indicator(
             mode="number+delta",
@@ -528,9 +605,7 @@ def plot_proj_indicator(df_data, project):
 
     data_volume = agregate_data(df_data, "Project", "Floors Count")
     data_volume_mean = data_volume["Floors Count"].mean()
-    data_volume_proj = data_volume.loc[
-        data_volume.Project == project, "Floors Count"
-    ].to_list()[0]
+    data_volume_proj = data_volume.loc[data_volume.Project == project, "Floors Count"].to_list()[0]
     fig.add_trace(
         go.Indicator(
             mode="number+delta",
@@ -549,13 +624,13 @@ def plot_proj_valuatory_indicator(df_data, project):
     fig = go.Figure()
 
     list_anno = [
-        ['Total Land Price', {"prefix": "$"}, {"x": [0, 0.25], "y": [0, 1]}],
-        ['Total Building Price', {"prefix": "$"}, {"x": [0.25, 0.5], "y": [0, 1]}],
-        ['Tax', {"prefix": "$"}, {"x": [0.5, 0.75], "y": [0, 1]}],
-        ['Profit', {"prefix": "$"}, {"x": [0.75, 1], "y": [0, 1]}]
+        ["Total Land Price", {"prefix": "$"}, {"x": [0, 0.25], "y": [0, 1]}],
+        ["Total Building Price", {"prefix": "$"}, {"x": [0.25, 0.5], "y": [0, 1]}],
+        ["Tax", {"prefix": "$"}, {"x": [0.5, 0.75], "y": [0, 1]}],
+        ["Profit", {"prefix": "$"}, {"x": [0.75, 1], "y": [0, 1]}],
     ]
 
-    for anno in list_anno: 
+    for anno in list_anno:
         data_volume = agregate_data(df_data, "Project", anno[0])
         data_volume_mean = data_volume[anno[0]].mean()
         data_volume_proj = data_volume.loc[data_volume.Project == project, anno[0]]

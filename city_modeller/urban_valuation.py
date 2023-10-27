@@ -8,18 +8,12 @@ from city_modeller.widgets import (
     error_message,
     read_kepler_geometry,
     transform_kepler_geomstr,
-    show_calendar
+    show_calendar,
 )
 from city_modeller.utils import PROJECT_DIR
-from city_modeller.datasources import (
-    get_properaty_data, 
-    get_uvas_tseries
-    )
+from city_modeller.datasources import get_properaty_data, get_uvas_tseries
 from city_modeller.real_estate.offer_type import offer_type_predictor_wrapper
-from city_modeller.real_estate.utils import (
-    build_project_class,
-    estimate_uva_pct_growth
-    )
+from city_modeller.real_estate.utils import build_project_class, estimate_uva_pct_growth
 from city_modeller.real_estate.constructability import (
     estimate_parcel_constructability,
     estimate_parcel_valuation,
@@ -28,7 +22,7 @@ from city_modeller.real_estate.constructability import (
     plot_bar_chart_stacked,
     plot_global_indicator,
     plot_proj_indicator,
-    plot_proj_valuatory_indicator
+    plot_proj_valuatory_indicator,
 )
 from city_modeller.datasources import (
     get_communes,
@@ -47,7 +41,7 @@ from city_modeller.models.urban_valuation import (
 import streamlit as st
 from keplergl import KeplerGl
 from streamlit_keplergl import keplergl_static
-import  streamlit_vertical_slider  as svs
+import streamlit_vertical_slider as svs
 
 import pandas as pd
 import geopandas as gpd
@@ -184,12 +178,10 @@ class UrbanValuationDashboard(Dashboard):
                 return {"target_zone": target_zone, "target_geom": target_geom}
 
     def _user_input(self, data: pd.DataFrame = PROJECTS_INPUT) -> gpd.GeoDataFrame:
-        
         data = data if not data.empty else PROJECTS_INPUT
         user_input = st.experimental_data_editor(
             data, num_rows="dynamic", use_container_width=True
         )
-        
 
         user_input = user_input.dropna(subset="Footprint Geometry")
         user_input["geometry"] = user_input["Footprint Geometry"].apply(read_kepler_geometry)
@@ -301,7 +293,7 @@ class UrbanValuationDashboard(Dashboard):
         zone_features, _, project_capacity, _ = st.columns((0.3, 0.1, 0.3, 0.1))
 
         with zone_features:
-            # Land use 
+            # Land use
             market_units = {
                 "Residential": ["Lote", "PH", "Casa", "Departamento"],
                 "Non residential": ["Lote", "Oficina", "Local comercial", "Depósito"],
@@ -325,23 +317,26 @@ class UrbanValuationDashboard(Dashboard):
 
             # If more interoperability is needed, users can redifine the urban land typology
             target_ltypes = ["Lote"]
-            other_ltypes = [i for i in target_btypes if i not in target_ltypes]          
-            
+            other_ltypes = [i for i in target_btypes if i not in target_ltypes]
+
             # Land taxes
             uva_historic_vals = get_uvas_tseries()
-            uva_last_avbl_date = uva_historic_vals.tail(1)['date'].item()
+            uva_last_avbl_date = uva_historic_vals.tail(1)["date"].item()
 
             legend = "Define the permission date"
-            permission_year, permission_month = show_calendar(legend, uva_last_avbl_date, month_abbr)
-            uva_pct_growth = estimate_uva_pct_growth(permission_month, permission_year, uva_last_avbl_date)
+            permission_year, permission_month = show_calendar(
+                legend, uva_last_avbl_date, month_abbr
+            )
+            uva_pct_growth = estimate_uva_pct_growth(
+                permission_month, permission_year, uva_last_avbl_date
+            )
 
-            
             st.write("Define the zones tax rates")
             col_Z1, col_Z2, col_Z3, col_Z4 = st.columns([0.25, 0.25, 0.25, 0.25])
 
             with col_Z1:
                 taxZ1 = st.number_input("Zone 1", value=0.1)
-            
+
             with col_Z2:
                 taxZ2 = st.number_input("Zone 2", value=0.18)
 
@@ -350,17 +345,12 @@ class UrbanValuationDashboard(Dashboard):
 
             with col_Z4:
                 taxZ4 = st.number_input("Zone 4", value=0.35)
-            
-            tax_rates = {
-                "Zone 1": taxZ1,
-                "Zone 2": taxZ2,
-                "Zone 3": taxZ3, 
-                "Zone 4": taxZ4
-            }
+
+            tax_rates = {"Zone 1": taxZ1, "Zone 2": taxZ2, "Zone 3": taxZ3, "Zone 4": taxZ4}
 
         with project_capacity:
             st.write("Define your building standards")
-            left_col, center_col, _ ,right_col = st.columns([0.35, 0.35, 0.05, 0.3])
+            left_col, center_col, _, right_col = st.columns([0.35, 0.35, 0.05, 0.3])
 
             with left_col:
                 CA_maxh = st.number_input("C.A. max height", value=38)
@@ -372,30 +362,31 @@ class UrbanValuationDashboard(Dashboard):
                 USAB2_maxh = st.number_input("U.S.A.B.2 max height", value=11.2)
                 USAB1_maxh = st.number_input("U.S.A.B.1 max height", value=9)
 
-            with right_col:   
+            with right_col:
                 new_title = '<p style="font-family:sans-serif; color:black; font-size: 12.5px;">OTHER max height</p>'
                 st.markdown(new_title, unsafe_allow_html=True)
-                OTHER_maxh = svs.vertical_slider(key='valor', 
-                                    default_value=0, 
-                                    step=1, 
-                                    min_value=0, 
-                                    max_value=100,
-                                    slider_color= 'gray', 
-                                    track_color='lightgray', 
-                                    thumb_color = 'lightblue'
-                                )
+                OTHER_maxh = svs.vertical_slider(
+                    key="valor",
+                    default_value=0,
+                    step=1,
+                    min_value=0,
+                    max_value=100,
+                    slider_color="gray",
+                    track_color="lightgray",
+                    thumb_color="lightblue",
+                )
                 if OTHER_maxh == None:
                     OTHER_maxh = 0
-                
+
             building_max_heights = {
                 "CA": CA_maxh,
                 "CM": CM_maxh,
                 "USAA": USAA_maxh,
-                "USAM": USAM_maxh,  
+                "USAM": USAM_maxh,
                 "USAB2": USAB2_maxh,
                 "USAB1": USAB1_maxh,
-                "OTHER": OTHER_maxh
-                }
+                "OTHER": OTHER_maxh,
+            }
 
         with kepler_col:
             sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
@@ -565,17 +556,15 @@ class UrbanValuationDashboard(Dashboard):
             projects_geom = simulated_params.simulated_projects
             if (len(simulated_params.action_parcels) > 0) & (projects_geom is not None):
                 df_parcels_constructability_estimations = estimate_parcel_constructability(
-                    simulated_params.action_parcels,
-                    projects_geom,
-                    simulated_params.max_heights
+                    simulated_params.action_parcels, projects_geom, simulated_params.max_heights
                 )  # Modificar el 2.8 por la altura de la planta
 
                 df_parcels_valuation_estimations = estimate_parcel_valuation(
-                    simulated_params.action_parcels, 
-                    projects_geom, 
-                    df_parcels_constructability_estimations, 
-                    simulated_params.zone_taxes, 
-                    simulated_params.uva_evolution
+                    simulated_params.action_parcels,
+                    projects_geom,
+                    df_parcels_constructability_estimations,
+                    simulated_params.zone_taxes,
+                    simulated_params.uva_evolution,
                 )
 
                 fig_anno_parcels_count = plot_global_indicator(
@@ -611,22 +600,33 @@ class UrbanValuationDashboard(Dashboard):
                     df_parcels_constructability_estimations, "Project", "Volume", "m³"
                 )
                 fig_floor_area = plot_bar_chart_overlaped(
-                    df_parcels_constructability_estimations, "Project", "Floors Area", "Private Floors Area", "m²"
-                ) 
+                    df_parcels_constructability_estimations,
+                    "Project",
+                    "Floors Area",
+                    "Private Floors Area",
+                    "m²",
+                )
                 fig_floor_count = plot_bar_chart(
                     df_parcels_constructability_estimations, "Project", "Floors Count", ""
                 )
 
-
                 fig_price = plot_bar_chart_stacked(
-                    df_parcels_valuation_estimations, "Project", "Total Building Price", "Total Land Price", "$"
-                ) 
+                    df_parcels_valuation_estimations,
+                    "Project",
+                    "Total Building Price",
+                    "Total Land Price",
+                    "$",
+                )
                 fig_tax = plot_bar_chart_overlaped(
-                    df_parcels_valuation_estimations, "Project", "Expenses","Tax", "$"
+                    df_parcels_valuation_estimations, "Project", "Expenses", "Tax", "$"
                 )
                 fig_profit = plot_bar_chart_overlaped(
-                    df_parcels_valuation_estimations, "Project", "Total Selling Price", "Expenses", "$"
-                ) 
+                    df_parcels_valuation_estimations,
+                    "Project",
+                    "Total Selling Price",
+                    "Expenses",
+                    "$",
+                )
 
                 plotly_config = {"displayModeBar": False}
 
@@ -665,7 +665,10 @@ class UrbanValuationDashboard(Dashboard):
                 with bar_chart_col_2:
                     st.markdown("### Total Parcel Area")
                     st.plotly_chart(
-                        fig_parcels_area, use_container_width=True, height=500, config=plotly_config
+                        fig_parcels_area,
+                        use_container_width=True,
+                        height=500,
+                        config=plotly_config,
                     )
                 with bar_chart_col_3:
                     st.markdown("### Total Front")
@@ -732,7 +735,7 @@ class UrbanValuationDashboard(Dashboard):
                     )
                     proj_ind_value = plot_proj_valuatory_indicator(
                         df_parcels_valuation_estimations, p
-                        )
+                    )
                     st.markdown(f"### Project {p}")
                     st.plotly_chart(
                         proj_ind_volume,
@@ -747,15 +750,13 @@ class UrbanValuationDashboard(Dashboard):
                         config=plotly_config,
                     )
 
-
-                
                 st.markdown("### Data Tables")
                 # st.dataframe(data=df_parcels_constructability_estimations)
                 with st.expander("View constructivity projects table"):
                     st.write(df_parcels_constructability_estimations)
                 with st.expander("View valuation projects table"):
                     st.write(df_parcels_valuation_estimations)
-                    
+
             else:
                 st.markdown("## Coming soon!")
 
