@@ -7,7 +7,8 @@ COPY requirements.txt .
 # Install relevant system packages
 RUN apt-get update && \
     apt-get -y install sudo \
-    gpg
+    gpg \
+    wget
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
@@ -37,6 +38,9 @@ RUN R -e "install.packages('raster', dependencies=TRUE, Ncpus=16)"
 RUN R -e "install.packages(c('dplyr','magrittr','splines'), repos='https://cloud.r-project.org/', Ncpus=6)"
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Download parcel geoms to data folder
+RUN wget -P /app/city_modeller/data/ https://storage.googleapis.com/python_mdg/city_modeller/data/caba_parcels_geom.shp
 
 # Install relevant pip packages
 RUN pip3 install --upgrade pip && \
