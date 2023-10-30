@@ -39,14 +39,14 @@ RUN R -e "install.packages(c('dplyr','magrittr','splines'), repos='https://cloud
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Download parcel geoms to data folder
-RUN wget -P /app/city_modeller/data/ https://storage.googleapis.com/python_mdg/city_modeller/data/caba_parcels_geom.shp
-
 # Install relevant pip packages
 RUN pip3 install --upgrade pip && \
   pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Download parcel geoms to data folder
+RUN wget -P /app/city_modeller/data/ https://storage.googleapis.com/python_mdg/city_modeller/data/caba_parcels_geom.shp
 
 RUN pip3 install -e .
 RUN pip3 install -e .[pymeanshift]
