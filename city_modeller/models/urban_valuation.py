@@ -11,8 +11,11 @@ PROJECTS_INPUT = pd.DataFrame(
     [
         {
             "Input Name": "example_project",
-            "Input Type": "project footprint",
-            "Input Number1": 0,
+            "Input Number1": 0.2,
+            "Input Number2": 2.8,
+            "Input Number3": 100,
+            "Input Number4": 100,
+            "Input Number5": 100,
             "Copied Geometry": geojson.dumps(
                 {
                     "type": "Polygon",
@@ -38,14 +41,13 @@ class LandValuatorSimulationParameters(BaseModel):
     simulated_projects: pd.DataFrame
     action_zone: list[str]
     action_geom: gpd.GeoDataFrame
+    action_parcels: gpd.GeoDataFrame
     reference_zone: Optional[list[str]]
     reference_geom: Optional[gpd.GeoDataFrame]
-    parcel_selector: bool
-    lot_size: tuple[int, int]
-    unit_size: tuple[int, int]
+    uva_evolution: float
+    zone_taxes: dict[str, float]
     max_heights: dict[str, float]
     planar_point_process: pd.DataFrame
-    expvars: list[str]
     urban_land_typology: list[str]
     non_urban_land_typology: list[str]
     landing_map: keplergl.keplergl.KeplerGl

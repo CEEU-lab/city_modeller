@@ -943,9 +943,10 @@ class GreenViewIndexDashboard(ModelingDashboard):
 
     def dashboard_header(self) -> None:
         section_header(
-            "Streets Network attributes - Green View level 🌳",
-            "Street greenery provides a series of benefits to urban residents, such"
-            " as air quality, provision of shade, and aesthetic values.",
+            "Streets greenery 🌳",
+            "Welcome to the streets greenery section! "
+            "Here you will be able to model out the green view level of streets "
+            "and asses some of its benefits for urban residents.",
         )
 
     def run_dashboard(self) -> None:

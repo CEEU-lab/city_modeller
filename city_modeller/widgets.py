@@ -7,6 +7,7 @@ from shapely import Polygon
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 import pandas as pd
+import calendar
 
 import streamlit as st
 from shapely.geometry import Polygon, shape
@@ -121,3 +122,19 @@ def transform_kepler_geomstr(str_geometry: str, crs_code: str | int) -> gpd.GeoD
     if json_polygon is not None:
         gdf = kepler_geomstr_to_gdf(json_polygon, crs_code)
         return gdf
+
+
+def show_calendar(
+    legend: str, last_avbl_datetime: pd.Timestamp, month_abbr: calendar._localized_month
+) -> tuple[int, int]:
+    with st.expander(legend):
+        last_avbl_year = last_avbl_datetime.year
+        last_avbl_month = last_avbl_datetime.month
+        permission_year = st.selectbox("", range(last_avbl_year, last_avbl_year + 3, 1))
+        month_abbr = month_abbr[1:]
+        permission_month_abbr = st.radio(
+            "", month_abbr, index=last_avbl_month - 1, horizontal=True
+        )
+        permission_month = month_abbr.index(permission_month_abbr) + 1
+
+    return (permission_year, permission_month)

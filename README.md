@@ -84,3 +84,14 @@ To avoid building the image manually and exposing the port, simply run
 ``` shell
 docker-compose up streamlit
 ```
+
+## Macromodeller configuration
+
+In order to run the urban valuator dashboard, the local environment must have the R-base `4.3.1` release installed. 
+Also, the following packages. 
+
+``` shell
+install.packages(c('dplyr','maggritr','splines','raster'))
+```
+
+If the app is running from docker container, the installation is already configured in the `Dockerfile`.
