@@ -375,8 +375,7 @@ class UrbanValuationDashboard(Dashboard):
                     track_color="lightgray",
                     thumb_color="lightblue",
                 )
-                if OTHER_maxh == None:
-                    OTHER_maxh = 0
+                st.write(f"OTHER max height: {OTHER_maxh}")
 
             building_max_heights = {
                 "CA": CA_maxh,
@@ -448,7 +447,7 @@ class UrbanValuationDashboard(Dashboard):
         offer_columns = ["property_type", "lat", "lon"]
         raw_df = simulated_params.planar_point_process[offer_columns]
 
-        st.markdown("### Real Estate Market Scene")
+        st.markdown("### Land use dyamics")
         st.markdown(
             """Below, users can find the outputs of the Real Estate Modelling 
                 funcionalities applied to the offer published in the formal market"""
@@ -515,33 +514,91 @@ class UrbanValuationDashboard(Dashboard):
                 icon="⚠️",
             )
             return
+        with st.expander("**Reference zone settings**", expanded=True):
+            st.markdown("### Compare land uses against a reference zone ")
+            params_col, kepler_col = st.columns((0.35, 0.65))
+            reference_geom = None
+            simulated_params = st.session_state.simulated_params
+            offer_columns = ["property_type", "lat", "lon"]
+            raw_df = simulated_params.planar_point_process[offer_columns]
 
-        st.markdown("### Compare against a reference zone")
-        params_col, kepler_col = st.columns((0.35, 0.65))
-        reference_geom = None
-        simulated_params = st.session_state.simulated_params
+            with params_col:
+                zone_params = self.analysis_zoom_delimiter(self.user_crs, "reference_zone")
 
-        with params_col:
-            zone_params = self.analysis_zoom_delimiter(self.user_crs, "reference_zone")
+                if zone_params is not None:
+                    reference_zone = zone_params["target_zone"]
+                    reference_geom = zone_params["target_geom"]
 
-            if zone_params is not None:
-                reference_zone = zone_params["target_zone"]
-                reference_geom = zone_params["target_geom"]
+                    st.session_state.simulated_params.reference_zone = reference_zone
+                    st.session_state.simulated_params.reference_geom = reference_geom
 
-                st.session_state.simulated_params.reference_zone = reference_zone
-                st.session_state.simulated_params.reference_geom = reference_geom
+            with kepler_col:
+                action_geom = simulated_params.action_geom
+                sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
+                sim_frame_map.add_data(data=action_geom, name="Action zone")
+                landing_map = sim_frame_map
 
-        with kepler_col:
-            action_geom = simulated_params.action_geom
-            sim_frame_map = KeplerGl(height=500, width=400, config=self.default_config)
-            sim_frame_map.add_data(data=action_geom)
-            landing_map = sim_frame_map
+                if reference_geom is not None:
+                    sim_frame_map.add_data(data=reference_geom, name="Reference zone")
 
-            if reference_geom is not None:
-                all_zones = pd.concat([action_geom, reference_geom])
-                sim_frame_map.add_data(data=all_zones)
+                keplergl_static(landing_map, center_map=True)
 
-            keplergl_static(landing_map, center_map=True)
+        if reference_geom is not None:
+            available_urban_land, project_offer_type = st.columns((0.5, 0.5))
+
+            config_offertype = self.config_offertype
+
+            with st.spinner("⏳ Loading..."):
+                with available_urban_land:
+                    data_available_urban_land = self.render_spatial_density_function(
+                        df=raw_df,
+                        target_group_lst=simulated_params.urban_land_typology,
+                        comparison_group_lst=simulated_params.non_urban_land_typology,
+                        CRS=self.user_crs,
+                        geom=simulated_params.reference_geom,
+                        file_name="/raster_pred_land_offer_type_.tif",
+                    )
+
+                    st.markdown("#### Offered urban land")
+                    st.markdown(
+                        """The output map indicates where is more likebale to find available lots"""
+                    )
+
+                    data_available_urban_land.raster_val = round(
+                        data_available_urban_land.raster_val, 2
+                    )
+                    available_urban_land_map = KeplerGl(
+                        height=400,
+                        width=1000,
+                        data={"OfferType": data_available_urban_land},
+                        config=config_offertype,
+                    )
+                    keplergl_static(available_urban_land_map, center_map=True)
+
+                with project_offer_type:
+                    data_project_offer_type = self.render_spatial_density_function(
+                        df=raw_df,
+                        target_group_lst=simulated_params.project_btypes,
+                        comparison_group_lst=simulated_params.non_project_btypes,
+                        CRS=self.user_crs,
+                        geom=simulated_params.reference_geom,
+                        file_name="/raster_pred_project_offer_type_.tif",
+                    )
+                    st.markdown("#### Offered units")
+                    st.markdown(
+                        """The output map indicates where is more likebale to find built land"""
+                    )
+
+                    data_project_offer_type.raster_val = round(
+                        data_project_offer_type.raster_val, 2
+                    )
+                    project_offer_type_map = KeplerGl(
+                        height=400,
+                        width=1000,
+                        data={"OfferType": data_project_offer_type},
+                        config=config_offertype,
+                    )
+                    keplergl_static(project_offer_type_map, center_map=True)
 
     def impact(self) -> None:
         if "simulated_params" not in st.session_state:
@@ -751,7 +808,6 @@ class UrbanValuationDashboard(Dashboard):
                     )
 
                 st.markdown("### Data Tables")
-                # st.dataframe(data=df_parcels_constructability_estimations)
                 with st.expander("View constructivity projects table"):
                     st.write(df_parcels_constructability_estimations)
                 with st.expander("View valuation projects table"):
@@ -761,7 +817,12 @@ class UrbanValuationDashboard(Dashboard):
                 st.markdown("## Coming soon!")
 
     def dashboard_header(self) -> None:
-        section_header("Land Valuator 🏗️", "Your land valuation model starts here 🏗️")
+        section_header(
+            "Land Valuator 🏗️",
+            "Welcome to the Urban Valuator section! "
+            "Here you will be able to model out the current land uses dynamics "
+            "and to simulate the constructability impact of changes in urban regulations.",
+        )
 
     def dashboard_sections(self) -> None:
         (
