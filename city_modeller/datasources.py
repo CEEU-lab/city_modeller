@@ -1,3 +1,4 @@
+import logging
 import os
 import requests
 from pathlib import Path
@@ -388,12 +389,11 @@ def load_parcel(mask) -> gpd.GeoDataFrame:
     path = f"{DATA_DIR}/caba_parcels_geom.shp"
 
     if not os.path.exists(path):
+        logging.warning("Downloading parcel geometriess from GCS. This can take a while!")
         path = f"{GCS_DIR}/caba_parcels_geom.shp"
         gdf = gpd.read_file(path, mask=gdf_mask)
         gdf.to_file(f"{DATA_DIR}/caba_parcels_geom.shp")
     else:
-        st.write(path)
-        st.warning("Reading parcels from GCS")
         gdf = gpd.read_file(path, mask=gdf_mask)
 
     return gdf
