@@ -964,7 +964,7 @@ class GreenViewIndexDashboard(ModelingDashboard):
                     icon="⚠️",
                 )
             elif self.zone_toggle and not self.impact_toggle:
-                self.zone()
+                self.zones()
             elif self.impact_toggle and not self.zone_toggle:
                 self.impact()
 
