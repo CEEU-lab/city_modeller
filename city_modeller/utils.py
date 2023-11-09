@@ -3,7 +3,7 @@ import os
 import tempfile
 from numbers import Number
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -185,7 +185,7 @@ def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
 
 def plot_kepler(
     data: gpd.GeoDataFrame | List[gpd.GeoDataFrame],
-    config: dict,
+    config: Dict[str, Any],
     names: Optional[List[str]] = None,
 ) -> None:
     if isinstance(data, gpd.GeoDataFrame):

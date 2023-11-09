@@ -8,8 +8,8 @@
                     "id": "s6rv38u",
                     "type": "geojson",
                     "config": {
-                        "dataId": "data_0",
-                        "label": "data_0",
+                        "dataId": "commune_availability",
+                        "label": "commune_availability",
                         "color": [
                             221,
                             178,

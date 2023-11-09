@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import geojson
 import geopandas as gpd
@@ -186,9 +186,11 @@ class PublicSpacesDashboard(ModelingDashboard):
         )
 
     @staticmethod
-    def _edit_kepler_color(config: dict, column: str) -> dict:
+    def _edit_kepler_color(config: dict, column: str, layer: int = 0) -> dict:
         config_ = deepcopy(config)
-        config_["config"]["visState"]["layers"][0]["visualChannels"]["colorField"]["name"] = column
+        config_["config"]["visState"]["layers"][layer]["visualChannels"]["colorField"][
+            "name"
+        ] = column
         return config_
 
     @staticmethod
@@ -198,6 +200,14 @@ class PublicSpacesDashboard(ModelingDashboard):
         gdf_.loc["point_false", "visible"] = False
         gdf_.loc["point_true", "visible"] = True
         return gdf_
+
+    @staticmethod
+    def _pop_config_layer(config: dict, radio: int) -> None:
+        config = deepcopy(config)
+        layers = config["config"]["visState"]["layers"].copy()
+        layers.pop(radio)
+        config["config"]["visState"]["layers"] = layers
+        return config
 
     @property
     def parks_config(self) -> dict[str, dict]:
@@ -214,6 +224,21 @@ class PublicSpacesDashboard(ModelingDashboard):
             "strokeColorField": None,
             "strokeColorScale": "ordinal",
         }
+        config["config"]["visState"]["layers"][0]["config"]["visConfig"]["opacity"] = 1.0
+
+        return config
+
+    @property
+    def reference_maps_config(self) -> dict[str, dict]:
+        config = deepcopy(self.parks_config)
+        config["config"]["visState"]["layers"] += [
+            deepcopy(self.config_communes["config"]["visState"]["layers"][0]),
+            deepcopy(self.config_neighborhoods["config"]["visState"]["layers"][0]),
+        ]
+        config["config"]["visState"]["layers"][1]["config"]["visConfig"]["opacity"] = 0.05
+        config["config"]["visState"]["layers"][1]["config"]["visConfig"]["strokeOpacity"] = 0.05
+        config["config"]["visState"]["layers"][2]["config"]["visConfig"]["opacity"] = 0.05
+        config["config"]["visState"]["layers"][2]["config"]["visConfig"]["strokeOpacity"] = 0.05
 
         return config
 
@@ -232,19 +257,24 @@ class PublicSpacesDashboard(ModelingDashboard):
             self._census_radio_points(radios=radios).geometry.map(parks_distances) * 1e5
         ).round(3)
 
-    def _reference_maps(
+    def _simulation_reference_map(
         self,
         gdfs: list[gpd.GeoDataFrame],
-        configs: Optional[list[dict]] = None,
+        config: Optional[dict[str, Any]] = None,
         column: Optional[str] = None,
     ) -> None:
-        cols = st.columns(len(gdfs))
-        configs = configs or [self.config] * len(gdfs)  # default config
+        names = ["public_spaces", "commune_availability", "neighborhood_availability"]
+        cols = st.columns([0.9, 0.1])
         if column is not None:
-            configs = [self._edit_kepler_color(config, column) for config in configs]
-        for col, gdf, config in zip(cols, gdfs, configs):
-            with col:
-                plot_kepler(gdf, config=config)
+            config = self._edit_kepler_color(config, column, 1)
+            config = self._edit_kepler_color(config, column, 2)
+        with cols[1]:
+            radio = 2 - names[1:].index(st.radio("Availability", names[1:], index=0))
+            config = self._pop_config_layer(config, radio)
+            gdfs.pop(radio)
+            names.pop(radio)
+        with cols[0]:
+            plot_kepler(gdfs, config=config, names=names)
 
     def _accessibility_input(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
         # TODO: Fix Area calculation
@@ -337,7 +367,11 @@ class PublicSpacesDashboard(ModelingDashboard):
                     typology_column_name="clasificac",
                     selected_typologies=simulated_params.typologies,
                 )
-            plot_kepler(availability_mapping, config)
+            plot_kepler(
+                availability_mapping,
+                config,
+                names=[config["config"]["visState"]["layers"][0]["config"]["label"]],
+            )
         yield
 
         if simulated_params.isochrone_enabled:
@@ -375,7 +409,11 @@ class PublicSpacesDashboard(ModelingDashboard):
                             if not isochrone_gdf.empty
                             else reference_outputs.isochrone_mapping
                         )
-                plot_kepler(isochrone_gdf, self._edit_kepler_color(config, "time"))
+                plot_kepler(
+                    isochrone_gdf,
+                    self._edit_kepler_color(config, "time"),
+                    names=[config["config"]["visState"]["layers"][0]["config"]["label"]],
+                )
         else:
             isochrone_gdf = gpd.GeoDataFrame()
 
@@ -532,18 +570,10 @@ class PublicSpacesDashboard(ModelingDashboard):
         return self._visible_column(parks_simulation, mask_dict)
 
     def simulation(self) -> None:
-        reference_maps_container = st.container()
-        simulation_comparison_container = st.container()
+        simulation_map_container = st.container()
         user_table_container = st.container()
         submit_container = st.container()
         simulated_params = dict(st.session_state.get("simulated_params", {}))
-
-        with reference_maps_container:
-            self._reference_maps(
-                [self.commune_availability, self.neighborhood_availability],
-                configs=[self.config_communes, self.config_neighborhoods],
-                column="ratio",
-            )
 
         with user_table_container:
             col_control_panel, col_table = st.columns([1, 3])
@@ -604,22 +634,16 @@ class PublicSpacesDashboard(ModelingDashboard):
                     label_visibility="collapsed",
                 )
 
-        with simulation_comparison_container:
-            col_t0, col_t1 = st.columns(2)
-
-            with col_t0:
-                current_parks = self.current_parks(mask_dict)
-                st.markdown(
-                    "<h1 style='text-align: center'>Current Public Spaces</h1>",
-                    unsafe_allow_html=True,
-                )
-                plot_kepler(current_parks, config=self.parks_config)
-            with col_t1:
-                st.markdown(
-                    "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
-                    unsafe_allow_html=True,
-                )
-                plot_kepler(parks_simulation, config=self.parks_config)
+        with simulation_map_container:
+            st.markdown(
+                "<h1 style='text-align: center'>Simulated Public Spaces</h1>",
+                unsafe_allow_html=True,
+            )
+            self._simulation_reference_map(
+                [parks_simulation, self.commune_availability, self.neighborhood_availability],
+                config=self.reference_maps_config,
+                column="ratio",
+            )
 
         with submit_container:
             _, button_col = st.columns([3, 1])
