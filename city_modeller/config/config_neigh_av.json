@@ -8,8 +8,8 @@
                     "id": "3eczkr",
                     "type": "geojson",
                     "config": {
-                        "dataId": "data",
-                        "label": "data",
+                        "dataId": "neighborhood_availability",
+                        "label": "neighborhood_availability",
                         "color": [
                             255,
                             153,

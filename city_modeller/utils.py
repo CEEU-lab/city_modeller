@@ -3,7 +3,7 @@ import os
 import tempfile
 from numbers import Number
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -183,11 +183,20 @@ def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
     return df.to_dict("split")
 
 
-def plot_kepler(data: gpd.GeoDataFrame, config: dict) -> None:
-    data_ = kepler_df(data)
-    kepler = KeplerGl(height=500, data={"data": data_}, config=config)
+def plot_kepler(
+    data: gpd.GeoDataFrame | List[gpd.GeoDataFrame],
+    config: Dict[str, Any],
+    names: Optional[List[str]] = None,
+) -> None:
+    if isinstance(data, gpd.GeoDataFrame):
+        data = [data]
+    if names is None:
+        names = [f"data_{idx}" for idx in range(len(data))]
+    kepler = KeplerGl(height=500, config=config)
+    for datum, name in zip(data, names):
+        datum_ = kepler_df(datum)
+        kepler.add_data(data=datum_, name=name)
     keplergl_static(kepler)
-    kepler.add_data(data=data_)
 
 
 def gdf_diff(

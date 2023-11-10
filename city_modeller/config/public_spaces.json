@@ -8,8 +8,8 @@
                     "id": "0gw9qyb",
                     "type": "geojson",
                     "config": {
-                        "dataId": "data",
-                        "label": "data",
+                        "dataId": "public_spaces",
+                        "label": "public_spaces",
                         "color": [
                             77,
                             193,
