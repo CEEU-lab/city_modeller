@@ -8,8 +8,8 @@
                     "id": "r9mrfac",
                     "type": "geojson",
                     "config": {
-                        "dataId": "data_0",
-                        "label": "data_0",
+                        "dataId": "radio_availability",
+                        "label": "radio_availability",
                         "color": [
                             255,
                             203,

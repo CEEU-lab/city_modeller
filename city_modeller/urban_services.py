@@ -152,18 +152,22 @@ class UrbanServicesDashboard(ModelingDashboard):
                             "amenity",
                         )
                     except KeyError:
-                        logging.warn(f"Reference key {reference_key} doesn't exist.")
+                        logging.warning(f"Reference key {reference_key} doesn't exist.")
                 isochrone_gdf = get_amenities_isochrones(urban_services, travel_times)
                 if reference_outputs is not None:
-                    isochrone_gdf = (
-                        isochrone_overlap(
-                            isochrone_gdf,
-                            reference_outputs.isochrone_mapping,
-                            travel_times=travel_times,
+                    try:
+                        isochrone_gdf = (
+                            isochrone_overlap(
+                                isochrone_gdf,
+                                reference_outputs.isochrone_mapping,
+                                travel_times=travel_times,
+                            )
+                            if not isochrone_gdf.empty
+                            else reference_outputs.isochrone_mapping
                         )
-                        if not isochrone_gdf.empty
-                        else reference_outputs.isochrone_mapping
-                    )
+                    except AttributeError as e:
+                        logging.warning(e)
+                        isochrone_gdf = reference_outputs.isochrone_mapping
             isochrone_gdf["time"] = isochrone_gdf.time.astype(int)
             isochrone_gdf = isochrone_gdf.reset_index(drop=True).sort_values(
                 ["time"], ascending=False

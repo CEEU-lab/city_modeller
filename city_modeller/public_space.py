@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Any, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 import geojson
 import geopandas as gpd
@@ -186,11 +186,17 @@ class PublicSpacesDashboard(ModelingDashboard):
         )
 
     @staticmethod
-    def _edit_kepler_color(config: dict, column: str, layer: int = 0) -> dict:
+    def _edit_kepler_color(config: Dict[str, Any], column: str, layer: int = 0) -> Dict[str, Any]:
         config_ = deepcopy(config)
         config_["config"]["visState"]["layers"][layer]["visualChannels"]["colorField"][
             "name"
         ] = column
+        return config_
+
+    @staticmethod
+    def _edit_kepler_scale(config: Dict[str, Any], layer: int = 0) -> Dict[str, Any]:
+        config_ = deepcopy(config)
+        config_["config"]["visState"]["layers"][layer]["visualChannels"]["colorScale"] = "quantize"
         return config_
 
     @staticmethod
@@ -242,6 +248,30 @@ class PublicSpacesDashboard(ModelingDashboard):
 
         return config
 
+    @staticmethod
+    def _isochrone_kepler_config(config: Dict[str, Any]) -> Dict[str, Any]:
+        config_ = deepcopy(config)
+        # Add duplicated layer.
+        availability_layer = deepcopy(config_["config"]["visState"]["layers"][0])
+        availability_layer["id"] += "_"  # NOTE: Stupid but important, because library is bad.
+        availability_layer["visualChannels"]["colorScale"] = "quantize"
+        availability_layer["config"]["visConfig"]["opacity"] = 0.05
+        availability_layer["config"]["visConfig"]["strokeOpacity"] = 0.05
+        config_["config"]["visState"]["layers"] += [availability_layer]
+        # Modify original layer.
+        config_["config"]["visState"]["layers"][0]["config"]["dataId"] = "accessibility_isochrones"
+        config_["config"]["visState"]["layers"][0]["config"]["label"] = "accessibility_isochrones"
+        config_["config"]["visState"]["layers"][0]["config"]["visConfig"]["colorRange"][
+            "colors"
+        ] = config_["config"]["visState"]["layers"][0]["config"]["visConfig"]["colorRange"][
+            "colors"
+        ][
+            ::-1
+        ]  # NOTE: Invert because less time == more public spaces.
+        config_["config"]["visState"]["layers"][0]["config"]["visConfig"]["opacity"] = 0.25
+        config_["config"]["visState"]["layers"][0]["config"]["visConfig"]["strokeOpacity"] = 0.25
+        return config_
+
     def _census_radio_points(self, radios: Optional[gpd.GeoDataFrame] = None) -> gpd.GeoDataFrame:
         radios = radios if radios is not None else self.radios.copy()
         census_points = radios.copy().to_crs(4326)  # TODO: Still necessary?
@@ -272,12 +302,11 @@ class PublicSpacesDashboard(ModelingDashboard):
             radio = 2 - names[1:].index(st.radio("Availability", names[1:], index=0))
             config = self._pop_config_layer(config, radio)
             gdfs.pop(radio)
-            names.pop(radio)
         with cols[0]:
-            plot_kepler(gdfs, config=config, names=names)
+            plot_kepler(gdfs, config=config)
 
     def _accessibility_input(self, data: pd.DataFrame = EXAMPLE_INPUT) -> gpd.GeoDataFrame:
-        # TODO: Fix Area calculation
+        # TODO: Fix Area calculation with actual CRS.
         park_cat_type = pd.api.types.CategoricalDtype(categories=self.park_types)
 
         data["Public Space Type"] = data["Public Space Type"].astype(park_cat_type)
@@ -367,15 +396,8 @@ class PublicSpacesDashboard(ModelingDashboard):
                     typology_column_name="clasificac",
                     selected_typologies=simulated_params.typologies,
                 )
-            plot_kepler(
-                availability_mapping,
-                config,
-                names=[config["config"]["visState"]["layers"][0]["config"]["label"]],
-            )
-        yield
 
-        if simulated_params.isochrone_enabled:
-            with st.spinner("⏳ Loading..."):
+            if simulated_params.isochrone_enabled:
                 if (isochrone_gdf := results.get("isochrone_mapping")) is None:
                     reference_outputs = None
                     if reference_key is not None:
@@ -409,13 +431,13 @@ class PublicSpacesDashboard(ModelingDashboard):
                             if not isochrone_gdf.empty
                             else reference_outputs.isochrone_mapping
                         )
-                plot_kepler(
-                    isochrone_gdf,
-                    self._edit_kepler_color(config, "time"),
-                    names=[config["config"]["visState"]["layers"][0]["config"]["label"]],
+                config = self._edit_kepler_color(
+                    self._isochrone_kepler_config(config), "time", layer=0
                 )
-        else:
-            isochrone_gdf = gpd.GeoDataFrame()
+                plot_kepler([isochrone_gdf, availability_mapping], config=config)
+            else:
+                isochrone_gdf = gpd.GeoDataFrame()
+                plot_kepler(availability_mapping, self._edit_kepler_scale(config))
 
         results = ResultsColumnPlots(
             public_spaces=public_spaces_,
