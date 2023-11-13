@@ -183,15 +183,10 @@ def kepler_df(gdf: gpd.GeoDataFrame) -> list[dict[str, Any]]:
     return df.to_dict("split")
 
 
-def plot_kepler(
-    data: gpd.GeoDataFrame | List[gpd.GeoDataFrame],
-    config: Dict[str, Any],
-    names: Optional[List[str]] = None,
-) -> None:
+def plot_kepler(data: gpd.GeoDataFrame | List[gpd.GeoDataFrame], config: Dict[str, Any]) -> None:
+    names = [layer["config"]["label"] for layer in config["config"]["visState"]["layers"]]
     if isinstance(data, gpd.GeoDataFrame):
         data = [data]
-    if names is None:
-        names = [f"data_{idx}" for idx in range(len(data))]
     kepler = KeplerGl(height=500, config=config)
     for datum, name in zip(data, names):
         datum_ = kepler_df(datum)
