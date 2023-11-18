@@ -30,9 +30,7 @@
                             "strokeOpacity": 0.16,
                             "thickness": 0.1,
                             "strokeColor": [
-                                255,
-                                153,
-                                31
+                                72, 43, 189
                             ],
                             "colorRange": {
                                 "name": "Global Warming",

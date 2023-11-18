@@ -60,6 +60,7 @@ def main():
         config_radios_path=f"{PROJECT_DIR}/config/config_radio_av.json",
         config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
         config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
+        config_parcels_path=f"{PROJECT_DIR}/config/config_parc.json",
     )
     gvi = GreenViewIndexDashboard(
         streets_gdf=get_BsAs_streets(),

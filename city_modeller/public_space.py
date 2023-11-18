@@ -60,6 +60,8 @@ class PublicSpacesDashboard(ModelingDashboard):
         config_neighborhoods_path: Optional[str] = None,
         config_communes: Optional[dict] = None,
         config_communes_path: Optional[str] = None,
+        config_parcels: Optional[dict] = None,
+        config_parcels_path: Optional[str] = None,
     ) -> None:
         super().__init__("Public Spaces")
         self.radios: gpd.GeoDataFrame = radios.copy()
@@ -95,6 +97,7 @@ class PublicSpacesDashboard(ModelingDashboard):
             config_neighborhoods, config_neighborhoods_path
         )
         self.config_communes = parse_config_json(config_communes, config_communes_path)
+        self.config_parcels = parse_config_json(config_parcels, config_parcels_path)
 
     @staticmethod
     def plot_pop_travel_time(
@@ -921,5 +924,6 @@ if __name__ == "__main__":
         config_radios_path=f"{PROJECT_DIR}/config/config_radio_av.json",
         config_neighborhoods_path=f"{PROJECT_DIR}/config/config_neigh_av.json",
         config_communes_path=f"{PROJECT_DIR}/config/config_commune_av.json",
+        config_parcels_path=f"{PROJECT_DIR}/config/config_parc.json",
     )
     dashboard.run_dashboard()
