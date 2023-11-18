@@ -243,6 +243,7 @@ class PublicSpacesDashboard(ModelingDashboard):
         config["config"]["visState"]["layers"] += [
             deepcopy(self.config_communes["config"]["visState"]["layers"][0]),
             deepcopy(self.config_neighborhoods["config"]["visState"]["layers"][0]),
+            deepcopy(self.config_parcels["config"]["visState"]["layers"][0]),
         ]
         config["config"]["visState"]["layers"][1]["config"]["visConfig"]["opacity"] = 0.05
         config["config"]["visState"]["layers"][1]["config"]["visConfig"]["strokeOpacity"] = 0.05
@@ -296,13 +297,13 @@ class PublicSpacesDashboard(ModelingDashboard):
         config: Optional[dict[str, Any]] = None,
         column: Optional[str] = None,
     ) -> None:
-        names = ["public_spaces", "commune_availability", "neighborhood_availability"]
+        names = [layer["config"]["label"] for layer in config["config"]["visState"]["layers"]]
         cols = st.columns([0.9, 0.1])
         if column is not None:
             config = self._edit_kepler_color(config, column, 1)
             config = self._edit_kepler_color(config, column, 2)
         with cols[1]:
-            radio = 2 - names[1:].index(st.radio("Availability", names[1:], index=0))
+            radio = 2 - names[1:3].index(st.radio("Availability", names[1:3], index=0))
             config = self._pop_config_layer(config, radio)
             gdfs.pop(radio)
         with cols[0]:
@@ -665,6 +666,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 unsafe_allow_html=True,
             )
             self._simulation_reference_map(
+                # TODO: Add a GDF with the parcels here.
                 [parks_simulation, self.commune_availability, self.neighborhood_availability],
                 config=self.reference_maps_config,
                 column="ratio",

@@ -1,17 +1,18 @@
 import logging
 import os
-import requests
 from pathlib import Path
 from typing import List, Optional
 
-import yaml
-from shapely import Polygon
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
+import yaml
+from shapely import Polygon
 from shapely.geometry import MultiPolygon
 from shapely.ops import unary_union
+
 from city_modeller.utils import PROJECT_DIR
 
 GCS_DIR = "https://storage.googleapis.com/python_mdg/city_modeller/data"
@@ -424,21 +425,24 @@ def get_uvas_tseries(path: str = f"{DATA_DIR}/uva_tseries.csv") -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"], dayfirst=True)
     return df
 
+
 @st.cache_data
 def get_parcels():
-    os.environ['SHAPE_RESTORE_SHX'] = 'YES'
+    os.environ["SHAPE_RESTORE_SHX"] = "YES"
     shapefile = gpd.read_file("data/city_modeller_data_caba_parcels_geom.shp")
-    shapefile['Neighborhood'] = None
-    _neighborhoods=get_neighborhoods()
-    _neighborhoods['Commune']=_neighborhoods['Commune'].apply(lambda x: 'Comuna '+str(int(x)))
+    shapefile["Neighborhood"] = None
+    _neighborhoods = get_neighborhoods()
+    _neighborhoods["Commune"] = _neighborhoods["Commune"].apply(lambda x: "Comuna " + str(int(x)))
     for idx, centroid in shapefile.geometry.centroid.iteritems():
         # Check containment for each centroid
         mask = _neighborhoods.geometry.contains(centroid)
-        neighborhoods_containing_centroid = _neighborhoods.loc[mask, 'Neighborhood']        
+        neighborhoods_containing_centroid = _neighborhoods.loc[mask, "Neighborhood"]
         if not neighborhoods_containing_centroid.empty:
-            shapefile.at[idx, 'Neighborhood'] = neighborhoods_containing_centroid.iloc[0]  # Assign the first neighborhood name found
+            shapefile.at[idx, "Neighborhood"] = neighborhoods_containing_centroid.iloc[
+                0
+            ]  # Assign the first neighborhood name found
     # Fill any remaining None values in 'Neighborhood' column
-    shapefile['Neighborhood'].fillna('Unknown', inplace=True)
-    return pd.merge(shapefile,_neighborhoods.loc[:,['Neighborhood','Commune']],on='Neighborhood')  
-
-
+    shapefile["Neighborhood"].fillna("Unknown", inplace=True)
+    return pd.merge(
+        shapefile, _neighborhoods.loc[:, ["Neighborhood", "Commune"]], on="Neighborhood"
+    )
