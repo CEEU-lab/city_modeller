@@ -8,7 +8,7 @@ streamlit-toggle-switch
 streamlit-keplergl
 streamlit-extras
 st-annotated-text
-keplergl==0.3.0
+keplergl==0.3.2
 seaborn
 plotly
 plotly_express
