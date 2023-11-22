@@ -8,8 +8,8 @@ from pydantic import BaseModel, Extra
 EXAMPLE_INPUT = pd.DataFrame(
     [
         {
-            "Urban Service Name": "example_hospital",
-            "Urban Service Type": "hospital",
+            "Urban Service Name": "example_kindergarten",
+            "Urban Service Type": "kindergarten",
             "Copied Geometry": geojson.dumps(
                 {
                     "type": "Polygon",
@@ -25,8 +25,59 @@ EXAMPLE_INPUT = pd.DataFrame(
             ),
         },
         {
-            "Urban Service Name": "example_pharmacy",
-            "Urban Service Type": "pharmacy",
+            "Urban Service Name": "example_clinic",
+            "Urban Service Type": "clinic",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        },
+        {
+            "Urban Service Name": "example_community_centre",
+            "Urban Service Type": "community centre",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        },
+        {
+            "Urban Service Name": "example_social_centre",
+            "Urban Service Type": "social centre",
+            "Copied Geometry": geojson.dumps(
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                            [0.000, 0.000],
+                        ]
+                    ],
+                }
+            ),
+        },
+        {
+            "Urban Service Name": "example_hospital",
+            "Urban Service Type": "hospital",
             "Copied Geometry": geojson.dumps(
                 {
                     "type": "Polygon",
