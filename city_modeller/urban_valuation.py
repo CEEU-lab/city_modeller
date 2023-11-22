@@ -30,6 +30,7 @@ from city_modeller.datasources import (
     get_default_zones,
     get_user_defined_crs,
     load_parcel,
+    populate_parcels,
 )
 
 from typing import Literal
@@ -267,6 +268,12 @@ class UrbanValuationDashboard(Dashboard):
                     loaded_parcels = load_parcel(mask=action_geom)
                     if len(loaded_parcels) > 0:
                         action_parcels = loaded_parcels
+                        # Shows edificability
+                        action_parcels_ = populate_parcels(action_parcels, "caba_parcels_feat.zip")
+                        action_parcels__ = action_parcels_.reset_index()[
+                            ["smp", "edificabil", "geometry"]
+                        ]
+                        action_parcels = action_parcels__.copy()
                 else:
                     st.warning(
                         "Parcels are loaded within the action zone - First set a geographic filter"
