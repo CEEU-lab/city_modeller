@@ -6,7 +6,7 @@ from city_modeller.datasources import get_bs_as_multipolygon, get_neighborhoods
 from city_modeller.streets_network.isochrones import isochrone_mapping_intersection
 from city_modeller.utils import geometry_centroid
 
-AMENITIES = [ 'kindergarten', 'clinic', 'community centre', 'social centre', "hospital", "school"]
+AMENITIES = ["kindergarten", "clinic", "community centre", "social centre", "hospital", "school"]
 
 
 def get_amenities(

@@ -435,7 +435,7 @@ class UrbanValuationDashboard(Dashboard):
                             non_urban_land_typology=other_ltypes,
                             action_zone=tuple(action_zone),
                             action_geom=action_geom,
-                            action_parcels=action_parcels,
+                            action_parcels=action_parcels[["smp", "geometry"]].copy(),
                             uva_evolution=uva_pct_growth,
                             zone_taxes=tax_rates,
                             max_heights=building_max_heights,
