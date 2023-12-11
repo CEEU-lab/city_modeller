@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from functools import partial
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import geojson
 import geopandas as gpd
@@ -10,7 +10,7 @@ import osmnx as ox
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from shapely.geometry import MultiPoint
+from shapely.geometry import Polygon, MultiPoint
 from shapely.ops import unary_union
 
 from city_modeller.base import ModelingDashboard
@@ -293,7 +293,7 @@ class PublicSpacesDashboard(ModelingDashboard):
 
     def _simulation_reference_map(
         self,
-        gdfs: list[gpd.GeoDataFrame],
+        gdfs: List[gpd.GeoDataFrame],
         config: Optional[dict[str, Any]] = None,
         column: Optional[str] = None,
     ) -> None:
@@ -339,9 +339,9 @@ class PublicSpacesDashboard(ModelingDashboard):
         simulated_params: GreenSurfacesSimulationParameters,
         key: Optional[str] = None,
         filter_column: Optional[str] = None,
-        zone: Optional[list[str]] = None,
+        zone: Optional[List[str] | List[Polygon]] = None,
         reference_key: Optional[str] = None,
-    ) -> ResultsColumnPlots:  # TODO: Extract into functions.
+    ) -> ResultsColumnPlots:  # TODO: Extract into multiple functions.
         st.markdown(
             f"<h1 style='text-align: center'>{title}</h1>",
             unsafe_allow_html=True,
@@ -365,6 +365,10 @@ class PublicSpacesDashboard(ModelingDashboard):
             results = dict(graph_outputs.get(key, {}))
 
         radios = self.radios.copy()
+        if filter_column == "Custom":
+            radios = radios[radios["geometry"].within(zone[0])]
+            filter_column = None
+
         if (percentage_vs_travel := results.get("percentage_vs_travel")) is None:
             if filter_column is not None and zone is not None:
                 # NOTE: Use availability just for the neighborhood column.
@@ -438,7 +442,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 config = self._edit_kepler_color(
                     self._isochrone_kepler_config(config), "time", layer=0
                 )
-                plot_kepler([isochrone_gdf, availability_mapping], config=config)
+                plot_kepler([isochrone_gdf, availability_mapping], config=config)  # FIXME: custom.
             else:
                 isochrone_gdf = gpd.GeoDataFrame()
                 plot_kepler(availability_mapping, self._edit_kepler_scale(config))
@@ -483,7 +487,7 @@ class PublicSpacesDashboard(ModelingDashboard):
         isochrone_enabled: bool,
         isochrone_key: Optional[str] = None,
     ) -> gpd.GeoDataFrame:
-        # Original isochrone.
+        # TODO: This and all isochrones should be an attribute.
         MINUTES = [5, 10, 15]
         graph_outputs = st.session_state.graph_outputs or {}
         radio_availability = self.radio_availability.copy()
@@ -530,8 +534,12 @@ class PublicSpacesDashboard(ModelingDashboard):
             surrounding_spaces = self._visible_column(self.public_spaces, typologies).query(
                 "visible"
             )
+            if process != "Custom":
+                not_in_az = ~surrounding_spaces[process].isin(action_zone)
+            else:
+                not_in_az = ~surrounding_spaces["geometry"].within(action_zone[0])
             surrounding_spaces = surrounding_spaces[
-                (~surrounding_spaces[process].isin(action_zone))
+                not_in_az
                 & (surrounding_spaces.Neighborhood.isin(surrounding_nb))
             ]
             surrounding_spaces.geometry = geometry_centroid(surrounding_spaces)
@@ -577,12 +585,15 @@ class PublicSpacesDashboard(ModelingDashboard):
         self,
         mask_dict: dict[str, bool],
         filter_column: Optional[str] = None,
-        action_zone: Optional[str] = None,
+        action_zone: Optional[str | List[Polygon]] = None,
     ) -> gpd.GeoDataFrame:
         current_parks = self.public_spaces.copy()
         current_parks["Commune"] = "Comuna " + current_parks.Commune.astype(int).astype(str)
         if filter_column is not None and action_zone is not None:
-            current_parks = current_parks[current_parks[filter_column].isin(action_zone)]
+            if filter_column != "Custom":
+                current_parks = current_parks[current_parks[filter_column].isin(action_zone)]
+            else:
+                current_parks = current_parks[current_parks["geometry"].within(action_zone[0])]
         return self._visible_column(current_parks, mask_dict)
 
     def _simulated_parks(
@@ -610,25 +621,33 @@ class PublicSpacesDashboard(ModelingDashboard):
                     else EXAMPLE_INPUT
                 )
                 user_input = self._accessibility_input(table_values)
+                processes = ["Commune", "Neighborhood", "Custom"]
                 selected_process = st.selectbox(
                     "Select a process",
-                    ["Commune", "Neighborhood"],
-                    index=int(simulated_params.get("process") == "Neighborhood"),
+                    processes,
+                    index=processes.index(simulated_params.get("process", "Commune")),
                 )
-                try:
-                    action_zone = self._zone_selector(
-                        selected_process, simulated_params.get("action_zone", [])
+                if selected_process != "Custom":
+                    try:
+                        action_zone = self._zone_selector(
+                            selected_process, simulated_params.get("action_zone", [])
+                        )
+                    except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
+                        simulated_params["action_zone"] = []
+                        action_zone = self._zone_selector(
+                            selected_process, simulated_params.get("action_zone", [])
+                        )
+                else:
+                    action_geom_str = st.text_input(
+                        "Input Custom Geometry:", key="action_zone_str"
                     )
-                except st.errors.StreamlitAPIException:  # NOTE: Hate this, but oh well.
-                    simulated_params["action_zone"] = []
-                    action_zone = self._zone_selector(
-                        selected_process, simulated_params.get("action_zone", [])
-                    )
+                    action_zone = [read_kepler_geometry(action_geom_str)]
+                aggs = [selected_process, "Radios"] if selected_process != "Custom" else ["Radios"]
                 aggregation_level = st.radio(
                     "Choose an Aggregation level:",
-                    [selected_process, "Radios"],
+                    aggs,
                     horizontal=True,
-                    index=int(simulated_params.get("aggregation_level") == "Radios"),
+                    index=int(aggs.index(simulated_params.get("aggregation_level", "Radios"))),
                 )
                 surface_metric = st.radio(
                     "Select a Metric",
@@ -756,11 +775,21 @@ class PublicSpacesDashboard(ModelingDashboard):
             return
 
         simulated_params = st.session_state.simulated_params
-        reference_zone = self._zone_selector(
-            simulated_params.process,
-            simulated_params.reference_zone,
-            False,
-        )
+        if simulated_params.process != "Custom":
+            reference_zone = self._zone_selector(
+                simulated_params.process,
+                simulated_params.reference_zone,
+                False,
+            )
+        else:
+            reference_geom_str = st.text_input("Input Custom Geometry:", key="reference_zone_str")
+            reference_zone = [read_kepler_geometry(reference_geom_str)]
+            if not reference_geom_str:
+                error_message("No reference zone selected. Please create one.")
+                reference_zone = []
+            elif reference_zone[0] is None:
+                error_message("Invalid reference zone selected. Please create one.")
+                reference_zone = []
         st.session_state.simulated_params.reference_zone = reference_zone
         if reference_zone != []:
             current_parks = self.current_parks(
@@ -887,6 +916,7 @@ class PublicSpacesDashboard(ModelingDashboard):
                 .cumsum()
             )
 
+            # FIXME: Probably its own function.
             # Generate data for the bar graph
             x = [f"Impact {minutes} min Isochrone" for minutes in [5, 10, 15]]
             y1 = current_parks_results

@@ -6,6 +6,7 @@ import geopandas as gpd
 import pandas as pd
 import plotly.graph_objects as go
 from pydantic import BaseModel, Extra
+from shapely.geometry import Polygon
 
 EXAMPLE_INPUT = pd.DataFrame(
     [
@@ -45,12 +46,12 @@ class MovilityType(Enum):
 class GreenSurfacesSimulationParameters(BaseModel):
     typologies: dict[str, bool]
     movility_type: MovilityType
-    process: Literal["Commune", "Neighborhood"]
-    action_zone: list[str]
+    process: Literal["Commune", "Neighborhood", "Custom"]
+    action_zone: list[str | Polygon]
     reference_zone: Optional[list[str]]
     simulated_surfaces: pd.DataFrame
     surface_metric: str
-    aggregation_level: Literal["Commune", "Neighborhood", "Radios"]
+    aggregation_level: Optional[Literal["Commune", "Neighborhood", "Radios"]] = None
     isochrone_enabled: bool
 
     class Config:

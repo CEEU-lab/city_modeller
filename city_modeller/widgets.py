@@ -1,16 +1,12 @@
+import calendar
 from typing import Optional, Union
 
 import geojson
 import geopandas as gpd
-import geojson
+import pandas as pd
+import streamlit as st
 from shapely import Polygon
 from shapely.geometry import shape
-from shapely.geometry.base import BaseGeometry
-import pandas as pd
-import calendar
-
-import streamlit as st
-from shapely.geometry import Polygon, shape
 from shapely.geometry.base import BaseGeometry
 from streamlit_toggle import st_toggle_switch
 
